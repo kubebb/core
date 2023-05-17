@@ -1,0 +1,19 @@
+componentConfig: true
+domain: kubebb.k8s.com.cn
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: core
+repo: github.com/kubebb/core
+resources:
+- api:
+    crdVersion: v1
+  controller: true
+  domain: kubebb.k8s.com.cn
+  group: core
+  kind: Repository
+  path: github.com/kubebb/core/api/v1alpha1
+  version: v1alpha1
+version: "3"
