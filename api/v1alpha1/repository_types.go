@@ -17,25 +17,110 @@ limitations under the License.
 package v1alpha1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type RepositoryCondReason string
+
+// Reasons a resource is or is not ready.
+const (
+	ReasonAvailable   RepositoryCondReason = "Available"
+	ReasonUnavailable RepositoryCondReason = "Unavailable"
+	ReasonCreating    RepositoryCondReason = "Creating"
+	ReasonDeleting    RepositoryCondReason = "Deleting"
+)
+
+// Reasons a resource is or is not synced.
+const (
+	ReasonReconcileSuccess RepositoryCondReason = "ReconcileSuccess"
+	ReasonReconcileError   RepositoryCondReason = "ReconcileError"
+	ReasonReconcilePaused  RepositoryCondReason = "ReconcilePaused"
+)
+
+type RepositoryCondType string
+
+const (
+	// TypeReady resources are believed to be ready to handle work.
+	TypeReady RepositoryCondType = "Ready"
+
+	// TypeSynced Get index.yaml error, or other error occurred, add a record
+	TypeSynced RepositoryCondType = "Synced"
+)
+
+/*
+type RepositoryAuth struct {
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+
+	CertData []byte `json:"certData,omitempty"`
+	KeyData  []byte `json:"keyData,omitempty"`
+
+	// CAData If certification is required and the certificate is self-signed,
+	// you need to provide the server's certificate information.
+	CaData []byte `json:"caData,omitempty"`
+
+	//will not validate the repository's certificate
+	Insecure bool `json:"insecure,omitempty"`
+}
+*/
+
+// PullStategy for pulling components in repository
+type PullStategy struct {
+	// Interval for pulling
+	IntervalSeconds int `json:"intervalSeconds,omitempty"`
+
+	// Timeout for pulling
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+
+	// Retry upon timeout
+	Retry int `json:"retry,omitempty"`
+}
 
 // RepositorySpec defines the desired state of Repository
 type RepositorySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// URL chart repository address
+	// +kubebuilder:validation:Required
+	URL string `json:"url"`
 
-	// Foo is an example field of Repository. Edit repository_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// RepositoryAuth if the chart repository requires auth authentication,
+	// set the username and password to secret, with the fields user and password respectively.
+	RepositoryAuth string `json:"repositoryAuth,omitempty"`
+
+	Insecure bool `json:"insecure,omitempty"`
+
+	RepositoryType string `json:"repositoryType,omitempty"`
+
+	// PullStategy pullStategy for this repository
+	PullStategy *PullStategy `json:"pullStategy,omitempty"`
+}
+
+type RepositoryCondition struct {
+	// Status of this condition; is it currently True, False, or Unknown?
+	Status v1.ConditionStatus `json:"status"`
+
+	// LastTransitionTime is the last time this condition transitioned from one
+	// status to another.
+	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
+
+	// A Reason for this condition's last transition from one status to another.
+	Reason RepositoryCondReason `json:"reason"`
+
+	// A Message containing details about this condition's last transition from
+	// one status to another, if any.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// +kubebuilder:validation:Required
+	Type RepositoryCondType `json:"type"`
 }
 
 // RepositoryStatus defines the observed state of Repository
 type RepositoryStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// URLHistory URL change history
+	URLHistory []string `json:"urlHistory,omitempty"`
+
+	Conditions RepositoryCondition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
