@@ -1,0 +1,24 @@
+# permissions for end users to edit componentplans.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: componentplan-editor-role
+rules:
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - componentplans
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - componentplans/status
+  verbs:
+  - get

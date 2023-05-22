@@ -17,35 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-type RepositoryCondReason string
-
-// Reasons a resource is or is not ready.
-const (
-	ReasonAvailable   RepositoryCondReason = "Available"
-	ReasonUnavailable RepositoryCondReason = "Unavailable"
-	ReasonCreating    RepositoryCondReason = "Creating"
-	ReasonDeleting    RepositoryCondReason = "Deleting"
-)
-
-// Reasons a resource is or is not synced.
-const (
-	ReasonReconcileSuccess RepositoryCondReason = "ReconcileSuccess"
-	ReasonReconcileError   RepositoryCondReason = "ReconcileError"
-	ReasonReconcilePaused  RepositoryCondReason = "ReconcilePaused"
-)
-
-type RepositoryCondType string
-
-const (
-	// TypeReady resources are believed to be ready to handle work.
-	TypeReady RepositoryCondType = "Ready"
-
-	// TypeSynced Get index.yaml error, or other error occurred, add a record
-	TypeSynced RepositoryCondType = "Synced"
 )
 
 /*
@@ -95,32 +67,12 @@ type RepositorySpec struct {
 	PullStategy *PullStategy `json:"pullStategy,omitempty"`
 }
 
-type RepositoryCondition struct {
-	// Status of this condition; is it currently True, False, or Unknown?
-	Status v1.ConditionStatus `json:"status"`
-
-	// LastTransitionTime is the last time this condition transitioned from one
-	// status to another.
-	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
-
-	// A Reason for this condition's last transition from one status to another.
-	Reason RepositoryCondReason `json:"reason"`
-
-	// A Message containing details about this condition's last transition from
-	// one status to another, if any.
-	// +optional
-	Message string `json:"message,omitempty"`
-
-	// +kubebuilder:validation:Required
-	Type RepositoryCondType `json:"type"`
-}
-
 // RepositoryStatus defines the observed state of Repository
 type RepositoryStatus struct {
 	// URLHistory URL change history
 	URLHistory []string `json:"urlHistory,omitempty"`
-
-	Conditions RepositoryCondition `json:"conditions,omitempty"`
+	// ConditionedStatus is the current status
+	ConditionedStatus `json:",inline"`
 }
 
 //+kubebuilder:object:root=true

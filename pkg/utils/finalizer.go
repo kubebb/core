@@ -38,10 +38,10 @@ func RemoveFinalizer(finalziers []string, f string) []string {
 }
 
 func ContainFinalizer(finalizers []string, f string) bool {
-    for _, f1 := range finalizers {
-        if f1 == f {
-            return true
-        }
-    }
-    return false
+	for _, f1 := range finalizers {
+		if f1 == f {
+			return true
+		}
+	}
+	return false
 }
