@@ -37,6 +37,8 @@ const (
 	// TypeSynced resources are believed to be in sync with the
 	// Kubernetes resources that manage their lifecycle.
 	TypeSynced ConditionType = "Synced"
+
+	TypeFailedSync ConditionType = "FailedSync"
 )
 
 // A ConditionReason represents the reason a resource is in a condition.
@@ -45,6 +47,7 @@ type ConditionReason string
 
 // Some common Condition resons.
 const (
+	ReasonAvailable        ConditionReason = "Available"
 	ReasonUnavailable      ConditionReason = "Unavailable"
 	ReasonCreating         ConditionReason = "Creating"
 	ReasonDeleting         ConditionReason = "Deleting"

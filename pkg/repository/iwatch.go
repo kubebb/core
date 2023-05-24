@@ -14,25 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package repository
 
-const (
-	RepositoryFinalizer = "kubebb.repository.finalizer"
-
-	Username = "username"
-	Password = "password"
-	CAData   = "cadata"
-	CertData = "certdata"
-	KeyData  = "keydata"
-
-	ComponentRepositoryLabel = "kubebb.component.repository"
+import (
+	"github.com/kubebb/core/api/v1alpha1"
 )
 
-// IsPullStrategySame Determine whether the contents of two structures are the same
-func IsPullStrategySame(a, b *PullStategy) bool {
-	if a != nil && b != nil {
-		return *a == *b
-	}
-
-	return a == nil && b == nil
+type IWatcher interface {
+	Start()
+	Stop()
+	Poll()
+	Create(*v1alpha1.Component) error
+	Update(*v1alpha1.Component) error
+	Delete(*v1alpha1.Component) error
 }

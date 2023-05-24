@@ -16,7 +16,7 @@ limitations under the License.
 
 package utils
 
-func AddFinalizer(finalizers []string, f string) []string {
+func AddString(finalizers []string, f string) []string {
 	for _, f1 := range finalizers {
 		if f1 == f {
 			return finalizers
@@ -25,7 +25,7 @@ func AddFinalizer(finalizers []string, f string) []string {
 	return append(finalizers, f)
 }
 
-func RemoveFinalizer(finalziers []string, f string) []string {
+func RemoveString(finalziers []string, f string) []string {
 	index := 0
 	for idx := 0; idx < len(finalziers); idx++ {
 		if finalziers[idx] == f {
@@ -37,7 +37,7 @@ func RemoveFinalizer(finalziers []string, f string) []string {
 	return finalziers[:index]
 }
 
-func ContainFinalizer(finalizers []string, f string) bool {
+func ContainString(finalizers []string, f string) bool {
 	for _, f1 := range finalizers {
 		if f1 == f {
 			return true

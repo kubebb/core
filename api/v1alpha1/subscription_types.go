@@ -45,7 +45,7 @@ type SubscriptionStatus struct {
 	ConditionedStatus `json:",inline"`
 	// HistoryVersions records the component version changes since this subscription created
 	// +optional
-	HistoryVersions []ComponetVersions `json:"historyVersions,omitempty"`
+	HistoryVersions []ComponentVersion `json:"historyVersions,omitempty"`
 
 	// Installed records all componentplans installed, ordered by install time.
 	// +optional
@@ -60,7 +60,7 @@ type SubscriptionStatus struct {
 type Installed struct {
 	// InstalledVersion is the version currently installed in cluster
 	// +optional
-	InstalledVersion ComponetVersions `json:"installedVersion"`
+	InstalledVersion ComponentVersion `json:"installedVersion"`
 	// InstalledTime is the time that the version was installed in cluster
 	// +optional
 	InstalledTime metav1.Time `json:"installedTime"`

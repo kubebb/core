@@ -20,23 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-/*
-type RepositoryAuth struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-
-	CertData []byte `json:"certData,omitempty"`
-	KeyData  []byte `json:"keyData,omitempty"`
-
-	// CAData If certification is required and the certificate is self-signed,
-	// you need to provide the server's certificate information.
-	CaData []byte `json:"caData,omitempty"`
-
-	//will not validate the repository's certificate
-	Insecure bool `json:"insecure,omitempty"`
-}
-*/
-
 // PullStategy for pulling components in repository
 type PullStategy struct {
 	// Interval for pulling
@@ -55,9 +38,9 @@ type RepositorySpec struct {
 	// +kubebuilder:validation:Required
 	URL string `json:"url"`
 
-	// RepositoryAuth if the chart repository requires auth authentication,
+	// AuthSecret if the chart repository requires auth authentication,
 	// set the username and password to secret, with the fields user and password respectively.
-	RepositoryAuth string `json:"repositoryAuth,omitempty"`
+	AuthSecret string `json:"authSecret,omitempty"`
 
 	Insecure bool `json:"insecure,omitempty"`
 
@@ -77,7 +60,7 @@ type RepositoryStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+//+kubebuilder:resource:scope=Namespaced
 
 // Repository is the Schema for the repositories API
 type Repository struct {

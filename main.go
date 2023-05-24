@@ -33,6 +33,7 @@ import (
 
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/controllers"
+	"github.com/kubebb/core/pkg/repository"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -81,6 +82,7 @@ func main() {
 	if err = (&controllers.RepositoryReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		C:      make(map[string]repository.IWatcher),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Repository")
 		os.Exit(1)

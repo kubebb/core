@@ -45,6 +45,10 @@ spec:
           status:
             description: ComponentStatus defines the observed state of Component
             properties:
+              deprecated:
+                description: The current component is not in the return list of URLs
+                  and will not be deleted but marked as deprecated by this field.
+                type: boolean
               description:
                 description: 'FIXME: some fields(like description) may change when
                   version update, how to deal with it? A one-sentence description
@@ -129,7 +133,7 @@ spec:
               versions:
                 description: versions contains all version of one component.
                 items:
-                  description: ComponetVersions Indicates the fields required for
+                  description: ComponentVersion Indicates the fields required for
                     a specific version of Component.
                   properties:
                     appVersion:
@@ -137,6 +141,8 @@ spec:
                     createdAt:
                       format: date-time
                       type: string
+                    deprecated:
+                      type: boolean
                     digest:
                       type: string
                     updatedAt:
@@ -147,6 +153,7 @@ spec:
                   required:
                   - appVersion
                   - createdAt
+                  - deprecated
                   - digest
                   - updatedAt
                   - version

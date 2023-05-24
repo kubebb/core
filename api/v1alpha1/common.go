@@ -1,3 +1,19 @@
+/*
+Copyright 2023 The Kubebb Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -7,13 +23,14 @@ var (
 	DisplayNameAnnotationKey = GroupVersion.Group + "/displayname"
 )
 
-// ComponetVersions Indicates the fields required for a specific version of Component.
-type ComponetVersions struct {
+// ComponentVersion Indicates the fields required for a specific version of Component.
+type ComponentVersion struct {
 	Version    string      `json:"version"`
 	AppVersion string      `json:"appVersion"`
 	UpdatedAt  metav1.Time `json:"updatedAt"`
 	CreatedAt  metav1.Time `json:"createdAt"`
 	Digest     string      `json:"digest"`
+	Deprecated bool        `json:"deprecated"`
 }
 
 // inspire by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/pkg/chart/metadata.go#L26
@@ -41,4 +58,17 @@ type Override struct {
 	// Values is the values of the override setting
 	// +optional
 	Values []string `json:"values,omitempty"`
+}
+
+// UpdateCondWithFixedLen updates the Conditions of the resource and limits the length of the Conditions field to l.
+// If l is less than or equal to 0, it means that the length is not limited.
+//
+// Example:
+//
+//	conds.Conditions=[a, b, c], l=2, cond=d -> conds.Conditions=[c, d]
+func UpdateCondWithFixedLen(l int, conds *ConditionedStatus, cond Condition) {
+	if ll := len(conds.Conditions); ll >= l && l > 0 {
+		conds.Conditions = conds.Conditions[ll-l+1:]
+	}
+	conds.Conditions = append(conds.Conditions, cond)
 }
