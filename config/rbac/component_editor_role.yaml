@@ -1,0 +1,24 @@
+# permissions for end users to edit components.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: component-editor-role
+rules:
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - components
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - components/status
+  verbs:
+  - get

@@ -8,6 +8,58 @@ rules:
 - apiGroups:
   - core.kubebb.k8s.com.cn
   resources:
+  - componentplans
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - componentplans/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - componentplans/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - components
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - components/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - components/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
   - repositories
   verbs:
   - create
@@ -27,6 +79,32 @@ rules:
   - core.kubebb.k8s.com.cn
   resources:
   - repositories/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - subscriptions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - subscriptions/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - subscriptions/status
   verbs:
   - get
   - patch

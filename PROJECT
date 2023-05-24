@@ -16,4 +16,28 @@ resources:
   kind: Repository
   path: github.com/kubebb/core/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+  controller: true
+  domain: kubebb.k8s.com.cn
+  group: core
+  kind: Subscription
+  path: github.com/kubebb/core/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+  controller: true
+  domain: kubebb.k8s.com.cn
+  group: core
+  kind: ComponentPlan
+  path: github.com/kubebb/core/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+  controller: true
+  domain: kubebb.k8s.com.cn
+  group: core
+  kind: Component
+  path: github.com/kubebb/core/api/v1alpha1
+  version: v1alpha1
 version: "3"

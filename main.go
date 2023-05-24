@@ -85,6 +85,27 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Repository")
 		os.Exit(1)
 	}
+	if err = (&controllers.SubscriptionReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Subscription")
+		os.Exit(1)
+	}
+	if err = (&controllers.ComponentPlanReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ComponentPlan")
+		os.Exit(1)
+	}
+	if err = (&controllers.ComponentReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Component")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
