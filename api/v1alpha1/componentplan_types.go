@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,14 +26,19 @@ import (
 
 // ComponentPlanSpec defines the desired state of ComponentPlan
 type ComponentPlanSpec struct {
+	// ComponentRef is a reference to the Component
+	ComponentRef *corev1.ObjectReference `json:"component"`
 	// InstallVersion represents the version that is to be installed by this ComponentPlan
-	InstallVersion string `json:"installVersion,omitempty"`
+	InstallVersion string `json:"version"`
+	// Approved indicates whether the ComponentPlan has been approved
+	Approved bool `json:"approved"`
+	// Override defines the override settings for the component
+	Override []Override `json:"override,omitempty"`
 }
 
 // ComponentPlanStatus defines the observed state of ComponentPlan
 type ComponentPlanStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	ConditionedStatus `json:",inline"`
 }
 
 //+kubebuilder:object:root=true

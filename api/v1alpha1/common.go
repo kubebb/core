@@ -33,6 +33,11 @@ type ComponentVersion struct {
 	Deprecated bool        `json:"deprecated"`
 }
 
+// Equal compares two ComponetVersions, ignoring UpdatedAt and CreatedAt fields
+func (c ComponentVersion) Equal(v *ComponentVersion) bool {
+	return c.Digest == v.Digest && c.AppVersion == v.AppVersion && c.Version == v.Version && c.Deprecated == v.Deprecated
+}
+
 // inspire by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/pkg/chart/metadata.go#L26
 // Maintainer describes a Chart maintainer.
 type Maintainer struct {
@@ -71,4 +76,9 @@ func UpdateCondWithFixedLen(l int, conds *ConditionedStatus, cond Condition) {
 		conds.Conditions = conds.Conditions[ll-l+1:]
 	}
 	conds.Conditions = append(conds.Conditions, cond)
+}
+
+// GenerateComponentPlanName generates the name of the component plan for a given subscription
+func GenerateComponentPlanName(sub *Subscription, version string) string {
+	return "sub-" + sub.Name + "-" + sub.Spec.ComponentRef.Name + "-" + version
 }

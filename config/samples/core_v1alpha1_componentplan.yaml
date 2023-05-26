@@ -1,6 +1,12 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: ComponentPlan
 metadata:
-  name: componentplan-sample
+  name: sub-wordpress-sample-repository-bitnami-sample.wordpress-16.1.9
+  namespace: default
 spec:
-  # TODO(user): Add fields here
+  approved: true
+  component:
+    name: repository-bitnami-sample.wordpress
+    namespace: kube-system
+  version: 16.1.9
+

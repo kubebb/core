@@ -1,6 +1,10 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: Repository
 metadata:
-  name: repository-sample
+  name: repository-bitnami-sample
+  namespace: kube-system
 spec:
-  # TODO(user): Add fields here
+  url: https://charts.bitnami.com/bitnami
+  pullStategy:
+    intervalSeconds: 300
+    retry: 5

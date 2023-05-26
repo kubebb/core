@@ -1,0 +1,6 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kubebb-core
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.24.13 # same with go.mod k8s.io/api

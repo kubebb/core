@@ -96,7 +96,7 @@ func (c Condition) WithMessage(msg string) Condition {
 
 // NOTE: Conditions are implemented as a slice rather than a map to comply
 // with Kubernetes API conventions. Ideally we'd comply by using a map that
-// marshalled to a JSON array, but doing so confuses the CRD schema generator.
+// marshaled to a JSON array, but doing so confuses the CRD schema generator.
 // https://github.com/kubernetes/community/blob/9bf8cd/contributors/devel/sig-architecture/api-conventions.md#lists-of-named-subobjects-preferred-over-maps
 
 // NOTE: Do not manipulate Conditions directly. Use the Set method.
