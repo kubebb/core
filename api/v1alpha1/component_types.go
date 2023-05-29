@@ -32,7 +32,7 @@ type ComponentStatus struct {
 	// The name of the component may come from helm chart name
 	Name string `json:"name"`
 	// versions contains all version of one component.
-	Versions []ComponetVersions `json:"versions"`
+	Versions []ComponentVersion `json:"versions"`
 	// FIXME: some fields(like description) may change when version update, how to deal with it?
 	// A one-sentence description of the chart
 	Description string `json:"description,omitempty"`
@@ -46,6 +46,9 @@ type ComponentStatus struct {
 	Keywords []string `json:"keywords,omitempty"`
 	// The URL to an icon file.
 	Icon string `json:"icon,omitempty"`
+	// The current component is not in the return list of URLs
+	// and will not be deleted but marked as deprecated by this field.
+	Deprecated bool `json:"deprecated,omitempty"`
 }
 
 //+kubebuilder:object:root=true

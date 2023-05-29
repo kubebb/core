@@ -13,7 +13,7 @@ spec:
     listKind: RepositoryList
     plural: repositories
     singular: repository
-  scope: Cluster
+  scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
@@ -35,6 +35,11 @@ spec:
           spec:
             description: RepositorySpec defines the desired state of Repository
             properties:
+              authSecret:
+                description: AuthSecret if the chart repository requires auth authentication,
+                  set the username and password to secret, with the fields user and
+                  password respectively.
+                type: string
               insecure:
                 type: boolean
               pullStategy:
@@ -50,11 +55,6 @@ spec:
                     description: Timeout for pulling
                     type: integer
                 type: object
-              repositoryAuth:
-                description: RepositoryAuth if the chart repository requires auth
-                  authentication, set the username and password to secret, with the
-                  fields user and password respectively.
-                type: string
               repositoryType:
                 type: string
               url:

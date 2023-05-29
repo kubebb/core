@@ -143,7 +143,7 @@ spec:
                 description: HistoryVersions records the component version changes
                   since this subscription created
                 items:
-                  description: ComponetVersions Indicates the fields required for
+                  description: ComponentVersion Indicates the fields required for
                     a specific version of Component.
                   properties:
                     appVersion:
@@ -151,6 +151,8 @@ spec:
                     createdAt:
                       format: date-time
                       type: string
+                    deprecated:
+                      type: boolean
                     digest:
                       type: string
                     updatedAt:
@@ -161,6 +163,7 @@ spec:
                   required:
                   - appVersion
                   - createdAt
+                  - deprecated
                   - digest
                   - updatedAt
                   - version
@@ -223,6 +226,8 @@ spec:
                         createdAt:
                           format: date-time
                           type: string
+                        deprecated:
+                          type: boolean
                         digest:
                           type: string
                         updatedAt:
@@ -233,6 +238,7 @@ spec:
                       required:
                       - appVersion
                       - createdAt
+                      - deprecated
                       - digest
                       - updatedAt
                       - version

@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func TestAddFinalizer(t *testing.T) {
+func TestAddString(t *testing.T) {
 	type testCase struct {
 		source []string
 		add    string
@@ -33,13 +33,13 @@ func TestAddFinalizer(t *testing.T) {
 		{[]string{"abc"}, "abc", []string{"abc"}},
 		{[]string{"abc"}, "def", []string{"abc", "def"}},
 	} {
-		if r := AddFinalizer(tc.source, tc.add); !reflect.DeepEqual(tc.exp, r) {
+		if r := AddString(tc.source, tc.add); !reflect.DeepEqual(tc.exp, r) {
 			t.Fatalf("expect %v get %v", tc.exp, r)
 		}
 	}
 }
 
-func TestRemoveFinalizer(t *testing.T) {
+func TestRemoveString(t *testing.T) {
 	type testCase struct {
 		source []string
 		remove string
@@ -54,13 +54,13 @@ func TestRemoveFinalizer(t *testing.T) {
 		{[]string{"abc", "def", "abc"}, "abc", []string{"def"}},
 		{[]string{"abc", "def"}, "l", []string{"abc", "def"}},
 	} {
-		if r := RemoveFinalizer(tc.source, tc.remove); !reflect.DeepEqual(tc.exp, r) {
+		if r := RemoveString(tc.source, tc.remove); !reflect.DeepEqual(tc.exp, r) {
 			t.Fatalf("expect %v get %v", tc.exp, r)
 		}
 	}
 }
 
-func TestContainFinalizers(t *testing.T) {
+func TestContainString(t *testing.T) {
 	type testCase struct {
 		source []string
 		f      string
@@ -73,7 +73,7 @@ func TestContainFinalizers(t *testing.T) {
 		{[]string{"abc"}, "abc", true},
 		{[]string{"abc", "def"}, "l", false},
 	} {
-		if r := ContainFinalizer(tc.source, tc.f); r != tc.exp {
+		if r := ContainString(tc.source, tc.f); r != tc.exp {
 			t.Fatalf("expect %v get %v", tc.exp, r)
 		}
 	}
