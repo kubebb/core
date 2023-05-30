@@ -16,7 +16,13 @@ limitations under the License.
 
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"regexp"
+
+	"github.com/Masterminds/semver/v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
+)
 
 var (
 	// DisplayNameAnnotationKey is the key of the annotation used to set the display name of the resource
@@ -81,4 +87,94 @@ func UpdateCondWithFixedLen(l int, conds *ConditionedStatus, cond Condition) {
 // GenerateComponentPlanName generates the name of the component plan for a given subscription
 func GenerateComponentPlanName(sub *Subscription, version string) string {
 	return "sub-" + sub.Name + "-" + sub.Spec.ComponentRef.Name + "-" + version
+}
+
+type Filter struct {
+	Name, Version string
+	Deprecated    bool
+}
+
+func filterMatchDeprecation(cond FilterCond, filter Filter) bool {
+	return !(!cond.Deprecated && filter.Deprecated)
+}
+func filterMatchVersion(cond FilterCond, filter Filter) bool {
+	for _, v := range cond.Versions {
+		if filter.Version == v {
+			return true
+		}
+	}
+	return false
+}
+
+func filterMatchRegexp(cond FilterCond, filter Filter) bool {
+	if len(cond.Regexp) > 0 {
+		reg, err := regexp.Compile(cond.Regexp)
+		if err == nil && reg.MatchString(filter.Version) {
+			return true
+		}
+	}
+	return false
+}
+
+func filterMatchVersionConstraint(cond FilterCond, filter Filter) bool {
+	if len(cond.VersionConstraint) > 0 {
+		constraint, err := semver.NewConstraint(cond.VersionConstraint)
+		if err != nil {
+			return false
+		}
+		v, err := semver.NewVersion(filter.Version)
+		if err != nil {
+			return false
+		}
+		return constraint.Check(v)
+	}
+	return false
+}
+
+func Match(filterCond map[string]FilterCond, filter Filter) bool {
+	if len(filterCond) == 0 {
+		return true
+	}
+
+	cond, ok := filterCond[filter.Name]
+	if !ok {
+		return true
+	}
+
+	if !filterMatchDeprecation(cond, filter) {
+		return false
+	}
+	if filterMatchVersion(cond, filter) {
+		return true
+	}
+	if filterMatchRegexp(cond, filter) {
+		return true
+	}
+	if filterMatchVersionConstraint(cond, filter) {
+		return true
+	}
+	return false
+}
+
+func IsCondSame(c1, c2 FilterCond) bool {
+	return sets.NewString(c1.Versions...).Equal(sets.NewString(c2.Versions...)) &&
+		c1.Deprecated == c2.Deprecated && c1.Regexp == c2.Regexp && c1.VersionConstraint == c2.VersionConstraint
+}
+
+func IsFilterSame(cond1, cond2 map[string]FilterCond) bool {
+	l1, l2 := len(cond1), len(cond2)
+	if l1 == 0 && l2 == 0 {
+		return true
+	}
+	if l1 != l2 {
+		return false
+	}
+
+	for name, cond := range cond1 {
+		v1, ok := cond2[name]
+		if !ok || !IsCondSame(cond, v1) {
+			return false
+		}
+	}
+	return true
 }

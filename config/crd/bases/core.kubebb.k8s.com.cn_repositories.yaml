@@ -40,6 +40,27 @@ spec:
                   set the username and password to secret, with the fields user and
                   password respectively.
                 type: string
+              filter:
+                additionalProperties:
+                  properties:
+                    deprecated:
+                      description: If True, the current version will be retained even
+                        if it is deprecated.
+                      type: boolean
+                    regexp:
+                      description: Filter version by regexp
+                      type: string
+                    versionConstraint:
+                      description: VersionConstraint Support for user-defined version
+                        ranges, etc. Refer to the documentation for more details https://github.com/Masterminds/semver#semver
+                      type: string
+                    versions:
+                      description: Accurately match each item in the versions
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                type: object
               insecure:
                 type: boolean
               pullStategy:

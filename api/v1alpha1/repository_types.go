@@ -32,6 +32,20 @@ type PullStategy struct {
 	Retry int `json:"retry,omitempty"`
 }
 
+type FilterCond struct {
+	// If True, the current version will be retained even if it is deprecated.
+	Deprecated bool `json:"deprecated,omitempty"`
+	// Accurately match each item in the versions
+	Versions []string `json:"versions,omitempty"`
+	// Filter version by regexp
+	Regexp string `json:"regexp,omitempty"`
+
+	// VersionConstraint Support for user-defined version ranges, etc.
+	// Refer to the documentation for more details
+	// https://github.com/Masterminds/semver#semver
+	VersionConstraint string `json:"versionConstraint,omitempty"`
+}
+
 // RepositorySpec defines the desired state of Repository
 type RepositorySpec struct {
 	// URL chart repository address
@@ -48,6 +62,8 @@ type RepositorySpec struct {
 
 	// PullStategy pullStategy for this repository
 	PullStategy *PullStategy `json:"pullStategy,omitempty"`
+
+	Filter map[string]FilterCond `json:"filter,omitempty"`
 }
 
 // RepositoryStatus defines the observed state of Repository

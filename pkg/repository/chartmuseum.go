@@ -282,21 +282,26 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 					APIVersion: c.instance.APIVersion,
 				},
 				Name:        entryName,
-				Versions:    make([]v1alpha1.ComponentVersion, len(versions)),
+				Versions:    make([]v1alpha1.ComponentVersion, 0),
 				Maintainers: make([]v1alpha1.Maintainer, 0),
 			},
 		}
 
 		maintainers := make(map[string]v1alpha1.Maintainer)
-		for i, version := range versions {
-			components[index].Status.Versions[i] = v1alpha1.ComponentVersion{
+		latest := true
+		for _, version := range versions {
+			if !v1alpha1.Match(c.instance.Spec.Filter, v1alpha1.Filter{Name: entryName, Version: version.Version, Deprecated: version.Deprecated}) {
+				continue
+			}
+			components[index].Status.Versions = append(components[index].Status.Versions, v1alpha1.ComponentVersion{
 				Version:    version.Version,
 				AppVersion: version.AppVersion,
 				CreatedAt:  metav1.NewTime(version.Created),
 				Digest:     version.Digest,
 				UpdatedAt:  metav1.Now(),
 				Deprecated: version.Deprecated,
-			}
+			})
+
 			for _, m := range version.Maintainers {
 				if _, ok := maintainers[m.Name]; !ok {
 					maintainers[m.Name] = v1alpha1.Maintainer{
@@ -306,12 +311,13 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 					}
 				}
 			}
-			if i == 0 {
+			if latest {
 				components[index].Status.Description = version.Description
 				components[index].Status.Home = version.Home
 				components[index].Status.Icon = version.Icon
 				components[index].Status.Keywords = version.Keywords
 				components[index].Status.Sources = version.Sources
+				latest = false
 			}
 		}
 		for _, m := range maintainers {

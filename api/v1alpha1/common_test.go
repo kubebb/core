@@ -312,3 +312,144 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 		}
 	}
 }
+
+func TestMatch(t *testing.T) {
+	testCases := []struct {
+		description string
+		name        string
+		filterCond  map[string]FilterCond
+		version     string
+		deprecated  bool
+		expected    bool
+	}{
+		{
+			description: "filterCond is empty",
+			name:        "test",
+			filterCond:  nil,
+			version:     "1.0.0",
+			deprecated:  false,
+			expected:    true,
+		},
+		{
+			description: "name doesn't exist",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"other": {}},
+			version:     "1.0.0",
+			deprecated:  false,
+			expected:    true,
+		},
+		{
+			description: "cond.Deprecated is false and deprecated is true",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Deprecated: false}},
+			version:     "1.0.0",
+			deprecated:  true,
+			expected:    false,
+		},
+		{
+			description: "version exists in cond.Versions",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Versions: []string{"1.0.0"}}},
+			version:     "1.0.0",
+			deprecated:  false,
+			expected:    true,
+		},
+		{
+			description: "regular match success",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Regexp: `^1\.*0\.0$`}},
+			version:     "1.0.0",
+			deprecated:  false,
+			expected:    true,
+		},
+		{
+			description: "regular match failed",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Regexp: `^1\.*0\.0$`}},
+			version:     "2.0.0",
+			deprecated:  false,
+			expected:    false,
+		},
+		{
+			description: "version is larger than the value of the than field",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {VersionConstraint: ">= 1.0.0"}},
+			version:     "2.0.0",
+			deprecated:  false,
+			expected:    true,
+		},
+		{
+			description: "version is smaller than the value of the than field",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {VersionConstraint: ">= 2.0.0"}},
+			version:     "1.0.0",
+			deprecated:  false,
+			expected:    false,
+		},
+		{
+			description: "version is larger than the value of the than field and the less field is true",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {VersionConstraint: "<= 2.0.0"}},
+			version:     "3.0.0",
+			deprecated:  false,
+			expected:    false,
+		},
+		{
+			description: "version is smaller than the value of the than field and the less field is true",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {VersionConstraint: "<= 3.0.0"}},
+			version:     "2.0.0",
+			deprecated:  false,
+			expected:    true,
+		},
+	}
+	for _, testCase := range testCases {
+		actual := Match(testCase.filterCond, Filter{Name: testCase.name, Version: testCase.version, Deprecated: testCase.deprecated})
+		if actual != testCase.expected {
+			t.Errorf("Test Failed: %s, expected: %t, actual: %t", testCase.description, testCase.expected, actual)
+		}
+	}
+}
+
+func TestIsCondSame(t *testing.T) {
+	testCases := []struct {
+		c1, c2 FilterCond
+		exp    bool
+	}{
+		{
+			c1:  FilterCond{},
+			c2:  FilterCond{},
+			exp: true,
+		},
+		{
+			c1:  FilterCond{Deprecated: true},
+			c2:  FilterCond{Deprecated: false},
+			exp: false,
+		},
+		{
+			c1:  FilterCond{VersionConstraint: ">= 1.0.0"},
+			c2:  FilterCond{VersionConstraint: ">= 1.0.0"},
+			exp: true,
+		},
+		{
+			c1:  FilterCond{Versions: []string{"v1", "v1", "v2"}},
+			c2:  FilterCond{Versions: []string{"v2"}},
+			exp: false,
+		},
+		{
+			c1:  FilterCond{Versions: []string{"v1", "v1", "v2"}},
+			c2:  FilterCond{Versions: []string{"v1", "v2"}},
+			exp: true,
+		},
+		{
+			c1:  FilterCond{Versions: []string{"v1", "v1"}},
+			c2:  FilterCond{Versions: []string{"v1"}},
+			exp: true,
+		},
+	}
+	for _, tc := range testCases {
+		if r := IsCondSame(tc.c1, tc.c2); r != tc.exp {
+			t.Fatalf("expect %v get %v", tc.exp, r)
+		}
+	}
+}
