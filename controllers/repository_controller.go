@@ -161,7 +161,8 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 		!corev1alpha1.IsPullStrategySame(oldRepo.Spec.PullStategy, newRepo.Spec.PullStategy) ||
 		len(oldRepo.Status.URLHistory) != len(newRepo.Status.URLHistory) ||
 		len(oldRepo.Finalizers) != len(newRepo.Finalizers) ||
-		newRepo.DeletionTimestamp != nil
+		newRepo.DeletionTimestamp != nil ||
+		!corev1alpha1.IsFilterSame(oldRepo.Spec.Filter, newRepo.Spec.Filter)
 }
 
 // SetupWithManager sets up the controller with the Manager.
