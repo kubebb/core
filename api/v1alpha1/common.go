@@ -24,9 +24,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-var (
+const (
 	// DisplayNameAnnotationKey is the key of the annotation used to set the display name of the resource
-	DisplayNameAnnotationKey = GroupVersion.Group + "/displayname"
+	DisplayNameAnnotationKey = Group + "/displayname"
+	// Finalizer is the key of the finalizer
+	Finalizer = Group + "/finalizer"
 )
 
 // ComponentVersion Indicates the fields required for a specific version of Component.
@@ -44,8 +46,8 @@ func (c ComponentVersion) Equal(v *ComponentVersion) bool {
 	return c.Digest == v.Digest && c.AppVersion == v.AppVersion && c.Version == v.Version && c.Deprecated == v.Deprecated
 }
 
-// inspire by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/pkg/chart/metadata.go#L26
 // Maintainer describes a Chart maintainer.
+// inspire by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/pkg/chart/metadata.go#L26
 type Maintainer struct {
 	// Name is a user name or organization name
 	Name string `json:"name,omitempty"`
@@ -56,19 +58,112 @@ type Maintainer struct {
 }
 
 // Override defines the override settings for the component
-// The value may be single-valued or multi-valued or one file
+// FIXME fix comment
 type Override struct {
-	// Name is the name of the override setting
-	Name string `json:"name"`
-	// Value is the value of the override setting
-	// +optional
-	Value string `json:"value,omitempty"`
-	// File is the file path of the override setting
-	// +optional
-	File string `json:"file,omitempty"`
-	// Values is the values of the override setting
-	// +optional
+	// Values is passed to helm install --values or -f
+	// specify values in a YAML file or a URL (can specify multiple)
 	Values []string `json:"values,omitempty"`
+	// Set is passed to helm install --set
+	// set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+	Set []string `json:"set,omitempty"`
+	// SetString is passed to helm install --set-string
+	// set STRING values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+	// https://github.com/helm/helm/pull/3599
+	SetString []string `json:"set-string,omitempty"`
+	// SetFile is passed to helm install --set-file
+	// set values from respective files specified via the command line (can specify multiple or separate values with commas: key1=path1,key2=path2)
+	// https://github.com/helm/helm/pull/3758
+	SetFile []string `json:"set-file,omitempty"`
+	// SetJSON is passed to helm install --set-json
+	// set JSON values on the command line (can specify multiple or separate values with commas: key1=jsonval1,key2=jsonval2)
+	// https://github.com/helm/helm/pull/10693
+	SetJSON []string `json:"set-json,omitempty"`
+	// SetLiteral is passed to helm install --set-literal
+	// set a literal STRING value on the command line
+	// https://github.com/helm/helm/pull/9182
+	SetLiteral []string `json:"set-literal,omitempty"`
+}
+
+// NameConfig defines the name of helm release
+// If Name and NameTemplate are both set, will use Name first.
+// If both not set, will use helm install --generate-name
+type NameConfig struct {
+	// Name is pass to helm install <chart> <name>, name arg
+	Name string `json:"name,omitempty"`
+	// NameTemplate is pass to helm install --name-template
+	// FIXME add logic
+	NameTemplate string `json:"nameTemplate,omitempty"`
+}
+
+// Config defines the configuration of the ComponentPlan
+// Greatly inspired by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/install.go#L161
+// And https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/upgrade.go#L70
+// Note: we will helm INSTALL release if not exists or helm UPGRADE if exists.**
+// Note: helm release will be installed/upgraded in same namespace with ComponentPlan, So no args like --create-namespace
+// Note: helm release will be installed/upgraded, so no args like --dry-run
+// Note: helm release will be installed/upgraded without show notes, so no args like --render-subchart-notes
+// Note: helm release will be upgraded with Override Config, so no args like --reset-values or --reuse-values
+// TODO: we should consider hooks, --no-hooks helm template --hooks
+type Config struct {
+	Override Override `json:"override,omitempty"`
+
+	NameConfig `json:",inline"`
+
+	// FIXME reconsider there config because we will use helm template not helm install
+	// Force is pass to helm install/upgrade --force
+	// force resource updates through a replacement strategy
+	Force bool `json:"force,omitempty"`
+
+	// Replace is pass to helm install --replace
+	// re-use the given name, only if that name is a deleted release which remains in the history. This is unsafe in production
+	Replace bool `json:"replace,omitempty"`
+
+	// TimeoutSeconds is pass to helm install/upgrade --timeout, default is 300s
+	// time to wait for any individual Kubernetes operation (like Jobs for hooks)
+	TimeOutSeconds int `json:"timeoutSeconds,omitempty"`
+
+	// Wait is pass to helm install/upgrade --wait
+	// if set, will wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment, StatefulSet, or ReplicaSet are in a ready state before marking the release as successful. It will wait for as long as --timeout
+	Wait bool `json:"wait,omitempty"`
+
+	// WaitForJobs is pass to helm install/upgrade --wait-for-jobs
+	// if set and --wait enabled, will wait until all Jobs have been completed before marking the release as successful. It will wait for as long as --timeout
+	WaitForJobs bool `json:"waitForJobs,omitempty"`
+
+	// Description is pass to helm install/upgrade --description
+	// add a custom description
+	Description string `json:"description,omitempty"`
+
+	// Devel is pass to helm install/upgrade --devel
+	// use development versions, too. Equivalent to version '>0.0.0-0'. If --version is set, this is ignored
+	Devel bool `json:"devel,omitempty"`
+
+	// DependencyUpdate is pass to helm install/upgrade --dependency-update
+	// update dependencies if they are missing before installing the chart
+	DependencyUpdate bool `json:"dependencyUpdate,omitempty"`
+
+	// DisableOpenAPIValidation is pass to helm install/upgrade --disable-openapi-validation
+	// if set, the installation process will not validate rendered templates against the Kubernetes OpenAPI Schema
+	DisableOpenAPIValidation bool `json:"disableOpenAPIValidation,omitempty"`
+
+	// Atomic is pass to helm install/upgrade --atomic
+	// if set, the installation process deletes the installation on failure. The --wait flag will be set automatically if --atomic is used
+	Atomic bool `json:"atomic,omitempty"`
+
+	// SkipCRDs is pass to helm install/upgrade --skip-crds
+	// if set, no CRDs will be installed. By default, CRDs are installed if not already present
+	SkipCRDs bool `json:"skipCRDs,omitempty"`
+
+	// EnableDNS is pass to helm install/upgrade --enable-dns
+	// enable DNS lookups when rendering templates
+	EnableDNS bool `json:"enableDNS,omitempty"`
+
+	// Recreate is pass to helm upgrade --recreate-pods
+	// performs pods restart for the resource if applicable
+	Recreate bool `json:"recreate-pods,omitempty"`
+
+	// MaxRetry
+	MaxRetry *int64 `json:"maxRetry,omitempty"`
 }
 
 // UpdateCondWithFixedLen updates the Conditions of the resource and limits the length of the Conditions field to l.
@@ -82,11 +177,6 @@ func UpdateCondWithFixedLen(l int, conds *ConditionedStatus, cond Condition) {
 		conds.Conditions = conds.Conditions[ll-l+1:]
 	}
 	conds.Conditions = append(conds.Conditions, cond)
-}
-
-// GenerateComponentPlanName generates the name of the component plan for a given subscription
-func GenerateComponentPlanName(sub *Subscription, version string) string {
-	return "sub-" + sub.Name + "-" + sub.Spec.ComponentRef.Name + "-" + version
 }
 
 type Filter struct {

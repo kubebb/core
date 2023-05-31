@@ -17,8 +17,6 @@ limitations under the License.
 package v1alpha1
 
 const (
-	RepositoryFinalizer = "kubebb.repository.finalizer"
-
 	Username = "username"
 	Password = "password"
 	CAData   = "cadata"

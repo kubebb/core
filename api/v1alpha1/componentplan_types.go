@@ -28,17 +28,32 @@ import (
 type ComponentPlanSpec struct {
 	// ComponentRef is a reference to the Component
 	ComponentRef *corev1.ObjectReference `json:"component"`
+	// RepositoryRef is a reference to the Repository
+	RepositoryRef *corev1.ObjectReference `json:"repository,omitempty"`
 	// InstallVersion represents the version that is to be installed by this ComponentPlan
 	InstallVersion string `json:"version"`
 	// Approved indicates whether the ComponentPlan has been approved
 	Approved bool `json:"approved"`
-	// Override defines the override settings for the component
-	Override []Override `json:"override,omitempty"`
+	// Config is the configuration of the Componentplan
+	Config `json:",inline"`
 }
 
 // ComponentPlanStatus defines the observed state of ComponentPlan
 type ComponentPlanStatus struct {
 	ConditionedStatus `json:",inline"`
+	Resources         []Resource `json:"resources,omitempty"`
+}
+
+// Resource represents one single resource in the ComponentPlan
+// because the resource, if namespaced, is the same namepsace as the ComponentPlan,
+// it is either a cluster and does not have namespace,
+// so the namespace field is not needed.
+type Resource struct {
+	SpecDiffwithExist *string `json:"specDiffwithExist,omitempty"`
+	NewCreated        *bool   `json:"NewCreated,omitempty"`
+	Kind              string  `json:"kind"`
+	Name              string  `json:"name"`
+	APIVersion        string  `json:"apiVersion"`
 }
 
 //+kubebuilder:object:root=true

@@ -1,11 +1,163 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: ComponentPlan
 metadata:
-  name: sub-wordpress-sample-repository-bitnami-sample.wordpress-16.1.9
+  name: do-once-wordpress-sample-16.1.12
   namespace: default
 spec:
   approved: true
   component:
     name: repository-bitnami-sample.wordpress
     namespace: kubebb-system
-  version: 16.1.9
+  name: my-wordpress
+  override: {}
+  repository:
+    name: repository-bitnami-sample
+    namespace: kubebb-system
+  version: 16.1.12
+#status:
+#  conditions:
+#    - lastTransitionTime: "2023-06-08T05:35:38Z"
+#      reason: ""
+#      status: "True"
+#      type: Approved
+#    - lastTransitionTime: "2023-06-08T05:35:38Z"
+#      reason: ""
+#      status: "True"
+#      type: Succeeded
+#    - lastTransitionTime: "2023-06-08T05:35:42Z"
+#      reason: ""
+#      status: "True"
+#      type: Installed
+#  resources:
+#    - apiVersion: v1
+#      kind: ServiceAccount
+#      name: my-wordpress-mariadb
+#      newCreated: true
+#    - apiVersion: v1
+#      kind: Secret
+#      name: my-wordpress-mariadb
+#      specDiffwithExist: |2
+#         data:
+#        -  mariadb-password: SW5uVjZhV3d6VQ==
+#        -  mariadb-root-password: QnBZYUtjdWNPdA==
+#        +  mariadb-password: MnZweWd3bXhIQg==
+#        +  mariadb-root-password: SDA5OXYyRjdDeA==
+#         kind: Secret
+#         metadata:
+#           creationTimestamp: "2023-06-08T05:34:20Z"
+#        ......
+#             app.kubernetes.io/name: mariadb
+#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#             helm.sh/chart: mariadb-12.2.4
+#           name: my-wordpress-mariadb
+#           namespace: default
+#    - apiVersion: v1
+#      kind: Secret
+#      name: my-wordpress
+#      specDiffwithExist: |
+#        ......
+#        -  wordpress-password: cE1oUmdXeGpIOA==
+#        +  wordpress-password: MzlxaUZob3dSUQ==
+#         kind: Secret
+#         metadata:
+#        ......
+#             app.kubernetes.io/managed-by: Helm
+#             app.kubernetes.io/name: wordpress
+#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#        -    helm.sh/chart: wordpress-16.1.13
+#        +    helm.sh/chart: wordpress-16.1.12
+#           name: my-wordpress
+#           namespace: default
+#           resourceVersion: "1211"
+#           uid: c720ce1d-cd3f-4aed-92db-4980931cb0f3
+#    - apiVersion: v1
+#      kind: ConfigMap
+#      name: my-wordpress-mariadb
+#      specDiffwithExist: |
+#        ......
+#             app.kubernetes.io/instance: my-wordpress
+#             app.kubernetes.io/managed-by: Helm
+#             app.kubernetes.io/name: mariadb
+#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#             helm.sh/chart: mariadb-12.2.4
+#           name: my-wordpress-mariadb
+#           namespace: default
+#           resourceVersion: "1210"
+#    - apiVersion: v1
+#      kind: PersistentVolumeClaim
+#      name: my-wordpress
+#      specDiffwithExist: diff with exist
+#    - apiVersion: v1
+#      kind: Service
+#      name: my-wordpress-mariadb
+#      specDiffwithExist: |
+#        ......
+#             app.kubernetes.io/managed-by: Helm
+#             app.kubernetes.io/name: mariadb
+#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#             helm.sh/chart: mariadb-12.2.4
+#           name: my-wordpress-mariadb
+#           namespace: default
+#           resourceVersion: "1198"
+#    - apiVersion: v1
+#      kind: Service
+#      name: my-wordpress
+#      specDiffwithExist: |
+#        ......
+#             app.kubernetes.io/name: wordpress
+#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#        -    helm.sh/chart: wordpress-16.1.13
+#        +    helm.sh/chart: wordpress-16.1.12
+#           name: my-wordpress
+#           namespace: default
+#           resourceVersion: "1204"
+#    - apiVersion: apps/v1
+#      kind: Deployment
+#      name: my-wordpress
+#      specDiffwithExist: |
+#        ......
+#         metadata:
+#        -  annotations:
+#        -    deployment.kubernetes.io/revision: "1"
+#           creationTimestamp: "2023-06-08T05:34:20Z"
+#        -  generation: 1
+#        +  generation: 2
+#           labels:
+#             app.kubernetes.io/instance: my-wordpress
+#        ......
+#             app.kubernetes.io/name: wordpress
+#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#        -    helm.sh/chart: wordpress-16.1.13
+#        +    helm.sh/chart: wordpress-16.1.12
+#           name: my-wordpress
+#           namespace: default
+#        ......
+#                 app.kubernetes.io/name: wordpress
+#        -        core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#        -        helm.sh/chart: wordpress-16.1.13
+#        +        helm.sh/chart: wordpress-16.1.12
+#             spec:
+#               affinity:
+#        ......
+#        -        image: docker.io/bitnami/wordpress:6.2.2-debian-11-r10
+#        +        image: docker.io/bitnami/wordpress:6.2.2-debian-11-r9
+#                 imagePullPolicy: IfNotPresent
+#                 livenessProbe:
+#    - apiVersion: apps/v1
+#      kind: StatefulSet
+#      name: my-wordpress-mariadb
+#      specDiffwithExist: |
+#        ......
+#           creationTimestamp: "2023-06-08T05:34:20Z"
+#        -  generation: 1
+#        +  generation: 2
+#           labels:
+#             app.kubernetes.io/component: primary
+#        ......
+#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#             helm.sh/chart: mariadb-12.2.4
+#           name: my-wordpress-mariadb
+#        ......
+#        -        core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
+#                 helm.sh/chart: mariadb-12.2.4
+#             spec:
