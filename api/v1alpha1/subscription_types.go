@@ -25,17 +25,22 @@ type InstallMethod string
 
 const (
 	// InstallMethodAuto means install directly without confirmation after detecting a new version.
-	InstallMethodAuto InstallMethod = "Auto"
+	InstallMethodAuto InstallMethod = "auto"
 	// InstallMethodManual means installation process requires user's permission to proceed.
-	InstallMethodManual InstallMethod = "Manual"
+	InstallMethodManual InstallMethod = "manual"
 )
 
 // SubscriptionSpec defines the desired state of Subscription
 type SubscriptionSpec struct {
 	// ComponentRef is a reference to the Component
 	ComponentRef *corev1.ObjectReference `json:"component"`
+
+	// RepositoryRef is a reference to the Repository
+	RepositoryRef *corev1.ObjectReference `json:"repository,omitempty"`
+
 	// ComponentPlanInstallMethod is the method used to install the component
 	ComponentPlanInstallMethod InstallMethod `json:"componentPlanInstallMethod,omitempty"`
+
 	// Override defines the override settings for the component
 	Override []Override `json:"override,omitempty"`
 }
@@ -43,9 +48,6 @@ type SubscriptionSpec struct {
 // SubscriptionStatus defines the state of Subscription
 type SubscriptionStatus struct {
 	ConditionedStatus `json:",inline"`
-	// HistoryVersions records the component version changes since this subscription created
-	// +optional
-	HistoryVersions []ComponentVersion `json:"historyVersions,omitempty"`
 
 	// Installed records all componentplans installed, ordered by install time.
 	// +optional
@@ -61,24 +63,26 @@ type Installed struct {
 	// InstalledVersion is the version currently installed in cluster
 	// +optional
 	InstalledVersion ComponentVersion `json:"installedVersion"`
+
 	// InstalledTime is the time that the version was installed in cluster
 	// +optional
 	InstalledTime metav1.Time `json:"installedTime"`
+
 	// ComponentPlanRef is a reference to the latest ComponentPlan
 	// +optional
-	ComponentPlanRef *corev1.ObjectReference `json:"componentPlanRef"`
+	ComponentPlanRef *corev1.ObjectReference `json:"componentPlan"`
 }
 
 // RepositoryHealth describes the health of a Repository the Subscription knows about.
 type RepositoryHealth struct {
 	// RepositoryRef is a reference to a Repository.
-	RepositoryRef *corev1.ObjectReference `json:"repositoryRef"`
+	RepositoryRef *corev1.ObjectReference `json:"repository"`
 
 	// LastUpdated represents the last time that the RepositoryHealth changed
 	LastUpdated *metav1.Time `json:"lastUpdated"`
 
 	// Healthy is true if the Repository is healthy; false otherwise.
-	Healthy bool `json:"healthy"`
+	Healthy *bool `json:"healthy"`
 }
 
 //+kubebuilder:object:root=true

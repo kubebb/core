@@ -92,6 +92,20 @@ rules:
 - apiGroups:
   - core.kubebb.k8s.com.cn
   resources:
+  - repositorys
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - repositorys/status
+  verbs:
+  - get
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
   - subscriptions
   verbs:
   - create
