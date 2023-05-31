@@ -149,12 +149,14 @@ func (c *chartmuseum) Poll() {
 	if err := c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.GetName(), Namespace: c.instance.GetNamespace()}, &i); err != nil {
 		c.logger.Error(err, "try to update repository, but failed to get the latest version.", "Cond", cond)
 	} else {
-		v1alpha1.UpdateCondWithFixedLen(c.statusLen, &i.Status.ConditionedStatus, cond)
-		if err := c.c.Status().Update(c.ctx, &i); err != nil {
-			c.logger.Error(err, "failed to update repository status")
+		iDeepCopy := i.DeepCopy()
+		v1alpha1.UpdateCondWithFixedLen(c.statusLen, &iDeepCopy.Status.ConditionedStatus, cond)
+		if err := c.c.Status().Patch(c.ctx, iDeepCopy, client.MergeFrom(&i)); err != nil {
+			c.logger.Error(err, "failed to patch repository status")
 		}
 	}
 }
+
 func (c *chartmuseum) Create(component *v1alpha1.Component) error {
 	return c.c.Create(c.ctx, component)
 }

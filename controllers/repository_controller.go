@@ -96,10 +96,9 @@ func (r *RepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return reconcile.Result{}, err
 	}
 
-	requeue, err := r.UpdateRepository(ctx, logger, repo)
-	if requeue || err != nil {
-		logger.Info("need requeue", "Requeue", requeue, "Err", err)
-		return reconcile.Result{Requeue: requeue}, err
+	done, err := r.UpdateRepository(ctx, logger, repo)
+	if !done {
+		return reconcile.Result{}, err
 	}
 
 	w, ok := r.C[key]
@@ -116,20 +115,20 @@ func (r *RepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Repository) (bool, error) {
-	requeue := false
-	l := len(instance.Finalizers)
-	instance.Finalizers = utils.AddString(instance.Finalizers, corev1alpha1.RepositoryFinalizer)
-	if l != len(instance.Finalizers) {
-		requeue = true
+	instanceDeepCopy := instance.DeepCopy()
+	l := len(instanceDeepCopy.Finalizers)
+
+	instanceDeepCopy.Finalizers = utils.AddString(instanceDeepCopy.Finalizers, corev1alpha1.RepositoryFinalizer)
+	if l != len(instanceDeepCopy.Finalizers) {
 		logger.V(4).Info("Add Finalizer for repository", "Finalizer", corev1alpha1.RepositoryFinalizer)
-		err := r.Client.Update(ctx, instance)
+		err := r.Client.Update(ctx, instanceDeepCopy)
 		if err != nil {
 			logger.Error(err, "")
 		}
-		return requeue, err
+		return false, err
 	}
 
-	l = len(instance.Status.URLHistory)
+	l = len(instanceDeepCopy.Status.URLHistory)
 	cond := corev1alpha1.Condition{
 		Status:             v1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -137,19 +136,18 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 		Message:            "prepare to launch watcher",
 		Type:               corev1alpha1.TypeReady,
 	}
-	instance.Status.URLHistory = utils.AddString(instance.Status.URLHistory, instance.Spec.URL)
-	if len(instance.Status.URLHistory) != l {
-		requeue = true
+	instanceDeepCopy.Status.URLHistory = utils.AddString(instanceDeepCopy.Status.URLHistory, instanceDeepCopy.Spec.URL)
+	if len(instanceDeepCopy.Status.URLHistory) != l {
 		logger.V(4).Info("Add URL for repository", "URL", instance.Spec.URL)
-		corev1alpha1.UpdateCondWithFixedLen(statusLen, &instance.Status.ConditionedStatus, cond)
-		err := r.Client.Status().Update(ctx, instance)
+		corev1alpha1.UpdateCondWithFixedLen(statusLen, &instanceDeepCopy.Status.ConditionedStatus, cond)
+		err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance))
 		if err != nil {
 			logger.Error(err, "")
 		}
-		return requeue, err
+		return false, err
 	}
 
-	return requeue, nil
+	return true, nil
 }
 
 func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
