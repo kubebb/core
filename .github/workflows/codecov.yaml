@@ -1,0 +1,22 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-go@v3
+        with:
+          go-version-file: "go.mod"
+      - name: Run coverage
+        run: make test
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3

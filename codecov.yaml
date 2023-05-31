@@ -1,0 +1,5 @@
+# https://docs.codecov.com/docs/codecov-yaml
+coverage:
+  precision: 2
+  round: down
+  range: "50...80"
