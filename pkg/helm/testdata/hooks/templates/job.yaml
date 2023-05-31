@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-job
+  labels:
+    app: test-job
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/resource-policy": keep
+spec:
+  template:
+    metadata:
+      labels:
+        app: test-job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: test
+        image: busybox

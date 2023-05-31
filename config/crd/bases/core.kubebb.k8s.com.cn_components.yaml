@@ -72,8 +72,8 @@ spec:
               maintainers:
                 description: Maintainers is a list of maintainers
                 items:
-                  description: inspire by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/pkg/chart/metadata.go#L26
-                    Maintainer describes a Chart maintainer.
+                  description: Maintainer describes a Chart maintainer. inspire by
+                    https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/pkg/chart/metadata.go#L26
                   properties:
                     email:
                       description: Email is an optional email address to contact the

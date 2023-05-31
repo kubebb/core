@@ -41,8 +41,8 @@ type SubscriptionSpec struct {
 	// ComponentPlanInstallMethod is the method used to install the component
 	ComponentPlanInstallMethod InstallMethod `json:"componentPlanInstallMethod,omitempty"`
 
-	// Override defines the override settings for the component
-	Override []Override `json:"override,omitempty"`
+	// Config is the configuration of the subscription's componentplan
+	Config `json:",inline"`
 }
 
 // SubscriptionStatus defines the state of Subscription
