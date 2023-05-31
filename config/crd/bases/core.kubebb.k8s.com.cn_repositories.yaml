@@ -12,6 +12,9 @@ spec:
     kind: Repository
     listKind: RepositoryList
     plural: repositories
+    shortNames:
+    - repo
+    - repos
     singular: repository
   scope: Namespaced
   versions:

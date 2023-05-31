@@ -6,5 +6,5 @@ metadata:
 spec:
   component:
     name: repository-bitnami-sample.wordpress
-    namespace: kube-system
+    namespace: kubebb-system
   componentPlanInstallMethod: auto

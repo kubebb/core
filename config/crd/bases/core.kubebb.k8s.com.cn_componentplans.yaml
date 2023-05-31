@@ -12,6 +12,9 @@ spec:
     kind: ComponentPlan
     listKind: ComponentPlanList
     plural: componentplans
+    shortNames:
+    - cpl
+    - cpls
     singular: componentplan
   scope: Namespaced
   versions:

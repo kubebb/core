@@ -7,6 +7,5 @@ spec:
   approved: true
   component:
     name: repository-bitnami-sample.wordpress
-    namespace: kube-system
+    namespace: kubebb-system
   version: 16.1.9
-
