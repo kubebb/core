@@ -6,5 +6,5 @@ metadata:
 spec:
   url: https://charts.bitnami.com/bitnami
   pullStategy:
-    intervalSeconds: 300
+    intervalSeconds: 120
     retry: 5

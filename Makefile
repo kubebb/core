@@ -47,7 +47,7 @@ ifeq ($(USE_IMAGE_DIGESTS), true)
 endif
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= kubebb/core:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.24.2
 
@@ -149,6 +149,25 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 .PHONY: kind
 kind: ## Install a kind cluster.
 	kind create cluster --config=tests/kind-config.yaml
+	kubectl create ns kubebb-system
+
+.PHONY: kind-linux
+kind-load:
+	kind load docker-image kubebb/core:latest --name=kubebb-core
+
+.PHONY: unkind
+unkind: ## Uninstall a kind cluster.
+	kind delete cluster --name=kubebb-core
+
+.PHONY: chartmuseum
+chartmuseum: ## Install a chartmuseum in kubebb-system.
+	helm repo add chartmuseum https://chartmuseum.github.io/charts
+	helm repo update
+	helm install --namespace kubebb-system chartmuseum chartmuseum/chartmuseum -f tests/chartmuseum-custom.yaml --debug
+
+.PHONY: unchartmuseum
+unchartmuseum: ## Uninstall a chartmuseum from kubebb-system.
+	helm uninstall --namespace kubebb-system chartmuseum
 
 ##@ Build Dependencies
 
