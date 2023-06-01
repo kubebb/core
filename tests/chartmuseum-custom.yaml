@@ -1,0 +1,9 @@
+image:
+  pullPolicy: IfNotPresent
+env:
+  open:
+    DISABLE_API: false
+    DEBUG: true
+    STORAGE: local
+    STORAGE_LOCAL_ROOTDIR: /chartstorage
+    # ENABLE_METRICS: true
