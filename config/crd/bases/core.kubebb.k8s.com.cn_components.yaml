@@ -12,6 +12,9 @@ spec:
     kind: Component
     listKind: ComponentList
     plural: components
+    shortNames:
+    - cp
+    - cps
     singular: component
   scope: Namespaced
   versions:

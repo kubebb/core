@@ -87,7 +87,7 @@ type RepositoryHealth struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Namespaced
+//+kubebuilder:resource:scope=Namespaced,shortName=sub;subs
 
 // Subscription is the Schema for the subscriptions API
 type Subscription struct {

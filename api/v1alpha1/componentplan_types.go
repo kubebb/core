@@ -43,7 +43,7 @@ type ComponentPlanStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Namespaced
+//+kubebuilder:resource:scope=Namespaced,shortName=cpl;cpls
 
 // ComponentPlan is the Schema for the componentplans API
 type ComponentPlan struct {

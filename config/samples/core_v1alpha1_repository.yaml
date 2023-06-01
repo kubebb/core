@@ -2,7 +2,7 @@ apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: Repository
 metadata:
   name: repository-bitnami-sample
-  namespace: kube-system
+  namespace: kubebb-system
 spec:
   url: https://charts.bitnami.com/bitnami
   pullStategy:

@@ -7,7 +7,7 @@ metadata:
   labels:
     kubebb.component.repository: repository-bitnami-sample
   name: repository-bitnami-sample.wordpress
-  namespace: kube-system
+  namespace: kubebb-system
   ownerReferences:
     - apiVersion: core.kubebb.k8s.com.cn/v1alpha1
       kind: Repository
@@ -17,7 +17,8 @@ metadata:
   uid: 45474176-5100-4e6e-bc32-2c7d2b36bf90
 spec: {}
 status:
-  description: WordPress is the world's most popular blogging and content management
+  description:
+    WordPress is the world's most popular blogging and content management
     platform. Powerful yet simple, everyone from students to global corporations use
     it to build beautiful, functional websites.
   home: https://bitnami.com
@@ -40,7 +41,7 @@ status:
     apiVersion: core.kubebb.k8s.com.cn/v1alpha1
     kind: Repository
     name: repository-bitnami-sample
-    namespace: kube-system
+    namespace: kubebb-system
     uid: 7a2148df-30db-43d9-adbe-c196ec97b79f
   sources:
     - https://github.com/bitnami/charts/tree/main/bitnami/wordpress

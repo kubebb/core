@@ -12,6 +12,9 @@ spec:
     kind: Subscription
     listKind: SubscriptionList
     plural: subscriptions
+    shortNames:
+    - sub
+    - subs
     singular: subscription
   scope: Namespaced
   versions:

@@ -76,7 +76,7 @@ type RepositoryStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Namespaced
+//+kubebuilder:resource:scope=Namespaced,shortName=repo;repos
 
 // Repository is the Schema for the repositories API
 type Repository struct {
