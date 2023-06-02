@@ -18,11 +18,18 @@ package controllers
 
 import (
 	"context"
+	"reflect"
 
+	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 )
@@ -47,16 +54,86 @@ type ComponentReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling Component")
 
-	// TODO(user): your logic here
+	// Fetch the Component instance
+	instance := &corev1alpha1.Component{}
+	err := r.Client.Get(ctx, req.NamespacedName, instance)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			return reconcile.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
 
+	if !instance.DeletionTimestamp.IsZero() {
+		// The object is being deleted.
+		logger.Info("Component is being deleted")
+	}
+
+	done, err := r.UpdateComponent(ctx, logger, instance)
+	if err != nil {
+		return reconcile.Result{}, err
+	} else if !done {
+		return reconcile.Result{}, nil
+	}
+
+	logger.Info("Synchronized component successfully")
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1alpha1.Component{}).
+		For(&corev1alpha1.Component{}, builder.WithPredicates(predicate.Funcs{
+			UpdateFunc: r.OnComponentUpdate,
+		})).
 		Complete(r)
+}
+
+// UpdateComponent updates new component, add finalizer if necessary.
+func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Component) (bool, error) {
+	done := true
+
+	// check if ownerReferences exist, report done (nothing to do) if it doesn't.
+	if len(instance.OwnerReferences) == 0 {
+		return true, nil
+	}
+
+	var repoName string
+	// find the name of the repository
+	for _, n := range instance.OwnerReferences {
+		if n.Kind == "Repository" {
+			repoName = n.Name
+			break
+		}
+	}
+
+	// check label, report not done (need another update event)  if it doesn't exist or not equal to the name of the repository.
+	if v, ok := instance.Labels[corev1alpha1.ComponentRepositoryLabel]; !ok || v != repoName {
+		// add component.repository=<repository-name> to labels
+		done = false
+		instance.Labels[corev1alpha1.ComponentRepositoryLabel] = repoName
+		logger.V(4).Info("Component repository label added", "Label", corev1alpha1.ComponentRepositoryLabel)
+		err := r.Client.Update(ctx, instance)
+		if err != nil {
+			logger.Error(err, "Failed to add component repository label")
+		}
+		return done, err
+	}
+
+	return done, nil
+}
+
+// OnComponentUpdate checks if a reconcile process is needed when updating. Default true.
+func (r *ComponentReconciler) OnComponentUpdate(event event.UpdateEvent) bool {
+	old := event.ObjectOld.(*corev1alpha1.Component)
+	new := event.ObjectNew.(*corev1alpha1.Component)
+
+	return old.ResourceVersion != new.ResourceVersion || !reflect.DeepEqual(old.Status, new.Status)
 }
