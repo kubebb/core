@@ -186,7 +186,7 @@ func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
 	)
 	if c.instance.Spec.AuthSecret != "" {
 		secret := v1.Secret{}
-		if err := c.c.Get(c.ctx, types.NamespacedName{Namespace: c.instance.GetNamespace(), Name: c.instance.GetName()}, &secret); err != nil {
+		if err := c.c.Get(c.ctx, types.NamespacedName{Namespace: c.instance.GetNamespace(), Name: c.instance.Spec.AuthSecret}, &secret); err != nil {
 			c.logger.Error(err, "")
 			return nil, err
 		}
@@ -194,7 +194,7 @@ func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
 		username = string(secret.Data[v1alpha1.Username])
 		password = string(secret.Data[v1alpha1.Password])
 		if username != "" && password != "" {
-			c.logger.Info("SetBasicAuth", "Secret", c.instance.GetNamespace()+"/"+c.instance.GetName())
+			c.logger.Info("SetBasicAuth", "Secret", c.instance.GetNamespace()+"/"+c.instance.Spec.AuthSecret)
 			req.SetBasicAuth(username, password)
 		}
 
