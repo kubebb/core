@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
@@ -33,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/kubebb/core/api/v1alpha1"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/pkg/repository"
 	"github.com/kubebb/core/pkg/utils"
@@ -128,7 +130,6 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 		return false, err
 	}
 
-	l = len(instanceDeepCopy.Status.URLHistory)
 	cond := corev1alpha1.Condition{
 		Status:             v1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -136,10 +137,13 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 		Message:            "prepare to launch watcher",
 		Type:               corev1alpha1.TypeReady,
 	}
-	instanceDeepCopy.Status.URLHistory = utils.AddString(instanceDeepCopy.Status.URLHistory, instanceDeepCopy.Spec.URL)
-	if len(instanceDeepCopy.Status.URLHistory) != l {
+
+	if changed, history := utils.AddOrSwapString(instanceDeepCopy.Status.URLHistory, instanceDeepCopy.Spec.URL); changed {
 		logger.V(4).Info("Add URL for repository", "URL", instance.Spec.URL)
-		corev1alpha1.UpdateCondWithFixedLen(statusLen, &instanceDeepCopy.Status.ConditionedStatus, cond)
+		instanceDeepCopy.Status.URLHistory = history
+		instanceDeepCopy.Status.ConditionedStatus = v1alpha1.ConditionedStatus{
+			Conditions: []v1alpha1.Condition{cond},
+		}
 		err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance))
 		if err != nil {
 			logger.Error(err, "")
@@ -157,7 +161,7 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 	return oldRepo.Spec.URL != newRepo.Spec.URL ||
 		oldRepo.Spec.AuthSecret != newRepo.Spec.AuthSecret ||
 		!corev1alpha1.IsPullStrategySame(oldRepo.Spec.PullStategy, newRepo.Spec.PullStategy) ||
-		len(oldRepo.Status.URLHistory) != len(newRepo.Status.URLHistory) ||
+		!reflect.DeepEqual(oldRepo.Status.URLHistory, newRepo.Status.URLHistory) ||
 		len(oldRepo.Finalizers) != len(newRepo.Finalizers) ||
 		newRepo.DeletionTimestamp != nil ||
 		!corev1alpha1.IsFilterSame(oldRepo.Spec.Filter, newRepo.Spec.Filter)

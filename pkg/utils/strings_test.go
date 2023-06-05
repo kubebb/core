@@ -78,3 +78,22 @@ func TestContainString(t *testing.T) {
 		}
 	}
 }
+
+func TestAddOrSwapString(t *testing.T) {
+	type testCase struct {
+		source  []string
+		str     string
+		return1 bool
+		return2 []string
+	}
+	for _, tc := range []testCase{
+		{nil, "a", true, []string{"a"}},
+		{[]string{"a"}, "b", true, []string{"a", "b"}},
+		{[]string{"a", "b"}, "a", true, []string{"b", "a"}},
+		{[]string{"a", "b", "a"}, "a", false, []string{"a", "b", "a"}},
+	} {
+		if swap, list := AddOrSwapString(tc.source, tc.str); swap != tc.return1 || !reflect.DeepEqual(list, tc.return2) {
+			t.Fatalf("expect %v %v get %v %v with input source: %v, str: %v", tc.return1, tc.return2, swap, list, tc.source, tc.str)
+		}
+	}
+}
