@@ -101,29 +101,37 @@ func (c *chartmuseum) Stop() {
 }
 
 func (c *chartmuseum) Poll() {
-	cond := v1alpha1.Condition{
+	now := metav1.Now()
+	readyCond := v1alpha1.Condition{
 		Status:             v1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
+		LastTransitionTime: now,
+		Message:            "",
+		Type:               v1alpha1.TypeReady,
 	}
+	syncCond := v1alpha1.Condition{
+		Status:             v1.ConditionTrue,
+		LastTransitionTime: now,
+		Message:            "index yaml synced successfully, createing components",
+		Type:               v1alpha1.TypeSynced,
+	}
+
 	indexFile, err := c.fetchIndexYaml()
 	if err != nil {
 		c.logger.Error(err, "Failed to fetch index file")
-		cond.Status = v1.ConditionFalse
-		cond.Message = "failed to fetch index file"
-		cond.Reason = v1alpha1.ReasonUnavailable
-		cond.Type = v1alpha1.TypeFailedSync
-	} else {
-		cond.Message = "index yaml synced successfully, createing components"
-		cond.Reason = v1alpha1.ReasonAvailable
-		cond.Type = v1alpha1.TypeSynced
+		readyCond.Status = v1.ConditionFalse
+		readyCond.Message = fmt.Sprintf("failed to fetch index file. %s", err.Error())
+		readyCond.Reason = v1alpha1.ReasonUnavailable
 
+		syncCond.Status = v1.ConditionFalse
+		syncCond.Message = "failed to get index.yaml and could not sync components"
+		syncCond.Reason = v1alpha1.ReasonUnavailable
+	} else {
 		diffAction, err := c.diff(indexFile)
 		if err != nil {
 			c.logger.Error(err, "failed to get diff")
-			cond.Status = v1.ConditionFalse
-			cond.Message = err.Error()
-			cond.Reason = v1alpha1.ReasonUnavailable
-			cond.Type = v1alpha1.TypeFailedSync
+			syncCond.Status = v1.ConditionFalse
+			syncCond.Message = fmt.Sprintf("failed to get component synchronization information. %s", err.Error())
+			syncCond.Reason = v1alpha1.ReasonUnavailable
 		} else {
 			for _, item := range diffAction[0] {
 				c.logger.Info("create component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
@@ -147,10 +155,10 @@ func (c *chartmuseum) Poll() {
 	}
 	i := v1alpha1.Repository{}
 	if err := c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.GetName(), Namespace: c.instance.GetNamespace()}, &i); err != nil {
-		c.logger.Error(err, "try to update repository, but failed to get the latest version.", "Cond", cond)
+		c.logger.Error(err, "try to update repository, but failed to get the latest version.", "readyCond", readyCond, "syncCond", syncCond)
 	} else {
 		iDeepCopy := i.DeepCopy()
-		v1alpha1.UpdateCondWithFixedLen(c.statusLen, &iDeepCopy.Status.ConditionedStatus, cond)
+		iDeepCopy.Status.SetConditions(readyCond, syncCond)
 		if err := c.c.Status().Patch(c.ctx, iDeepCopy, client.MergeFrom(&i)); err != nil {
 			c.logger.Error(err, "failed to patch repository status")
 		}

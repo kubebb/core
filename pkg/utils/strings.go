@@ -45,3 +45,24 @@ func ContainString(finalizers []string, f string) bool {
 	}
 	return false
 }
+
+// AddOrSwapString Add an element to the string array,
+// swap it with the last element if it is in the array,
+// or append it directly to the end if it does not exist.
+// Gives whether the array has changed
+//
+//	Example:
+//	[], "a" -> true, []string{"a"}
+//	["a"], "b" -> true, []string{"a", "b"}
+//	["a", "b"], "a" -> true, []string{"b", "a"}
+//	["a", "b", "a"], "a" -> false, []string{"a", "b", "a"}
+func AddOrSwapString(strings []string, str string) (bool, []string) {
+	length := len(strings)
+	for i := 0; i < length; i++ {
+		if strings[i] == str {
+			strings[i], strings[length-1] = strings[length-1], strings[i]
+			return i != length-1 && strings[i] != strings[length-1], strings
+		}
+	}
+	return true, append(strings, str)
+}
