@@ -1,0 +1,15 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Repository
+metadata:
+  name: repository-bitnami-version-constraint
+  namespace: kubebb-system
+spec:
+  url: https://charts.bitnami.com/bitnami
+  pullStategy:
+    intervalSeconds: 120
+    retry: 5
+  filter:
+  - name: wordpress
+    operation: keep
+    versionedFilterCond:
+      versionConstraint: ">= 16.0.0"

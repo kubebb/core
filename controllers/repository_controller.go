@@ -164,7 +164,7 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 		!reflect.DeepEqual(oldRepo.Status.URLHistory, newRepo.Status.URLHistory) ||
 		len(oldRepo.Finalizers) != len(newRepo.Finalizers) ||
 		newRepo.DeletionTimestamp != nil ||
-		!corev1alpha1.IsFilterSame(oldRepo.Spec.Filter, newRepo.Spec.Filter)
+		!reflect.DeepEqual(oldRepo.Spec.Filter, newRepo.Spec.Filter)
 }
 
 // SetupWithManager sets up the controller with the Manager.

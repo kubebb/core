@@ -1,0 +1,15 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Repository
+metadata:
+  name: repository-bitnami-version-regexp
+  namespace: kubebb-system
+spec:
+  url: https://charts.bitnami.com/bitnami
+  pullStategy:
+    intervalSeconds: 120
+    retry: 5
+  filter:
+  - name: wordpress
+    operation: keep
+    versionedFilterCond:
+      regexp: "^16\.*1\.4$"
