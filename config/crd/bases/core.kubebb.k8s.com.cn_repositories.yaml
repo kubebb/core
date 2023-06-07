@@ -44,26 +44,42 @@ spec:
                   password respectively.
                 type: string
               filter:
-                additionalProperties:
+                items:
                   properties:
                     deprecated:
                       description: If True, the current version will be retained even
                         if it is deprecated.
                       type: boolean
-                    regexp:
-                      description: Filter version by regexp
+                    name:
+                      description: Name of the component
                       type: string
-                    versionConstraint:
-                      description: VersionConstraint Support for user-defined version
-                        ranges, etc. Refer to the documentation for more details https://github.com/Masterminds/semver#semver
+                    operation:
+                      default: keep
+                      description: default is keep
+                      enum:
+                      - keep
+                      - ignore
                       type: string
-                    versions:
-                      description: Accurately match each item in the versions
-                      items:
-                        type: string
-                      type: array
+                    versionedFilterCond:
+                      description: VersionedFilterCond filters which version in component
+                        are pulled/ignored from the repository
+                      properties:
+                        regexp:
+                          description: Filter version by regexp
+                          type: string
+                        versionConstraint:
+                          description: VersionConstraint Support for user-defined
+                            version ranges, etc. Refer to the documentation for more
+                            details https://github.com/Masterminds/semver#semver
+                          type: string
+                        versions:
+                          description: Accurately match each item in the versions
+                          items:
+                            type: string
+                          type: array
+                      type: object
                   type: object
-                type: object
+                type: array
               insecure:
                 type: boolean
               pullStategy:
