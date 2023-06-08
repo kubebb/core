@@ -57,9 +57,9 @@ func SubscriptionAvailable() Condition {
 	}
 }
 
-// SubscriptionUnavaliable returns a condition that indicates the subscription is
-// currently observed to be unavaliable for use.
-func SubscriptionUnavaliable() Condition {
+// SubscriptionUnavailable returns a condition that indicates the subscription is
+// currently observed to be unavailable for use.
+func SubscriptionUnavailable() Condition {
 	return Condition{
 		Type:               SubscriptionTypeReady,
 		Status:             corev1.ConditionFalse,

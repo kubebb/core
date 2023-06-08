@@ -338,8 +338,13 @@ func (r *SubscriptionReconciler) CreateComponentPlan(ctx context.Context, sub *c
 	plan := &corev1alpha1.ComponentPlan{}
 	plan.Name = corev1alpha1.GenerateComponentPlanName(sub, fetch.Version)
 	plan.Namespace = sub.Namespace
-	plan.Spec.Override = sub.Spec.Override
+	if err := r.Get(ctx, types.NamespacedName{Namespace: plan.Namespace, Name: plan.Name}, plan); err == nil {
+		// already exists
+		return nil
+	}
+	plan.Spec.Config = sub.Spec.Config
 	plan.Spec.ComponentRef = sub.Spec.ComponentRef
+	plan.Spec.RepositoryRef = sub.Spec.RepositoryRef
 	plan.Spec.InstallVersion = fetch.Version
 	if sub.Spec.ComponentPlanInstallMethod.IsAuto() {
 		plan.Spec.Approved = true
@@ -389,7 +394,7 @@ func (r *SubscriptionReconciler) PatchCondition(ctx context.Context, sub *corev1
 	if ready {
 		newSub.Status.SetConditions(corev1alpha1.SubscriptionAvailable())
 	} else {
-		newSub.Status.SetConditions(corev1alpha1.SubscriptionUnavaliable())
+		newSub.Status.SetConditions(corev1alpha1.SubscriptionUnavailable())
 	}
 	return r.Status().Patch(ctx, newSub, client.MergeFrom(sub))
 }

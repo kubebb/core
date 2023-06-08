@@ -8,3 +8,36 @@ spec:
     name: repository-bitnami-sample.wordpress
     namespace: kubebb-system
   componentPlanInstallMethod: auto
+  name: my-wordpress
+#status:
+#  conditions:
+#    - lastTransitionTime: "2023-06-07T13:32:26Z"
+#      reason: ReconcileSuccess
+#      status: "True"
+#      type: SourceSynced
+#    - lastTransitionTime: "2023-06-07T13:34:35Z"
+#      reason: Available
+#      status: "True"
+#      type: Ready
+#    - lastTransitionTime: "2023-06-07T13:34:34Z"
+#      reason: ReconcileSuccess
+#      status: "True"
+#      type: PlanSynced
+#  installed:
+#    - componentPlan:
+#        name: sub-wordpress-sample-16.1.13
+#        namespace: default
+#      installedTime: "2023-06-07T13:34:34Z"
+#      installedVersion:
+#        appVersion: 6.2.2
+#        createdAt: "2023-06-06T19:08:58Z"
+#        deprecated: false
+#        digest: 47096ed3f0a385e5830e90c75f443b7be107d7fa6df6aa869e7deb60b6cb6f8f
+#        updatedAt: "2023-06-07T13:34:31Z"
+#        version: 16.1.13
+#  repositoryHealth:
+#    healthy: true
+#    lastUpdated: "2023-06-07T13:34:35Z"
+#    repository:
+#      name: repository-bitnami-sample
+#      namespace: kubebb-system

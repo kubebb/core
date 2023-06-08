@@ -38,6 +38,11 @@ spec:
           spec:
             description: SubscriptionSpec defines the desired state of Subscription
             properties:
+              atomic:
+                description: Atomic is pass to helm install/upgrade --atomic if set,
+                  the installation process deletes the installation on failure. The
+                  --wait flag will be set automatically if --atomic is used
+                type: boolean
               component:
                 description: ComponentRef is a reference to the Component
                 properties:
@@ -79,30 +84,99 @@ spec:
                 description: ComponentPlanInstallMethod is the method used to install
                   the component
                 type: string
+              dependencyUpdate:
+                description: DependencyUpdate is pass to helm install/upgrade --dependency-update
+                  update dependencies if they are missing before installing the chart
+                type: boolean
+              description:
+                description: Description is pass to helm install/upgrade --description
+                  add a custom description
+                type: string
+              devel:
+                description: Devel is pass to helm install/upgrade --devel use development
+                  versions, too. Equivalent to version '>0.0.0-0'. If --version is
+                  set, this is ignored
+                type: boolean
+              disableOpenAPIValidation:
+                description: DisableOpenAPIValidation is pass to helm install/upgrade
+                  --disable-openapi-validation if set, the installation process will
+                  not validate rendered templates against the Kubernetes OpenAPI Schema
+                type: boolean
+              enableDNS:
+                description: EnableDNS is pass to helm install/upgrade --enable-dns
+                  enable DNS lookups when rendering templates
+                type: boolean
+              force:
+                description: FIXME reconsider there config because we will use helm
+                  template not helm install Force is pass to helm install/upgrade
+                  --force force resource updates through a replacement strategy
+                type: boolean
+              maxRetry:
+                description: MaxRetry
+                format: int64
+                type: integer
+              name:
+                description: Name is pass to helm install <chart> <name>, name arg
+                type: string
+              nameTemplate:
+                description: NameTemplate is pass to helm install --name-template
+                  FIXME add logic
+                type: string
               override:
                 description: Override defines the override settings for the component
-                items:
-                  description: Override defines the override settings for the component
-                    The value may be single-valued or multi-valued or one file
-                  properties:
-                    file:
-                      description: File is the file path of the override setting
+                  FIXME fix comment
+                properties:
+                  set:
+                    description: 'Set is passed to helm install --set set values on
+                      the command line (can specify multiple or separate values with
+                      commas: key1=val1,key2=val2)'
+                    items:
                       type: string
-                    name:
-                      description: Name is the name of the override setting
+                    type: array
+                  set-file:
+                    description: 'SetFile is passed to helm install --set-file set
+                      values from respective files specified via the command line
+                      (can specify multiple or separate values with commas: key1=path1,key2=path2)
+                      https://github.com/helm/helm/pull/3758'
+                    items:
                       type: string
-                    value:
-                      description: Value is the value of the override setting
+                    type: array
+                  set-json:
+                    description: 'SetJSON is passed to helm install --set-json set
+                      JSON values on the command line (can specify multiple or separate
+                      values with commas: key1=jsonval1,key2=jsonval2) https://github.com/helm/helm/pull/10693'
+                    items:
                       type: string
-                    values:
-                      description: Values is the values of the override setting
-                      items:
-                        type: string
-                      type: array
-                  required:
-                  - name
-                  type: object
-                type: array
+                    type: array
+                  set-literal:
+                    description: SetLiteral is passed to helm install --set-literal
+                      set a literal STRING value on the command line https://github.com/helm/helm/pull/9182
+                    items:
+                      type: string
+                    type: array
+                  set-string:
+                    description: 'SetString is passed to helm install --set-string
+                      set STRING values on the command line (can specify multiple
+                      or separate values with commas: key1=val1,key2=val2) https://github.com/helm/helm/pull/3599'
+                    items:
+                      type: string
+                    type: array
+                  values:
+                    description: Values is passed to helm install --values or -f specify
+                      values in a YAML file or a URL (can specify multiple)
+                    items:
+                      type: string
+                    type: array
+                type: object
+              recreate-pods:
+                description: Recreate is pass to helm upgrade --recreate-pods performs
+                  pods restart for the resource if applicable
+                type: boolean
+              replace:
+                description: Replace is pass to helm install --replace re-use the
+                  given name, only if that name is a deleted release which remains
+                  in the history. This is unsafe in production
+                type: boolean
               repository:
                 description: RepositoryRef is a reference to the Repository
                 properties:
@@ -140,6 +214,29 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              skipCRDs:
+                description: SkipCRDs is pass to helm install/upgrade --skip-crds
+                  if set, no CRDs will be installed. By default, CRDs are installed
+                  if not already present
+                type: boolean
+              timeoutSeconds:
+                description: TimeoutSeconds is pass to helm install/upgrade --timeout,
+                  default is 300s time to wait for any individual Kubernetes operation
+                  (like Jobs for hooks)
+                type: integer
+              wait:
+                description: Wait is pass to helm install/upgrade --wait if set, will
+                  wait until all Pods, PVCs, Services, and minimum number of Pods
+                  of a Deployment, StatefulSet, or ReplicaSet are in a ready state
+                  before marking the release as successful. It will wait for as long
+                  as --timeout
+                type: boolean
+              waitForJobs:
+                description: WaitForJobs is pass to helm install/upgrade --wait-for-jobs
+                  if set and --wait enabled, will wait until all Jobs have been completed
+                  before marking the release as successful. It will wait for as long
+                  as --timeout
+                type: boolean
             required:
             - component
             type: object

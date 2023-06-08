@@ -90,7 +90,7 @@ func (r *RepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 
 		// remove the finalizer to complete the delete action
-		repo.Finalizers = utils.RemoveString(repo.Finalizers, corev1alpha1.RepositoryFinalizer)
+		repo.Finalizers = utils.RemoveString(repo.Finalizers, corev1alpha1.Finalizer)
 		err := r.Client.Update(ctx, repo)
 		if err != nil {
 			logger.Error(err, "Failed to remove repo finalizer")
@@ -120,9 +120,9 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 	instanceDeepCopy := instance.DeepCopy()
 	l := len(instanceDeepCopy.Finalizers)
 
-	instanceDeepCopy.Finalizers = utils.AddString(instanceDeepCopy.Finalizers, corev1alpha1.RepositoryFinalizer)
+	instanceDeepCopy.Finalizers = utils.AddString(instanceDeepCopy.Finalizers, corev1alpha1.Finalizer)
 	if l != len(instanceDeepCopy.Finalizers) {
-		logger.V(4).Info("Add Finalizer for repository", "Finalizer", corev1alpha1.RepositoryFinalizer)
+		logger.V(4).Info("Add Finalizer for repository", "Finalizer", corev1alpha1.Finalizer)
 		err := r.Client.Update(ctx, instanceDeepCopy)
 		if err != nil {
 			logger.Error(err, "")

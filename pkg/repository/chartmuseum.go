@@ -54,14 +54,14 @@ func NewChartmuseum(
 	scheme *runtime.Scheme,
 	instance *v1alpha1.Repository,
 	statusLen int,
-	cancel context.CancelFunc) IWatcher {
-
+	cancel context.CancelFunc,
+) IWatcher {
 	duration := time.Duration(minIntervalSeconds) * time.Second
 	if instance.Spec.PullStategy != nil && instance.Spec.PullStategy.IntervalSeconds > minIntervalSeconds {
 		duration = time.Duration(instance.Spec.PullStategy.IntervalSeconds) * time.Second
 	}
 
-	if r := time.Duration(time.Second * minIntervalSeconds); r.Milliseconds() > duration.Milliseconds() {
+	if r := time.Second * minIntervalSeconds; r.Milliseconds() > duration.Milliseconds() {
 		logger.Info("the minimum cycle period is 120 seconds, but it is actually less, so the default 120 seconds is used as the period.")
 		duration = r
 	}
@@ -75,7 +75,6 @@ func NewChartmuseum(
 		statusLen: statusLen,
 		scheme:    scheme,
 	}
-
 }
 
 type chartmuseum struct {
@@ -135,7 +134,7 @@ func (c *chartmuseum) Poll() {
 		} else {
 			for _, item := range diffAction[0] {
 				c.logger.Info("create component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
-				if c.Create(&item); err != nil && !errors.IsAlreadyExists(err) {
+				if err := c.Create(&item); err != nil && !errors.IsAlreadyExists(err) {
 					c.logger.Error(err, "failed to create")
 				}
 			}
