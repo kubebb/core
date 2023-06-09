@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/kubebb/core/api/v1alpha1"
+	"github.com/kubebb/core/pkg/helm"
 )
 
 const minIntervalSeconds = 120
@@ -74,6 +75,7 @@ func NewChartmuseum(
 		cancel:    cancel,
 		statusLen: statusLen,
 		scheme:    scheme,
+		repoName:  fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName()),
 	}
 }
 
@@ -83,6 +85,7 @@ type chartmuseum struct {
 	instance  *v1alpha1.Repository
 	duration  time.Duration
 	statusLen int
+	repoName  string
 
 	c      client.Client
 	logger logr.Logger
@@ -91,11 +94,19 @@ type chartmuseum struct {
 
 func (c *chartmuseum) Start() {
 	c.logger.Info("Start to fetch")
+	_, _ = helm.RepoRemove(c.ctx, c.repoName)
+	if _, err := helm.RepoAdd(c.ctx, c.repoName, c.instance.Spec.URL); err != nil {
+		c.logger.Error(err, "Failed to add repository")
+		return
+	}
 	go wait.Until(c.Poll, c.duration, c.ctx.Done())
 }
 
 func (c *chartmuseum) Stop() {
 	c.logger.Info("Delete Or Update Repository, stop watcher")
+	if _, err := helm.RepoRemove(c.ctx, c.repoName); err != nil {
+		c.logger.Error(err, "Failed to remove repository")
+	}
 	c.cancel()
 }
 
@@ -114,6 +125,7 @@ func (c *chartmuseum) Poll() {
 		Type:               v1alpha1.TypeSynced,
 	}
 
+	updateRepo := false
 	indexFile, err := c.fetchIndexYaml()
 	if err != nil {
 		c.logger.Error(err, "Failed to fetch index file")
@@ -132,6 +144,7 @@ func (c *chartmuseum) Poll() {
 			syncCond.Message = fmt.Sprintf("failed to get component synchronization information. %s", err.Error())
 			syncCond.Reason = v1alpha1.ReasonUnavailable
 		} else {
+			updateRepo = len(diffAction[0]) > 0 || len(diffAction[1]) > 0 || len(diffAction[2]) > 0
 			for _, item := range diffAction[0] {
 				c.logger.Info("create component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
 				if err := c.Create(&item); err != nil && !errors.IsAlreadyExists(err) {
@@ -162,6 +175,12 @@ func (c *chartmuseum) Poll() {
 			c.logger.Error(err, "failed to patch repository status")
 		}
 	}
+	if updateRepo {
+		if _, err = helm.RepoUpdate(c.ctx, c.repoName); err != nil {
+			c.logger.Error(err, "")
+		}
+	}
+
 }
 
 func (c *chartmuseum) Create(component *v1alpha1.Component) error {
@@ -173,7 +192,7 @@ func (c *chartmuseum) Update(component *v1alpha1.Component) error {
 }
 
 func (c *chartmuseum) Delete(component *v1alpha1.Component) error {
-	return c.c.Status().Update(c.ctx, component)
+	return c.Update(component)
 }
 
 func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
