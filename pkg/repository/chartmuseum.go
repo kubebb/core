@@ -333,7 +333,7 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 			components[index].Status.Maintainers = append(components[index].Status.Maintainers, m)
 		}
 
-		controllerutil.SetOwnerReference(c.instance, &components[index], c.scheme)
+		_ = controllerutil.SetOwnerReference(c.instance, &components[index], c.scheme)
 		index++
 	}
 	return components
