@@ -179,3 +179,18 @@ func getHelmTemplate(ctx context.Context, logger logr.Logger, name, namespace, c
 	logger.V(5).Info("helm template", "output first 20", _out)
 	return utils.SplitYAML([]byte(out))
 }
+
+func RepoAdd(ctx context.Context, name, _url string) (string, error) {
+	h := NewHelm("", false)
+	return h.repoAdd(ctx, name, _url)
+}
+
+func RepoUpdate(ctx context.Context, name string) (string, error) {
+	h := NewHelm("", false)
+	return h.repoUpdate(ctx, name)
+}
+
+func RepoRemove(ctx context.Context, name string) (string, error) {
+	h := NewHelm("", false)
+	return h.repoRemomve(ctx, name)
+}

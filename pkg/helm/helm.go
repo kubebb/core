@@ -95,6 +95,10 @@ func (h *Helm) repoUpdate(ctx context.Context, name string) (string, error) {
 	return h.run(ctx, args...)
 }
 
+func (h *Helm) repoRemomve(ctx context.Context, name string) (string, error) {
+	return h.run(ctx, "repo", "remove", name)
+}
+
 func (h *Helm) template(ctx context.Context, name, namespace, chart, version string, set, setString, setFile, SetJSON, SetLiteral []string, skipCrd bool) (string, error) {
 	// TODO need --validate?
 	// TODO need --kube-version?
