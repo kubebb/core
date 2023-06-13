@@ -22,11 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
-	"sort"
-	"strings"
 
-	"github.com/sergi/go-diff/diffmatchpatch"
+	"istio.io/istio/operator/pkg/compare"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -119,7 +116,7 @@ func IsNullList(obj *unstructured.Unstructured) bool {
 	return field == nil
 }
 
-func ResourceDiffStr(ctx context.Context, source, exist *unstructured.Unstructured, c client.Client) (string, error) {
+func ResourceDiffStr(ctx context.Context, source, exist *unstructured.Unstructured, ignorePaths []string, c client.Client) (string, error) {
 	newOne := source.DeepCopy()
 	if err := c.Patch(ctx, newOne, client.MergeFrom(exist), client.DryRunAll); err != nil {
 		return "", err
@@ -132,13 +129,7 @@ func ResourceDiffStr(ctx context.Context, source, exist *unstructured.Unstructur
 	if err != nil {
 		return "", err
 	}
-	return Diff(string(existYaml), string(newYaml), 1), nil
-	//oldSpec, oldExist, oldErr := unstructured.NestedMap(obj.Object, "spec")
-	//spec, exist, err := unstructured.NestedMap(has.Object, "spec")
-	//logger.Info("!!!", "objSpec", oldSpec, "objExist", oldExist, "objErr", oldErr)
-	//logger.Info("!!!", "hasSpec", spec, "hasExist", exist, "hasErr", err)
-	//diffStr := diff.ObjectDiff(oldSpec, spec)
-	//r.SpecDiffwithExist = &diffStr
+	return compare.YAMLCmpWithIgnore(string(existYaml), string(newYaml), ignorePaths, ""), nil
 }
 
 func OmitManagedFields(o runtime.Object) runtime.Object {
@@ -149,74 +140,4 @@ func OmitManagedFields(o runtime.Object) runtime.Object {
 	}
 	a.SetManagedFields(nil)
 	return o
-}
-
-func Diff(old, new string, unified int) string {
-	singleLine := func(s string) (r []string) {
-		for _, l := range strings.Split(s, "\n") {
-			r = append(r, l+"\n")
-		}
-		if len(r) > 1 && r[len(r)-1] == "\n" {
-			r = r[:len(r)-1]
-		}
-		return r
-	}
-
-	prefixLines := func(s, prefix string) string {
-		var buf bytes.Buffer
-		lines := strings.Split(s, "\n")
-		ls := regexp.MustCompile("^")
-		for _, line := range lines[:len(lines)-1] {
-			buf.WriteString(ls.ReplaceAllString(line, prefix))
-			buf.WriteString("\n")
-		}
-		return buf.String()
-	}
-
-	dmp := diffmatchpatch.New()
-	wSrc, wDst, warray := dmp.DiffLinesToRunes(old, new)
-	diffs := dmp.DiffMainRunes(wSrc, wDst, true)
-	diffs = dmp.DiffCharsToLines(diffs, warray)
-	res := make([]string, 0)
-	currentLine := 0
-	diffLine := make(map[int]bool, 0)
-	var out bytes.Buffer
-	for _, diff := range diffs {
-		text := diff.Text
-		switch diff.Type {
-		case diffmatchpatch.DiffInsert:
-			currentLine++
-			res = append(res, prefixLines(text, "+"))
-			diffLine[currentLine] = true
-		case diffmatchpatch.DiffDelete:
-			currentLine++
-			res = append(res, prefixLines(text, "-"))
-			diffLine[currentLine] = true
-		case diffmatchpatch.DiffEqual:
-			r := singleLine(prefixLines(text, " "))
-			res = append(res, r...)
-			currentLine += len(r)
-		}
-	}
-	for k := range diffLine {
-		for i := k - unified; i <= k+unified; i++ {
-			if i >= 0 && i < len(res) {
-				diffLine[i] = true
-			}
-		}
-	}
-	diffLineKey := make([]int, 0, len(diffLine))
-	for k := range diffLine {
-		diffLineKey = append(diffLineKey, k)
-	}
-	sort.Ints(diffLineKey)
-	lastLineNum := 0
-	for _, l := range diffLineKey {
-		if l-lastLineNum != 1 {
-			out.WriteString("......\n")
-		}
-		out.WriteString(res[l])
-		lastLineNum = l
-	}
-	return out.String()
 }

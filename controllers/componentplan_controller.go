@@ -65,7 +65,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		// There's no need to requeue if the resource no longer exist. Otherwise we'll be
 		// requeued implicitly because we return an error.
-		logger.Error(err, "Failed to get ComponentPlan")
+		logger.V(4).Info("Failed to get ComponentPlan")
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
 	}
 	logger.V(4).Info("Get ComponentPlan instance")
@@ -102,9 +102,9 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Set the status as Unknown when no status are available, and add a finalizer
 	if plan.Status.Conditions == nil || len(plan.Status.Conditions) == 0 {
 		if plan.Spec.Approved {
-			_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanAppreoved())
+			_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanAppreoved(), corev1alpha1.ComponentPlanWaitInstall())
 		} else {
-			_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnAppreoved())
+			_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnAppreoved(), corev1alpha1.ComponentPlanWaitInstall())
 		}
 		return ctrl.Result{Requeue: true}, nil
 	}
@@ -122,7 +122,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Error(err, "Failed to update ComponentPlan to add finalizer")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 	}
 
 	// Check if the ComponentPlan instance is marked to be deleted, which is
@@ -298,7 +298,7 @@ func (r *ComponentPlanReconciler) GenerateManifestConfigMap(plan *corev1alpha1.C
 func (r *ComponentPlanReconciler) PatchCondition(ctx context.Context, plan *corev1alpha1.ComponentPlan, logger logr.Logger, condition ...corev1alpha1.Condition) (err error) {
 	newPlan := plan.DeepCopy()
 	newPlan.Status.SetConditions(condition...)
-	ready := true
+	ready := len(newPlan.Status.Conditions) > 0
 	for _, cond := range newPlan.Status.Conditions {
 		if cond.Type == corev1alpha1.ComponentPlanTypeSucceeded {
 			continue
