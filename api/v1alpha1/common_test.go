@@ -20,6 +20,8 @@ import (
 	"reflect"
 	"testing"
 
+	"helm.sh/helm/v3/pkg/chart"
+	hrepo "helm.sh/helm/v3/pkg/repo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -318,95 +320,102 @@ func TestMatch(t *testing.T) {
 		description string
 		name        string
 		filterCond  map[string]FilterCond
-		version     string
-		deprecated  bool
-		expected    bool
+		versions    []*hrepo.ChartVersion
+
+		keep     bool
+		expected []int
 	}{
 		{
 			description: "filterCond is empty",
 			name:        "test",
 			filterCond:  nil,
-			version:     "1.0.0",
-			deprecated:  false,
-			expected:    true,
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0"}}},
+			keep:        true,
+			expected:    []int{0},
 		},
 		{
 			description: "name doesn't exist",
 			name:        "test",
 			filterCond:  map[string]FilterCond{"other": {}},
-			version:     "1.0.0",
-			deprecated:  false,
-			expected:    true,
+			keep:        true,
+			expected:    nil,
 		},
 		{
 			description: "cond.Deprecated is false and deprecated is true",
 			name:        "test",
 			filterCond:  map[string]FilterCond{"test": {Deprecated: false}},
-			version:     "1.0.0",
-			deprecated:  true,
-			expected:    false,
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}}},
+			keep:        true,
+			expected:    nil,
+		},
+		{
+			description: "ignore all versions of the component",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpIgnore}},
+			keep:        false,
+			expected:    nil,
 		},
 		{
 			description: "version exists in cond.Versions",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Versions: []string{"1.0.0"}}},
-			version:     "1.0.0",
-			deprecated:  false,
-			expected:    true,
+			filterCond:  map[string]FilterCond{"test": {VersionedFilterCond: &VersionedFilterCond{Versions: []string{"1.0.0"}}}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0"}}},
+			keep:        true,
+			expected:    []int{0},
 		},
 		{
 			description: "regular match success",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Regexp: `^1\.*0\.0$`}},
-			version:     "1.0.0",
-			deprecated:  false,
-			expected:    true,
+			filterCond:  map[string]FilterCond{"test": {VersionedFilterCond: &VersionedFilterCond{VersionRegexp: `^1\.*0\.0$`}}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0"}}},
+			keep:        true,
+			expected:    []int{0},
 		},
 		{
 			description: "regular match failed",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Regexp: `^1\.*0\.0$`}},
-			version:     "2.0.0",
-			deprecated:  false,
-			expected:    false,
+			filterCond:  map[string]FilterCond{"test": {VersionedFilterCond: &VersionedFilterCond{VersionRegexp: `^1\.*0\.0$`}}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "2.0.0"}}},
+			keep:        true,
+			expected:    nil,
 		},
 		{
 			description: "version is larger than the value of the than field",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {VersionConstraint: ">= 1.0.0"}},
-			version:     "2.0.0",
-			deprecated:  false,
-			expected:    true,
+			filterCond:  map[string]FilterCond{"test": {VersionedFilterCond: &VersionedFilterCond{VersionConstraint: ">= 1.0.0"}}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0"}}},
+			keep:        true,
+			expected:    []int{0},
 		},
 		{
 			description: "version is smaller than the value of the than field",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {VersionConstraint: ">= 2.0.0"}},
-			version:     "1.0.0",
-			deprecated:  false,
-			expected:    false,
+			filterCond:  map[string]FilterCond{"test": {VersionedFilterCond: &VersionedFilterCond{VersionConstraint: ">= 2.0.0"}}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0"}}},
+			keep:        true,
+			expected:    nil,
 		},
 		{
 			description: "version is larger than the value of the than field and the less field is true",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {VersionConstraint: "<= 2.0.0"}},
-			version:     "3.0.0",
-			deprecated:  false,
-			expected:    false,
+			filterCond:  map[string]FilterCond{"test": {VersionedFilterCond: &VersionedFilterCond{VersionConstraint: "<= 2.0.0"}}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "3.0.0"}}},
+			keep:        true,
+			expected:    nil,
 		},
 		{
 			description: "version is smaller than the value of the than field and the less field is true",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {VersionConstraint: "<= 3.0.0"}},
-			version:     "2.0.0",
-			deprecated:  false,
-			expected:    true,
+			filterCond:  map[string]FilterCond{"test": {VersionedFilterCond: &VersionedFilterCond{VersionConstraint: "<= 3.0.0"}}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "2.0.0"}}},
+			keep:        true,
+			expected:    []int{0},
 		},
 	}
 	for _, testCase := range testCases {
-		actual := Match(testCase.filterCond, Filter{Name: testCase.name, Version: testCase.version, Deprecated: testCase.deprecated})
-		if actual != testCase.expected {
-			t.Errorf("Test Failed: %s, expected: %t, actual: %t", testCase.description, testCase.expected, actual)
+		indices, keep := Match(testCase.filterCond, Filter{Name: testCase.name, Versions: testCase.versions})
+		if !reflect.DeepEqual(indices, testCase.expected) || keep != testCase.keep {
+			t.Errorf("Test Failed: %s, expected: %v %v, actual: %v %v", testCase.description, testCase.expected, testCase.keep, indices, keep)
 		}
 	}
 }
@@ -427,29 +436,29 @@ func TestIsCondSame(t *testing.T) {
 			exp: false,
 		},
 		{
-			c1:  FilterCond{VersionConstraint: ">= 1.0.0"},
-			c2:  FilterCond{VersionConstraint: ">= 1.0.0"},
+			c1:  FilterCond{VersionedFilterCond: &VersionedFilterCond{VersionConstraint: ">= 1.0.0"}},
+			c2:  FilterCond{VersionedFilterCond: &VersionedFilterCond{VersionConstraint: ">= 1.0.0"}},
 			exp: true,
 		},
 		{
-			c1:  FilterCond{Versions: []string{"v1", "v1", "v2"}},
-			c2:  FilterCond{Versions: []string{"v2"}},
+			c1:  FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+			c2:  FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v2"}}},
 			exp: false,
 		},
 		{
-			c1:  FilterCond{Versions: []string{"v1", "v1", "v2"}},
-			c2:  FilterCond{Versions: []string{"v1", "v2"}},
+			c1:  FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+			c2:  FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v2"}}},
 			exp: true,
 		},
 		{
-			c1:  FilterCond{Versions: []string{"v1", "v1"}},
-			c2:  FilterCond{Versions: []string{"v1"}},
+			c1:  FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1"}}},
+			c2:  FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1"}}},
 			exp: true,
 		},
 	}
-	for _, tc := range testCases {
+	for i, tc := range testCases {
 		if r := IsCondSame(tc.c1, tc.c2); r != tc.exp {
-			t.Fatalf("expect %v get %v", tc.exp, r)
+			t.Fatalf("expect %v get %v c1: %d", tc.exp, r, i)
 		}
 	}
 }

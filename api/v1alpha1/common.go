@@ -20,6 +20,7 @@ import (
 	"regexp"
 
 	"github.com/Masterminds/semver/v3"
+	hrepo "helm.sh/helm/v3/pkg/repo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -179,40 +180,43 @@ func UpdateCondWithFixedLen(l int, conds *ConditionedStatus, cond Condition) {
 	conds.Conditions = append(conds.Conditions, cond)
 }
 
+// +kubebuilder:object:generate=false
+type FilterFunc func(FilterCond, string) bool
+
+var defaultFilterFuncs = []FilterFunc{FilterMatchVersion, FilterMatchVersionRegexp, FilterMatchVersionConstraint}
+
+// +kubebuilder:object:generate=false
 type Filter struct {
-	Name, Version string
-	Deprecated    bool
+	Name     string
+	Versions []*hrepo.ChartVersion
 }
 
-func filterMatchDeprecation(cond FilterCond, filter Filter) bool {
-	return !(!cond.Deprecated && filter.Deprecated)
-}
-func filterMatchVersion(cond FilterCond, filter Filter) bool {
-	for _, v := range cond.Versions {
-		if filter.Version == v {
+func FilterMatchVersion(cond FilterCond, version string) bool {
+	for _, v := range cond.VersionedFilterCond.Versions {
+		if v == version {
 			return true
 		}
 	}
 	return false
 }
 
-func filterMatchRegexp(cond FilterCond, filter Filter) bool {
-	if len(cond.Regexp) > 0 {
-		reg, err := regexp.Compile(cond.Regexp)
-		if err == nil && reg.MatchString(filter.Version) {
+func FilterMatchVersionRegexp(cond FilterCond, version string) bool {
+	if len(cond.VersionedFilterCond.VersionRegexp) > 0 {
+		reg, err := regexp.Compile(cond.VersionedFilterCond.VersionRegexp)
+		if err == nil && reg.MatchString(version) {
 			return true
 		}
 	}
 	return false
 }
 
-func filterMatchVersionConstraint(cond FilterCond, filter Filter) bool {
-	if len(cond.VersionConstraint) > 0 {
-		constraint, err := semver.NewConstraint(cond.VersionConstraint)
+func FilterMatchVersionConstraint(cond FilterCond, version string) bool {
+	if len(cond.VersionedFilterCond.VersionConstraint) > 0 {
+		constraint, err := semver.NewConstraint(cond.VersionedFilterCond.VersionConstraint)
 		if err != nil {
 			return false
 		}
-		v, err := semver.NewVersion(filter.Version)
+		v, err := semver.NewVersion(version)
 		if err != nil {
 			return false
 		}
@@ -221,34 +225,45 @@ func filterMatchVersionConstraint(cond FilterCond, filter Filter) bool {
 	return false
 }
 
-func Match(filterCond map[string]FilterCond, filter Filter) bool {
-	if len(filterCond) == 0 {
-		return true
+// Match determines if this component is retained, and if so, filters for conforming versions.
+func Match(fc map[string]FilterCond, filter Filter, funcs ...FilterFunc) ([]int, bool) {
+	var versions []int
+	if len(funcs) == 0 {
+		funcs = defaultFilterFuncs
+	}
+	if len(fc) == 0 {
+		for i := range filter.Versions {
+			versions = append(versions, i)
+		}
+		return versions, true
+	}
+	filterCond, ok := fc[filter.Name]
+	if ok && filterCond.Operation == FilterOpIgnore {
+		return versions, false
 	}
 
-	cond, ok := filterCond[filter.Name]
-	if !ok {
-		return true
+	for i, v := range filter.Versions {
+		if v.Deprecated && !filterCond.Deprecated {
+			continue
+		}
+
+		for _, f := range funcs {
+			if f(filterCond, v.Version) {
+				versions = append(versions, i)
+				break
+			}
+		}
 	}
 
-	if !filterMatchDeprecation(cond, filter) {
-		return false
-	}
-	if filterMatchVersion(cond, filter) {
-		return true
-	}
-	if filterMatchRegexp(cond, filter) {
-		return true
-	}
-	if filterMatchVersionConstraint(cond, filter) {
-		return true
-	}
-	return false
+	return versions, true
 }
 
 func IsCondSame(c1, c2 FilterCond) bool {
-	return sets.NewString(c1.Versions...).Equal(sets.NewString(c2.Versions...)) &&
-		c1.Deprecated == c2.Deprecated && c1.Regexp == c2.Regexp && c1.VersionConstraint == c2.VersionConstraint
+	return c1.Name == c2.Name && c1.Deprecated == c2.Deprecated && c1.Operation == c2.Operation &&
+		((c1.VersionedFilterCond == nil && c2.VersionedFilterCond == nil) ||
+			(c1.VersionedFilterCond != nil && c2.VersionedFilterCond != nil &&
+				sets.NewString(c1.VersionedFilterCond.Versions...).Equal(sets.NewString(c2.VersionedFilterCond.Versions...)) &&
+				c1.VersionedFilterCond.VersionRegexp == c2.VersionedFilterCond.VersionRegexp && c1.VersionedFilterCond.VersionConstraint == c2.VersionedFilterCond.VersionConstraint))
 }
 
 func IsFilterSame(cond1, cond2 map[string]FilterCond) bool {

@@ -20,6 +20,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type FilterOp string
+
+const (
+	FilterOpKeep   FilterOp = "keep"
+	FilterOpIgnore FilterOp = "ignore"
+)
+
 // PullStategy for pulling components in repository
 type PullStategy struct {
 	// Interval for pulling
@@ -32,18 +39,31 @@ type PullStategy struct {
 	Retry int `json:"retry,omitempty"`
 }
 
-type FilterCond struct {
-	// If True, the current version will be retained even if it is deprecated.
-	Deprecated bool `json:"deprecated,omitempty"`
+type VersionedFilterCond struct {
 	// Accurately match each item in the versions
 	Versions []string `json:"versions,omitempty"`
 	// Filter version by regexp
-	Regexp string `json:"regexp,omitempty"`
-
+	VersionRegexp string `json:"regexp,omitempty"`
 	// VersionConstraint Support for user-defined version ranges, etc.
 	// Refer to the documentation for more details
 	// https://github.com/Masterminds/semver#semver
 	VersionConstraint string `json:"versionConstraint,omitempty"`
+}
+
+type FilterCond struct {
+	// Name of the component
+	Name string `json:"name,omitempty"`
+
+	// default is keep
+	// +kubebuilder:validation:Enum=keep;ignore
+	// +kubebuilder:default:=keep
+	Operation FilterOp `json:"operation,omitempty"`
+
+	// If True, the current version will be retained even if it is deprecated.
+	Deprecated bool `json:"deprecated,omitempty"`
+
+	// VersionedFilterCond filters which version in component are pulled/ignored from the repository
+	VersionedFilterCond *VersionedFilterCond `json:"versionedFilterCond,omitempty"`
 }
 
 // RepositorySpec defines the desired state of Repository
@@ -63,7 +83,7 @@ type RepositorySpec struct {
 	// PullStategy pullStategy for this repository
 	PullStategy *PullStategy `json:"pullStategy,omitempty"`
 
-	Filter map[string]FilterCond `json:"filter,omitempty"`
+	Filter []FilterCond `json:"filter,omitempty"`
 }
 
 // RepositoryStatus defines the observed state of Repository

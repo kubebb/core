@@ -1,0 +1,17 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Repository
+metadata:
+  name: repository-bitnami-special-version
+  namespace: kubebb-system
+spec:
+  url: https://charts.bitnami.com/bitnami
+  pullStategy:
+    intervalSeconds: 120
+    retry: 5
+  filter:
+  - name: wordpress
+    operation: keep
+    versionedFilterCond:
+      versions:
+      - 16.1.14
+      - 16.1.13

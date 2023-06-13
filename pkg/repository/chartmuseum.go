@@ -66,6 +66,10 @@ func NewChartmuseum(
 		logger.Info("the minimum cycle period is 120 seconds, but it is actually less, so the default 120 seconds is used as the period.")
 		duration = r
 	}
+	fm := make(map[string]v1alpha1.FilterCond)
+	for _, f := range instance.Spec.Filter {
+		fm[f.Name] = f
+	}
 	return &chartmuseum{
 		instance:  instance,
 		c:         c,
@@ -76,6 +80,7 @@ func NewChartmuseum(
 		statusLen: statusLen,
 		scheme:    scheme,
 		repoName:  fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName()),
+		filterMap: fm,
 	}
 }
 
@@ -87,9 +92,10 @@ type chartmuseum struct {
 	statusLen int
 	repoName  string
 
-	c      client.Client
-	logger logr.Logger
-	scheme *runtime.Scheme
+	c         client.Client
+	logger    logr.Logger
+	scheme    *runtime.Scheme
+	filterMap map[string]v1alpha1.FilterCond
 }
 
 func (c *chartmuseum) Start() {
@@ -292,7 +298,13 @@ func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
 func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha1.Component {
 	components := make([]v1alpha1.Component, len(indexFile.Entries))
 	index := 0
+
 	for entryName, versions := range indexFile.Entries {
+		// filter component and its versions
+		filterVersionIndices, keep := v1alpha1.Match(c.filterMap, v1alpha1.Filter{Name: entryName, Versions: versions})
+		if !keep {
+			continue
+		}
 		components[index] = v1alpha1.Component{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s.%s", c.instance.GetName(), entryName),
@@ -317,18 +329,8 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 
 		maintainers := make(map[string]v1alpha1.Maintainer)
 		latest := true
-		for _, version := range versions {
-			if !v1alpha1.Match(c.instance.Spec.Filter, v1alpha1.Filter{Name: entryName, Version: version.Version, Deprecated: version.Deprecated}) {
-				continue
-			}
-			components[index].Status.Versions = append(components[index].Status.Versions, v1alpha1.ComponentVersion{
-				Version:    version.Version,
-				AppVersion: version.AppVersion,
-				CreatedAt:  metav1.NewTime(version.Created),
-				Digest:     version.Digest,
-				UpdatedAt:  metav1.Now(),
-				Deprecated: version.Deprecated,
-			})
+		for _, idx := range filterVersionIndices {
+			version := versions[idx]
 
 			for _, m := range version.Maintainers {
 				if _, ok := maintainers[m.Name]; !ok {
@@ -339,6 +341,15 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 					}
 				}
 			}
+			components[index].Status.Versions = append(components[index].Status.Versions, v1alpha1.ComponentVersion{
+				Version:    version.Version,
+				AppVersion: version.AppVersion,
+				CreatedAt:  metav1.NewTime(version.Created),
+				Digest:     version.Digest,
+				UpdatedAt:  metav1.Now(),
+				Deprecated: version.Deprecated,
+			})
+
 			if latest {
 				components[index].Status.Description = version.Description
 				components[index].Status.Home = version.Home
@@ -355,7 +366,7 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 		_ = controllerutil.SetOwnerReference(c.instance, &components[index], c.scheme)
 		index++
 	}
-	return components
+	return components[:index]
 }
 
 // diff This function gets the new Component, the updated Component,
