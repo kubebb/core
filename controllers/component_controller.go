@@ -100,20 +100,21 @@ func (r *ComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Component) (bool, error) {
 	done := true
 
-	// check if ownerReferences exist, report done (nothing to do) if it doesn't.
-	if len(instance.OwnerReferences) == 0 {
-		return true, nil
-	}
-
 	var repoName string
-	// find the name of the repository
-	for _, n := range instance.OwnerReferences {
-		if n.Kind == "Repository" {
-			repoName = n.Name
+	// check if ownerReferences exist, report done (nothing to do) if it doesn't.
+	for _, owner := range instance.OwnerReferences {
+		if owner.Kind == "Repository" {
+			repoName = owner.Name
 			break
 		}
 	}
+	if repoName == "" {
+		return done, nil
+	}
 
+	if instance.Labels == nil {
+		instance.Labels = make(map[string]string)
+	}
 	// check label, report not done (need another update event)  if it doesn't exist or not equal to the name of the repository.
 	if v, ok := instance.Labels[corev1alpha1.ComponentRepositoryLabel]; !ok || v != repoName {
 		// add component.repository=<repository-name> to labels
@@ -132,8 +133,8 @@ func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.L
 
 // OnComponentUpdate checks if a reconcile process is needed when updating. Default true.
 func (r *ComponentReconciler) OnComponentUpdate(event event.UpdateEvent) bool {
-	old := event.ObjectOld.(*corev1alpha1.Component)
-	new := event.ObjectNew.(*corev1alpha1.Component)
+	oldObj := event.ObjectOld.(*corev1alpha1.Component)
+	newObj := event.ObjectNew.(*corev1alpha1.Component)
 
-	return old.ResourceVersion != new.ResourceVersion || !reflect.DeepEqual(old.Status, new.Status)
+	return oldObj.ResourceVersion != newObj.ResourceVersion || !reflect.DeepEqual(oldObj.Status, newObj.Status)
 }
