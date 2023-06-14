@@ -16,73 +16,40 @@ spec:
   version: 16.1.12
 #status:
 #  conditions:
-#    - lastTransitionTime: "2023-06-08T05:35:38Z"
+#    - lastTransitionTime: "2023-06-13T07:09:42Z"
 #      reason: ""
 #      status: "True"
 #      type: Approved
-#    - lastTransitionTime: "2023-06-08T05:35:38Z"
-#      reason: ""
-#      status: "True"
-#      type: Succeeded
-#    - lastTransitionTime: "2023-06-08T05:35:42Z"
+#    - lastTransitionTime: "2023-06-13T07:09:48Z"
 #      reason: ""
 #      status: "True"
 #      type: Installed
+#    - lastTransitionTime: "2023-06-13T07:09:48Z"
+#      reason: ""
+#      status: "True"
+#      type: Succeeded
 #  resources:
 #    - apiVersion: v1
 #      kind: ServiceAccount
 #      name: my-wordpress-mariadb
-#      newCreated: true
+#      specDiffwithExist: no spec diff, but some field like resourceVersion will update
 #    - apiVersion: v1
 #      kind: Secret
 #      name: my-wordpress-mariadb
-#      specDiffwithExist: |2
-#         data:
-#        -  mariadb-password: SW5uVjZhV3d6VQ==
-#        -  mariadb-root-password: QnBZYUtjdWNPdA==
-#        +  mariadb-password: MnZweWd3bXhIQg==
-#        +  mariadb-root-password: SDA5OXYyRjdDeA==
-#         kind: Secret
-#         metadata:
-#           creationTimestamp: "2023-06-08T05:34:20Z"
-#        ......
-#             app.kubernetes.io/name: mariadb
-#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#             helm.sh/chart: mariadb-12.2.4
-#           name: my-wordpress-mariadb
-#           namespace: default
+#      specDiffwithExist: |
+#        data:
+#          mariadb-password: VDQxVWl4ZG9NNA== -> OURBcVNCVTJVTg==
+#          mariadb-root-password: TklYdmtVTGF3bw== -> M3BSbGtYb01vUQ==
 #    - apiVersion: v1
 #      kind: Secret
 #      name: my-wordpress
 #      specDiffwithExist: |
-#        ......
-#        -  wordpress-password: cE1oUmdXeGpIOA==
-#        +  wordpress-password: MzlxaUZob3dSUQ==
-#         kind: Secret
-#         metadata:
-#        ......
-#             app.kubernetes.io/managed-by: Helm
-#             app.kubernetes.io/name: wordpress
-#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#        -    helm.sh/chart: wordpress-16.1.13
-#        +    helm.sh/chart: wordpress-16.1.12
-#           name: my-wordpress
-#           namespace: default
-#           resourceVersion: "1211"
-#           uid: c720ce1d-cd3f-4aed-92db-4980931cb0f3
+#        data:
+#          wordpress-password: MEkzWHlXaThRTQ== -> WW53czgxTEIyYQ==
 #    - apiVersion: v1
 #      kind: ConfigMap
 #      name: my-wordpress-mariadb
-#      specDiffwithExist: |
-#        ......
-#             app.kubernetes.io/instance: my-wordpress
-#             app.kubernetes.io/managed-by: Helm
-#             app.kubernetes.io/name: mariadb
-#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#             helm.sh/chart: mariadb-12.2.4
-#           name: my-wordpress-mariadb
-#           namespace: default
-#           resourceVersion: "1210"
+#      specDiffwithExist: no spec diff, but some field like resourceVersion will update
 #    - apiVersion: v1
 #      kind: PersistentVolumeClaim
 #      name: my-wordpress
@@ -90,74 +57,39 @@ spec:
 #    - apiVersion: v1
 #      kind: Service
 #      name: my-wordpress-mariadb
-#      specDiffwithExist: |
-#        ......
-#             app.kubernetes.io/managed-by: Helm
-#             app.kubernetes.io/name: mariadb
-#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#             helm.sh/chart: mariadb-12.2.4
-#           name: my-wordpress-mariadb
-#           namespace: default
-#           resourceVersion: "1198"
+#      specDiffwithExist: no spec diff, but some field like resourceVersion will update
 #    - apiVersion: v1
 #      kind: Service
 #      name: my-wordpress
-#      specDiffwithExist: |
-#        ......
-#             app.kubernetes.io/name: wordpress
-#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#        -    helm.sh/chart: wordpress-16.1.13
-#        +    helm.sh/chart: wordpress-16.1.12
-#           name: my-wordpress
-#           namespace: default
-#           resourceVersion: "1204"
+#      specDiffwithExist: no spec diff, but some field like resourceVersion will update
 #    - apiVersion: apps/v1
 #      kind: Deployment
 #      name: my-wordpress
 #      specDiffwithExist: |
-#        ......
-#         metadata:
-#        -  annotations:
-#        -    deployment.kubernetes.io/revision: "1"
-#           creationTimestamp: "2023-06-08T05:34:20Z"
-#        -  generation: 1
-#        +  generation: 2
-#           labels:
-#             app.kubernetes.io/instance: my-wordpress
-#        ......
-#             app.kubernetes.io/name: wordpress
-#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#        -    helm.sh/chart: wordpress-16.1.13
-#        +    helm.sh/chart: wordpress-16.1.12
-#           name: my-wordpress
-#           namespace: default
-#        ......
-#                 app.kubernetes.io/name: wordpress
-#        -        core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#        -        helm.sh/chart: wordpress-16.1.13
-#        +        helm.sh/chart: wordpress-16.1.12
-#             spec:
-#               affinity:
-#        ......
-#        -        image: docker.io/bitnami/wordpress:6.2.2-debian-11-r10
-#        +        image: docker.io/bitnami/wordpress:6.2.2-debian-11-r9
-#                 imagePullPolicy: IfNotPresent
-#                 livenessProbe:
+#        metadata:
+#          annotations: map[deployment.kubernetes.io/revision:2] -> <empty> (REMOVED)
+#        spec:
+#          replicas: 3 -> 1
+#          template:
+#            spec:
+#              containers:
+#                '[#0]':
+#                  image: docker.io/bitnami/wordpress:6.2.2-debian-11-r9 -> docker.io/bitnami/wordpress:6.2.2-debian-11-r11
+#                  resources:
+#                    requests:
+#                      cpu: 400m -> 300m
+#                      memory: 1Gi -> 512Mi
 #    - apiVersion: apps/v1
 #      kind: StatefulSet
 #      name: my-wordpress-mariadb
 #      specDiffwithExist: |
-#        ......
-#           creationTimestamp: "2023-06-08T05:34:20Z"
-#        -  generation: 1
-#        +  generation: 2
-#           labels:
-#             app.kubernetes.io/component: primary
-#        ......
-#        -    core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#             helm.sh/chart: mariadb-12.2.4
-#           name: my-wordpress-mariadb
-#        ......
-#        -        core.kubebb.k8s.com.cn/componetplan: sub-wordpress-sample-16.1.13
-#                 helm.sh/chart: mariadb-12.2.4
-#             spec:
+#        spec:
+#          template:
+#            metadata:
+#              annotations:
+#                checksum/configuration: 5ebfa426b5e0d78c7249bd5acac22f0e8e36f367b9ba096cb685abc7598f2ae0
+#                  -> abcc3b0ea604fd8129236d8ab6bd4552c963cad6ef0dce866d30be131c6196e5
+#            spec:
+#              containers:
+#                '[#0]':
+#                  image: docker.io/bitnami/mariadb:10.11.3-debian-11-r5 -> docker.io/bitnami/mariadb:10.11.4-debian-11-r0

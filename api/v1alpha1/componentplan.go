@@ -51,6 +51,18 @@ const (
 	ComponentPlanReasonInstallFailed  ConditionReason = "InstallFailed"
 )
 
+// ComponentPlanDiffIgnorePaths is the list of paths to ignore when comparing
+// These fields will almost certainly change when componentplan is updated, and displaying these
+// changes will only result in more invalid information, so they need to be ignored
+var componentPlanDiffIgnorePaths = []string{
+	"metadata.generation",
+	"metadata.resourceVersion",
+	"metadata.labels." + ComponentPlanKey,
+	"spec.template.metadata.labels." + ComponentPlanKey,
+	"metadata.labels.helm.sh/chart",
+	"spec.template.metadata.labels.helm.sh/chart",
+}
+
 // GenerateComponentPlanName generates the name of the component plan for a given subscription
 func GenerateComponentPlanName(sub *Subscription, version string) string {
 	return "sub." + sub.Name + "." + version
@@ -163,11 +175,14 @@ func GetResources(ctx context.Context, logger logr.Logger, c client.Client, mani
 		if isNew {
 			r.NewCreated = &isNew
 		} else {
-			str := "diff with exist"
-			diff, err := utils.ResourceDiffStr(ctx, obj, has, c)
-			if err != nil || diff == "" {
+			diff, err := utils.ResourceDiffStr(ctx, obj, has, componentPlanDiffIgnorePaths, c)
+			if err != nil {
 				logger.Error(err, "failed to get diff", "obj", klog.KObj(obj))
-				r.SpecDiffwithExist = &str
+				diffMsg := "diff with exist"
+				r.SpecDiffwithExist = &diffMsg
+			} else if diff == "" {
+				ignore := "no spec diff, but some field like resourceVersion will update"
+				r.SpecDiffwithExist = &ignore
 			} else {
 				r.SpecDiffwithExist = &diff
 			}
@@ -203,6 +218,10 @@ func ComponentPlanInstallFailed(err error) Condition {
 
 func ComponentPlanInstalling() Condition {
 	return componentPlanCondition(ComponentPlanTypeInstalled, ComponentPlanReasonInstalling, corev1.ConditionFalse, nil)
+}
+
+func ComponentPlanWaitInstall() Condition {
+	return componentPlanCondition(ComponentPlanTypeInstalled, ComponentPlanReasonWaitInstall, corev1.ConditionFalse, nil)
 }
 
 func componentPlanCondition(ct ConditionType, reason ConditionReason, status corev1.ConditionStatus, err error) Condition {
