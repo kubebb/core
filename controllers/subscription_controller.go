@@ -18,9 +18,8 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"reflect"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,7 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,13 +42,15 @@ import (
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 )
 
+const (
+	ComponentIndexKey  = "metadata.component"
+	RepositoryIndexKey = "metadata.repository"
+)
+
 // SubscriptionReconciler reconciles a Subscription object
 type SubscriptionReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
-	mu                 sync.RWMutex
-	ComponentWatchMap  map[string]sets.String // key:component-name/component-namespace val: subscription-name/subscription-namespace
-	RepositoryWatchMap map[string]sets.String // key:repository-name/repository-namespace val: subscription-name/subscription-namespace
+	Scheme *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=subscriptions,verbs=get;list;watch;create;update;patch;delete
@@ -80,20 +80,6 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
 	}
 	logger.V(4).Info("Get Subscription instance")
-
-	// Add to cache map
-	if component := sub.Spec.ComponentRef; component != nil {
-		key := component.Name + "/" + component.Namespace
-		val := sub.Name + "/" + sub.Namespace
-		r.AddToComponentWatchMap(key, val)
-		logger.V(4).Info("Add to Component Watch Map", "Component.Name", component.Name, "Component.Namespace", component.Namespace)
-	}
-	if repository := sub.Spec.RepositoryRef; repository != nil {
-		key := repository.Name + "/" + repository.Namespace
-		val := sub.Name + "/" + sub.Namespace
-		r.AddToRepositoryWatchMap(key, val)
-		logger.V(4).Info("Add to Repository Watch Map", "Repository.Name", repository.Name, "Repository.Namespace", repository.Namespace)
-	}
 
 	// Get watched component
 	component := &corev1alpha1.Component{}
@@ -167,139 +153,72 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionAvailable())
 }
 
-// ExistInComponentWatchMap check if subscription exist in component watch map
-func (r *SubscriptionReconciler) ExistInComponentWatchMap(key, val string) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if subs, ok := r.ComponentWatchMap[key]; ok && subs.Has(val) {
-		return true
-	}
-	return false
-}
-
-// AddToComponentWatchMap add subscription to component watch map
-func (r *SubscriptionReconciler) AddToComponentWatchMap(key, val string) {
-	if r.ExistInComponentWatchMap(key, val) {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.ComponentWatchMap == nil {
-		r.ComponentWatchMap = make(map[string]sets.String)
-	}
-	if subs, ok := r.ComponentWatchMap[key]; ok {
-		subs.Insert(val)
-	} else {
-		r.ComponentWatchMap[key] = sets.NewString(val)
-	}
-}
-
-// ExistInRepositoryWatchMap check if subscription exist in repository watch map
-func (r *SubscriptionReconciler) ExistInRepositoryWatchMap(key, val string) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if subs, ok := r.RepositoryWatchMap[key]; ok && subs.Has(val) {
-		return true
-	}
-	return false
-}
-
-// AddToRepositoryWatchMap add subscription to repository watch map
-func (r *SubscriptionReconciler) AddToRepositoryWatchMap(key, val string) {
-	if r.ExistInRepositoryWatchMap(key, val) {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.RepositoryWatchMap == nil {
-		r.RepositoryWatchMap = make(map[string]sets.String)
-	}
-	if subs, ok := r.RepositoryWatchMap[key]; ok {
-		subs.Insert(val)
-	} else {
-		r.RepositoryWatchMap[key] = sets.NewString(val)
-	}
-}
-
 // SetupWithManager sets up the controller with the Manager.
-func (r *SubscriptionReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *SubscriptionReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1alpha1.Subscription{}, ComponentIndexKey,
+		func(o client.Object) []string {
+			sub, ok := o.(*corev1alpha1.Subscription)
+			if !ok {
+				return nil
+			}
+			component := sub.Spec.ComponentRef
+			if component == nil {
+				return nil
+			}
+			return []string{
+				fmt.Sprintf("%s/%s", component.Namespace, component.Name),
+			}
+		},
+	); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1alpha1.Subscription{}, RepositoryIndexKey,
+		func(o client.Object) []string {
+			sub, ok := o.(*corev1alpha1.Subscription)
+			if !ok {
+				return nil
+			}
+			repo := sub.Spec.RepositoryRef
+			if repo == nil {
+				return nil
+			}
+			return []string{
+				fmt.Sprintf("%s/%s", repo.Namespace, repo.Name),
+			}
+		},
+	); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1alpha1.Subscription{}, builder.WithPredicates(predicate.Funcs{
-			UpdateFunc: r.SubscriptionUpdate,
-			DeleteFunc: r.SubscriptionDelete,
-		})).
+		For(&corev1alpha1.Subscription{}, builder.WithPredicates(SubscriptionPredicate{})).
 		Watches(&source.Kind{Type: &corev1alpha1.Component{}},
 			handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
-				return r.GetReqs(o, true)
+				return r.GetReqs(ctx, o, true)
 			})).
 		Watches(&source.Kind{Type: &corev1alpha1.Repository{}},
 			handler.EnqueueRequestsFromMapFunc(func(o client.Object) (reqs []reconcile.Request) {
-				return r.GetReqs(o, false)
+				return r.GetReqs(ctx, o, false)
 			})).
 		Complete(r)
 }
 
 // GetReqs get subscription reqs
-func (r *SubscriptionReconciler) GetReqs(o client.Object, watchComponent bool) (reqs []reconcile.Request) {
-	key := o.GetName() + "/" + o.GetNamespace()
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	var subs sets.String
-	var ok bool
+func (r *SubscriptionReconciler) GetReqs(ctx context.Context, o client.Object, watchComponent bool) (reqs []reconcile.Request) {
+	var list corev1alpha1.SubscriptionList
+	key := RepositoryIndexKey
 	if watchComponent {
-		subs, ok = r.ComponentWatchMap[key]
-	} else {
-		subs, ok = r.RepositoryWatchMap[key]
+		key = ComponentIndexKey
 	}
-	if !ok {
-		return
+	if err := r.List(ctx, &list, client.MatchingFields{key: client.ObjectKeyFromObject(o).String()}); err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "failed to list Subscription for Repository/Component change", "isComponentChange", watchComponent)
+		return nil
 	}
-	all := subs.List()
-	for _, val := range all {
-		name, ns, ok := strings.Cut(val, "/")
-		if !ok {
-			continue
-		}
-		reqs = append(reqs, reconcile.Request{NamespacedName: client.ObjectKey{Name: name, Namespace: ns}})
+	for _, i := range list.Items {
+		reqs = append(reqs, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&i)})
 	}
 	return reqs
-}
-
-// SubscriptionUpdate check if subscription spec or status is updated
-func (r *SubscriptionReconciler) SubscriptionUpdate(event event.UpdateEvent) bool {
-	oldSub, ok := event.ObjectOld.(*corev1alpha1.Subscription)
-	if !ok {
-		return false
-	}
-	newSub, ok := event.ObjectNew.(*corev1alpha1.Subscription)
-	if !ok {
-		return false
-	}
-	if !reflect.DeepEqual(oldSub.Spec, newSub.Spec) {
-		return true
-	}
-	if !reflect.DeepEqual(oldSub.Status, newSub.Status) {
-		return true
-	}
-	return false
-}
-
-// SubscriptionDelete clean Reconciler cache map when subscription is deleted
-func (r *SubscriptionReconciler) SubscriptionDelete(event event.DeleteEvent) bool {
-	sub, ok := event.Object.(*corev1alpha1.Subscription)
-	if !ok {
-		return false
-	}
-	val := sub.Name + "/" + sub.Namespace
-	component := sub.Spec.ComponentRef.Name + "/" + sub.Spec.ComponentRef.Namespace
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.ComponentWatchMap[component].Delete(val)
-	if sub.Spec.RepositoryRef != nil {
-		repository := sub.Spec.RepositoryRef.Name + "/" + sub.Spec.RepositoryRef.Namespace
-		r.RepositoryWatchMap[repository].Delete(val)
-	}
-	return false
 }
 
 // UpdateStatusRepositoryHealth get repository CR, check if the repository is healthy and updates subscription status.RepositoryHealth
@@ -312,7 +231,6 @@ func (r *SubscriptionReconciler) UpdateStatusRepositoryHealth(ctx context.Contex
 		}
 		return err
 	}
-	// FIXME check if the repository is healthy
 	healthy := true
 	if repo.Status.GetCondition(corev1alpha1.TypeReady).Status != corev1.ConditionTrue {
 		healthy = false
@@ -397,4 +315,30 @@ func (r *SubscriptionReconciler) PatchCondition(ctx context.Context, sub *corev1
 		newSub.Status.SetConditions(corev1alpha1.SubscriptionUnavailable())
 	}
 	return r.Status().Patch(ctx, newSub, client.MergeFrom(sub))
+}
+
+type SubscriptionPredicate struct {
+	predicate.Funcs
+}
+
+func (p SubscriptionPredicate) Update(e event.UpdateEvent) bool {
+	oldSub, ok := e.ObjectOld.(*corev1alpha1.Subscription)
+	if !ok {
+		return false
+	}
+	newSub, ok := e.ObjectNew.(*corev1alpha1.Subscription)
+	if !ok {
+		return false
+	}
+	if !reflect.DeepEqual(oldSub.Spec, newSub.Spec) {
+		return true
+	}
+	if !reflect.DeepEqual(oldSub.Status, newSub.Status) {
+		return true
+	}
+	return false
+}
+
+func (p SubscriptionPredicate) Delete(e event.DeleteEvent) bool {
+	return false
 }
