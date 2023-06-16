@@ -150,6 +150,10 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 kind: ## Install a kind cluster.
 	kind create cluster --config=tests/kind-config.yaml
 
+.PHONY: kind3
+kind3: ## Install a kind cluster with 3nodes.
+	kind create cluster --config=tests/kind-config-3nodes.yaml
+
 .PHONY: kind-load
 kind-load:
 	kind load docker-image kubebb/core:latest --name=kubebb-core
