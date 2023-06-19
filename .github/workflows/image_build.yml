@@ -18,14 +18,15 @@ jobs:
       - name: Set Variable
         id: set-env
         run: |
-          echo "TAG=$(git describe --abbrev=0 --tags --match 'v*')" >> $GITHUB_OUTPUT
+          TAG=$(git describe --tags --abbrev=0 --match 'v*' 2> /dev/null) || true
+          if [ -z "$TAG" ]; then
+            echo "No tag found, use v0.0.0"
+            TAG=v0.0.0
+          fi
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
           echo "DATE=$(TZ=Asia/Shanghai date +'%Y%m%d')" >> $GITHUB_OUTPUT
       - name: Show Variable
         run: echo "varibables ${{ steps.set-env.outputs.TAG }}-${{ steps.set-env.outputs.DATE }}"
-      - name: Test Build
-        run: |
-          scripts/install-tools.sh
-          make image
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
