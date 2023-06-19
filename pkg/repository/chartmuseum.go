@@ -54,7 +54,6 @@ func NewChartmuseum(
 	c client.Client,
 	scheme *runtime.Scheme,
 	instance *v1alpha1.Repository,
-	statusLen int,
 	cancel context.CancelFunc,
 ) IWatcher {
 	duration := time.Duration(minIntervalSeconds) * time.Second
@@ -77,7 +76,6 @@ func NewChartmuseum(
 		logger:    logger,
 		duration:  duration,
 		cancel:    cancel,
-		statusLen: statusLen,
 		scheme:    scheme,
 		repoName:  fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName()),
 		filterMap: fm,
@@ -89,7 +87,6 @@ type chartmuseum struct {
 	cancel    context.CancelFunc
 	instance  *v1alpha1.Repository
 	duration  time.Duration
-	statusLen int
 	repoName  string
 
 	c         client.Client
