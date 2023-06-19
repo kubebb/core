@@ -40,11 +40,6 @@ import (
 	"github.com/kubebb/core/pkg/utils"
 )
 
-// Fixed, no lower configuration allowed
-const (
-	statusLen = 2
-)
-
 // RepositoryReconciler reconciles a Repository object
 type RepositoryReconciler struct {
 	client.Client
@@ -109,7 +104,7 @@ func (r *RepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		w.Stop()
 	}
 	_ctx, _cancel := context.WithCancel(ctx)
-	r.C[key] = repository.NewChartmuseum(_ctx, logger, r.Client, r.Scheme, repo, statusLen, _cancel)
+	r.C[key] = repository.NewChartmuseum(_ctx, logger, r.Client, r.Scheme, repo, _cancel)
 	r.C[key].Start()
 
 	logger.Info("Synchronized repository successfully")
