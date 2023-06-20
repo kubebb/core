@@ -80,6 +80,40 @@ spec:
                       type: object
                   type: object
                 type: array
+              imageOverride:
+                description: ImageOverride means replaced images rules for this repository
+                items:
+                  properties:
+                    newRegistry:
+                      description: NewRegistry means replaced one
+                      type: string
+                    pathOverride:
+                      description: PathOverride means replaced path
+                      properties:
+                        newPath:
+                          type: string
+                        path:
+                          description: 'The path consists of slash-separated components.
+                            Each component may contain lowercase letters, digits and
+                            separators. A separator is defined as a period, one or
+                            two underscores, or one or more hyphens. A component may
+                            not start or end with a separator. While the OCI Distribution
+                            Specification supports more than two slash-separated components,
+                            most registries only support two slash-separated components.
+                            For Docker’s public registry, the path format is as follows:
+                            [NAMESPACE/]REPOSITORY: The first, optional component
+                            is typically a user’s or an organization’s namespace.
+                            The second, mandatory component is the repository name.
+                            When the namespace is not present, Docker uses library
+                            as the default namespace.'
+                          type: string
+                      type: object
+                    registry:
+                      description: Registry include host and port number, like `registry-1.docker.io`
+                        or `registry-1.docker.io:5000`
+                      type: string
+                  type: object
+                type: array
               insecure:
                 type: boolean
               pullStategy:

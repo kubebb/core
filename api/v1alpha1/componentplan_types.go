@@ -42,6 +42,7 @@ type ComponentPlanSpec struct {
 type ComponentPlanStatus struct {
 	ConditionedStatus `json:",inline"`
 	Resources         []Resource `json:"resources,omitempty"`
+	Images            []string   `json:"images,omitempty"`
 }
 
 // Resource represents one single resource in the ComponentPlan

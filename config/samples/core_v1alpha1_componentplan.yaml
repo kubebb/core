@@ -28,6 +28,9 @@ spec:
 #      reason: ""
 #      status: "True"
 #      type: Succeeded
+#  images:
+#    - docker.io/bitnami/mariadb:10.11.3-debian-11-r5
+#    - docker.io/bitnami/wordpress:6.2.2-debian-11-r9
 #  resources:
 #    - apiVersion: v1
 #      kind: ServiceAccount

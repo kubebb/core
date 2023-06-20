@@ -16,6 +16,11 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	"os"
+	"strings"
+)
+
 const (
 	Username = "username"
 	Password = "password"
@@ -33,4 +38,16 @@ func IsPullStrategySame(a, b *PullStategy) bool {
 	}
 
 	return a == nil && b == nil
+}
+
+// ImageOverridePath is the manifest path to detect kustomize image overrides
+// can be replaced by environment variables IMAGEOVERRIDE_PATH, for example IMAGEOVERRIDE_PATH=spec/template/spec/initContainers/image:spec/initContainers/image
+var ImageOverridePath = []string{"spec/containers/image", "spec/initContainers/image"}
+
+func GetImageOverridePath() []string {
+	v := os.Getenv("IMAGEOVERRIDE_PATH")
+	if len(v) == 0 {
+		return ImageOverridePath
+	}
+	return strings.Split(v, ":")
 }

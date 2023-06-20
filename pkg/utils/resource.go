@@ -22,13 +22,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 
+	"github.com/go-logr/logr"
+	"github.com/kubebb/core/api/v1alpha1"
 	"istio.io/istio/operator/pkg/compare"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/json"
 	kubeyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
@@ -140,4 +148,137 @@ func OmitManagedFields(o runtime.Object) runtime.Object {
 	}
 	a.SetManagedFields(nil)
 	return o
+}
+
+// ComponentPlanDiffIgnorePaths is the list of paths to ignore when comparing
+// These fields will almost certainly change when componentplan is updated, and displaying these
+// changes will only result in more invalid information, so they need to be ignored
+var ComponentPlanDiffIgnorePaths = []string{
+	"metadata.generation",
+	"metadata.resourceVersion",
+	"metadata.labels." + v1alpha1.ComponentPlanKey,
+	"spec.template.metadata.labels." + v1alpha1.ComponentPlanKey,
+	"metadata.labels.helm.sh/chart",
+	"spec.template.metadata.labels.helm.sh/chart",
+}
+
+// GetResourcesAndImages get resource slices, image lists from manifests
+func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Client, manifests []string) (resources []v1alpha1.Resource, images []string, err error) {
+	resources = make([]v1alpha1.Resource, len(manifests))
+	for i, manifest := range manifests {
+		obj := &unstructured.Unstructured{}
+		if err = json.Unmarshal([]byte(manifest), obj); err != nil {
+			return nil, nil, err
+		}
+		has := &unstructured.Unstructured{}
+		has.SetKind(obj.GetKind())
+		has.SetAPIVersion(obj.GetAPIVersion())
+		err = c.Get(ctx, client.ObjectKeyFromObject(obj), has)
+		var isNew bool
+		if err != nil && apierrors.IsNotFound(err) {
+			isNew = true
+		} else if err != nil {
+			return nil, nil, err
+		}
+		r := v1alpha1.Resource{
+			Kind:       obj.GetKind(),
+			Name:       obj.GetName(),
+			APIVersion: obj.GetAPIVersion(),
+		}
+		if isNew {
+			r.NewCreated = &isNew
+		} else {
+			diff, err := ResourceDiffStr(ctx, obj, has, ComponentPlanDiffIgnorePaths, c)
+			if err != nil {
+				logger.Error(err, "failed to get diff", "obj", klog.KObj(obj))
+				diffMsg := "diff with exist"
+				r.SpecDiffwithExist = &diffMsg
+			} else if diff == "" {
+				ignore := "no spec diff, but some field like resourceVersion will update"
+				r.SpecDiffwithExist = &ignore
+			} else {
+				r.SpecDiffwithExist = &diff
+			}
+		}
+		resources[i] = r
+		gvk := obj.GroupVersionKind()
+		switch gvk.Group {
+		case "":
+			switch gvk.Kind {
+			case "Pod":
+				images = append(images, GetPodImage(obj)...)
+			}
+		case "apps":
+			switch gvk.Kind {
+			case "Deployment":
+				images = append(images, GetDeploymentImage(obj)...)
+			case "StatefulSet":
+				images = append(images, GetStatefulSetImage(obj)...)
+			}
+		case "batch":
+			switch gvk.Kind {
+			case "Job":
+				images = append(images, GetJobImage(obj)...)
+			case "CronJob":
+				images = append(images, GetCronJobImage(obj)...)
+			}
+		}
+	}
+	imageMap := make(map[string]bool)
+	for _, i := range images {
+		imageMap[i] = true
+	}
+	images = make([]string, 0, len(imageMap))
+	for k := range imageMap {
+		images = append(images, k)
+	}
+	sort.Strings(images)
+	return resources, images, nil
+}
+
+func GetCronJobImage(obj *unstructured.Unstructured) (image []string) {
+	cj := batchv1.CronJob{}
+	_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &cj)
+	image = ParseContainerImage(cj.Spec.JobTemplate.Spec.Template.Spec.Containers)
+	image = append(image, ParseContainerImage(cj.Spec.JobTemplate.Spec.Template.Spec.InitContainers)...)
+	return image
+}
+
+func GetJobImage(obj *unstructured.Unstructured) (image []string) {
+	job := batchv1.Job{}
+	_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &job)
+	image = ParseContainerImage(job.Spec.Template.Spec.Containers)
+	image = append(image, ParseContainerImage(job.Spec.Template.Spec.InitContainers)...)
+	return image
+}
+
+func GetStatefulSetImage(obj *unstructured.Unstructured) (image []string) {
+	sts := appsv1.StatefulSet{}
+	_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &sts)
+	image = ParseContainerImage(sts.Spec.Template.Spec.Containers)
+	image = append(image, ParseContainerImage(sts.Spec.Template.Spec.InitContainers)...)
+	return image
+}
+
+func GetDeploymentImage(obj *unstructured.Unstructured) (image []string) {
+	deploy := appsv1.Deployment{}
+	_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &deploy)
+	image = ParseContainerImage(deploy.Spec.Template.Spec.Containers)
+	image = append(image, ParseContainerImage(deploy.Spec.Template.Spec.InitContainers)...)
+	return image
+}
+
+func GetPodImage(obj *unstructured.Unstructured) (image []string) {
+	pod := corev1.Pod{}
+	_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &pod)
+	image = ParseContainerImage(pod.Spec.Containers)
+	image = append(image, ParseContainerImage(pod.Spec.InitContainers)...)
+	return image
+}
+
+func ParseContainerImage(containers []corev1.Container) (image []string) {
+	for _, container := range containers {
+		image = append(image, container.Image)
+	}
+	return image
 }

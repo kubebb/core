@@ -17,18 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
-	"encoding/json"
-
-	"github.com/go-logr/logr"
-	"github.com/kubebb/core/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -50,18 +42,6 @@ const (
 	ComponentPlanReasonInstallSuccess ConditionReason = "InstallSuccess"
 	ComponentPlanReasonInstallFailed  ConditionReason = "InstallFailed"
 )
-
-// ComponentPlanDiffIgnorePaths is the list of paths to ignore when comparing
-// These fields will almost certainly change when componentplan is updated, and displaying these
-// changes will only result in more invalid information, so they need to be ignored
-var componentPlanDiffIgnorePaths = []string{
-	"metadata.generation",
-	"metadata.resourceVersion",
-	"metadata.labels." + ComponentPlanKey,
-	"spec.template.metadata.labels." + ComponentPlanKey,
-	"metadata.labels.helm.sh/chart",
-	"spec.template.metadata.labels.helm.sh/chart",
-}
 
 // GenerateComponentPlanName generates the name of the component plan for a given subscription
 func GenerateComponentPlanName(sub *Subscription, version string) string {
@@ -147,49 +127,6 @@ func AddComponentPlanLabel(target *unstructured.Unstructured, planName string) e
 		}
 	}
 	return nil
-}
-
-// GetResources get resource slices from manifests
-func GetResources(ctx context.Context, logger logr.Logger, c client.Client, manifests []string) (resources []Resource, err error) {
-	resources = make([]Resource, len(manifests))
-	for i, manifest := range manifests {
-		obj := &unstructured.Unstructured{}
-		if err = json.Unmarshal([]byte(manifest), obj); err != nil {
-			return nil, err
-		}
-		has := &unstructured.Unstructured{}
-		has.SetKind(obj.GetKind())
-		has.SetAPIVersion(obj.GetAPIVersion())
-		err = c.Get(ctx, client.ObjectKeyFromObject(obj), has)
-		var isNew bool
-		if err != nil && apierrors.IsNotFound(err) {
-			isNew = true
-		} else if err != nil {
-			return nil, err
-		}
-		r := Resource{
-			Kind:       obj.GetKind(),
-			Name:       obj.GetName(),
-			APIVersion: obj.GetAPIVersion(),
-		}
-		if isNew {
-			r.NewCreated = &isNew
-		} else {
-			diff, err := utils.ResourceDiffStr(ctx, obj, has, componentPlanDiffIgnorePaths, c)
-			if err != nil {
-				logger.Error(err, "failed to get diff", "obj", klog.KObj(obj))
-				diffMsg := "diff with exist"
-				r.SpecDiffwithExist = &diffMsg
-			} else if diff == "" {
-				ignore := "no spec diff, but some field like resourceVersion will update"
-				r.SpecDiffwithExist = &ignore
-			} else {
-				r.SpecDiffwithExist = &diff
-			}
-		}
-		resources[i] = r
-	}
-	return resources, nil
 }
 
 func ComponentPlanSucceeded() Condition {
