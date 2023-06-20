@@ -1,0 +1,16 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: ComponentPlan
+metadata:
+  name: do-once-nginx-sample-15.0.2
+  namespace: kubebb-system
+spec:
+  approved: true
+  component:
+    name: repository-bitnami-sample.nginx
+    namespace: kubebb-system
+  name: my-nginx
+  override: {}
+  repository:
+    name: repository-bitnami-sample
+    namespace: kubebb-system
+  version: 15.0.2
