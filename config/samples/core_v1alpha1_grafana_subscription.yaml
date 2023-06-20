@@ -1,0 +1,11 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Subscription
+metadata:
+  name: grafana-sample
+  namespace: kubebb-system
+spec:
+  component:
+    name: repository-grafana-sample.grafana
+    namespace: kubebb-system
+  componentPlanInstallMethod: auto
+  name: grafana-sample
