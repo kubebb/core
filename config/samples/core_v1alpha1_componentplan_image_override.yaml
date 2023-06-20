@@ -1,0 +1,44 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: ComponentPlan
+metadata:
+  name: nginx-15.0.2
+  namespace: default
+spec:
+  approved: true
+  component:
+    name: repository-bitnami-sample.nginx
+    namespace: kubebb-system
+  name: my-nginx
+  override:
+    images:
+      - name: docker.io/bitnami/nginx
+        newTag: latest # default is docker.io/bitnami/nginx:1.25.1-debian-11-r0
+  repository:
+    name: repository-bitnami-sample
+    namespace: kubebb-system
+  version: 15.0.2
+#status:
+#  conditions:
+#    - lastTransitionTime: "2023-06-21T03:44:31Z"
+#      reason: ""
+#      status: "True"
+#      type: Approved
+#    - lastTransitionTime: "2023-06-21T03:44:37Z"
+#      reason: ""
+#      status: "True"
+#      type: Installed
+#    - lastTransitionTime: "2023-06-21T03:44:37Z"
+#      reason: ""
+#      status: "True"
+#      type: Succeeded
+#  images:
+#    - docker.io/bitnami/nginx:latest
+#  resources:
+#    - NewCreated: true
+#      apiVersion: v1
+#      kind: Service
+#      name: my-nginx
+#    - NewCreated: true
+#      apiVersion: apps/v1
+#      kind: Deployment
+#      name: my-nginx

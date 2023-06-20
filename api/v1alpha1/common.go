@@ -23,6 +23,7 @@ import (
 	hrepo "helm.sh/helm/v3/pkg/repo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	kustomize "sigs.k8s.io/kustomize/api/types"
 )
 
 const (
@@ -83,6 +84,11 @@ type Override struct {
 	// set a literal STRING value on the command line
 	// https://github.com/helm/helm/pull/9182
 	SetLiteral []string `json:"set-literal,omitempty"`
+
+	// Images for replace old image
+	// see https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/images
+	// +optional
+	Images []kustomize.Image `json:"images,omitempty"`
 }
 
 // NameConfig defines the name of helm release

@@ -1,0 +1,17 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Repository
+metadata:
+  name: repository-grafana-sample
+  namespace: kubebb-system
+spec:
+  url: https://grafana.github.io/helm-charts
+  pullStategy:
+    intervalSeconds: 120
+    retry: 5
+  imageOverride:
+    - registry: docker.io
+      newRegistry: 192.168.1.1:5000
+      pathOverride:
+        path: grafana
+        newPath: grafana-local
+        # "docker.io/grafana/grafana:9.5.3" -> "192.168.1.1:5000/grafana-local/grafana:9.5.3"
