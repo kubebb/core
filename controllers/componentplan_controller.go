@@ -17,32 +17,43 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/pkg/helm"
+	"github.com/kubebb/core/pkg/repoimage"
 	"github.com/kubebb/core/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/kustomize/api/krusty"
+	kustomize "sigs.k8s.io/kustomize/api/types"
+	kustypes "sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
+	"sigs.k8s.io/yaml"
 )
 
 // ComponentPlanReconciler reconciles a ComponentPlan object
 type ComponentPlanReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	// For https://github.com/kubernetes-sigs/kustomize/issues/3659
+	kustomizeRenderMutex sync.Mutex
 }
 
 // +kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=componentplans,verbs=get;list;watch;create;update;patch;delete
@@ -167,7 +178,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		chartName := component.Status.Name
 		if chartName == "" {
-			err := errors.New("chart name is empty")
+			err = errors.New("chart name is empty")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
 
@@ -179,7 +190,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		repoName := repo.Name
 		repoUrl := repo.Spec.URL
 		if repoUrl == "" {
-			err := errors.New("repo url is empty")
+			err = errors.New("repo url is empty")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
 
@@ -191,6 +202,12 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
 
+		data, err = r.UpdateImages(ctx, data, repo.Spec.ImageOverride, plan.Spec.Config.Override.Images)
+		if err != nil {
+			logger.Error(err, "Failed to Update Images")
+			return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+		}
+
 		if err = r.GenerateManifestConfigMap(plan, manifest, data); err != nil {
 			logger.Error(err, "Failed to generate manifest configmap")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
@@ -198,7 +215,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Generate a new template Configmap", "ConfigMap.Namespace", manifest.Namespace, "ConfigMap.Name", manifest.Name)
 
 		newPlan := plan.DeepCopy()
-		newPlan.Status.Resources, err = corev1alpha1.GetResources(ctx, logger, r.Client, data)
+		newPlan.Status.Resources, newPlan.Status.Images, err = utils.GetResourcesAndImages(ctx, logger, r.Client, data)
 		if err != nil {
 			logger.Error(err, "Failed to get resources")
 			return ctrl.Result{Requeue: true, RequeueAfter: time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
@@ -359,4 +376,81 @@ func (r *ComponentPlanReconciler) needRetry(maxRetry *int64, label map[string]st
 		return retry < *maxRetry
 	}
 	return 1 < *maxRetry
+}
+
+func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifests []string, repoOverride []corev1alpha1.ImageOverride, images []kustomize.Image) (jsonData []string, err error) {
+	if len(repoOverride) == 0 && len(images) == 0 {
+		return jsonManifests, nil
+	}
+	fs := filesys.MakeFsInMemory()
+	cfg := kustypes.Kustomization{}
+	cfg.APIVersion = kustypes.KustomizationVersion
+	cfg.Kind = kustypes.KustomizationKind
+	cfg.Images = images
+
+	for i, manifest := range jsonManifests {
+		fileName := fmt.Sprintf("%d.json", i)
+		cfg.Resources = append(cfg.Resources, fileName)
+		f, err := fs.Create(fileName)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		if _, err = f.Write([]byte(manifest)); err != nil {
+			return nil, err
+		}
+	}
+
+	kustomization, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	f, err := fs.Create("kustomization.yaml")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	if _, err = f.Write(kustomization); err != nil {
+		return nil, err
+	}
+
+	r.kustomizeRenderMutex.Lock()
+	defer r.kustomizeRenderMutex.Unlock()
+
+	buildOptions := &krusty.Options{
+		LoadRestrictions: kustypes.LoadRestrictionsNone,
+		PluginConfig:     kustypes.DisabledPluginConfig(),
+	}
+
+	k := krusty.MakeKustomizer(buildOptions)
+	resMap, err := k.Run(fs, ".")
+	if err != nil {
+		return nil, err
+	}
+	path := corev1alpha1.GetImageOverridePath()
+	if len(path) != 0 && len(repoOverride) != 0 {
+		fsslice := make([]kustypes.FieldSpec, len(path))
+		for i, p := range path {
+			fsslice[i] = kustypes.FieldSpec{Path: p}
+		}
+		if err = resMap.ApplyFilter(repoimage.Filter{ImageOverride: repoOverride, FsSlice: fsslice}); err != nil {
+			return nil, err
+		}
+	}
+	yamlResults, err := resMap.AsYaml()
+	if err != nil {
+		return nil, err
+	}
+	separator := "\n---\n"
+	results := bytes.Split(yamlResults, []byte(separator))
+	for _, i := range results {
+		if len(i) != 0 {
+			j, err := yaml.YAMLToJSON(i)
+			if err != nil {
+				return nil, err
+			}
+			jsonData = append(jsonData, string(j))
+		}
+	}
+	return jsonData, nil
 }

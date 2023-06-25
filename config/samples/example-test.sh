@@ -125,14 +125,14 @@ function info() {
 
 function waitComponentSatus() {
 	namespace=$1
-    componentName=$2
+	componentName=$2
 	START_TIME=$(date +%s)
 	while true; do
-        versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson|jq -r '.status.versions|length')
-        if [[ $versions -ne 0 ]]; then
-            echo "component ${componentName} already have version information and can be installed"
-            break
-        fi
+		versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions|length')
+		if [[ $versions -ne 0 ]]; then
+			echo "component ${componentName} already have version information and can be installed"
+			break
+		fi
 		CURRENT_TIME=$(date +%s)
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
@@ -144,15 +144,15 @@ function waitComponentSatus() {
 }
 
 function waitComponentPlanDone() {
-    namesapce=$1
-    componentPlanName=$2
-   	START_TIME=$(date +%s)
+	namesapce=$1
+	componentPlanName=$2
+	START_TIME=$(date +%s)
 	while true; do
-        doneConds=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} -ojson|jq -r '.status.conditions'|jq 'map(select(.type == "Succeeded"))|map(select(.status == "True"))|length')
-        if [[ $doneConds -ne 0 ]]; then
-            echo "componentPlan ${componentPlanName} done"
-            break
-        fi
+		doneConds=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} -ojson | jq -r '.status.conditions' | jq 'map(select(.type == "Succeeded"))|map(select(.status == "True"))|length')
+		if [[ $doneConds -ne 0 ]]; then
+			echo "componentPlan ${componentPlanName} done"
+			break
+		fi
 
 		CURRENT_TIME=$(date +%s)
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
@@ -161,7 +161,7 @@ function waitComponentPlanDone() {
 			exit 1
 		fi
 		sleep 5
-	done 
+	done
 }
 
 info "1. create kind cluster"
@@ -169,7 +169,6 @@ git clone https://github.com/kubebb/building-base.git ${InstallDirPath}
 cd ${InstallDirPath}
 export IGNORE_FIXED_IMAGE_LOAD=YES
 . ./scripts/kind.sh
-
 
 info "2. install kubebb core"
 
@@ -180,8 +179,8 @@ helm repo update
 info "2.2 search kubebb"
 search_result=$(helm search repo kubebb/kubebb)
 if [[ $search_result == "No results found" ]]; then
-    error "not found chart kubebb/kubebb"
-    exit 1
+	error "not found chart kubebb/kubebb"
+	exit 1
 fi
 
 info "2.3 intall kubebb release kubebb in namesapce kubebb-system"
@@ -190,7 +189,6 @@ kubectl create ns kubebb-system
 
 info "2.3.2 create kubebb release"
 helm -nkubebb-system install kubebb kubebb/kubebb --wait
-
 
 cd ${RootPath}
 info "3 test nginx by doing once componentPlan"
@@ -201,6 +199,5 @@ waitComponentSatus "kubebb-system" "repository-bitnami-sample.nginx"
 info "3.2 create nginx componentplan"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
-
 
 info "all finished! ✅"

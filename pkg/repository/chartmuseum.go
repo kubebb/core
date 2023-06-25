@@ -83,11 +83,11 @@ func NewChartmuseum(
 }
 
 type chartmuseum struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	instance  *v1alpha1.Repository
-	duration  time.Duration
-	repoName  string
+	ctx      context.Context
+	cancel   context.CancelFunc
+	instance *v1alpha1.Repository
+	duration time.Duration
+	repoName string
 
 	c         client.Client
 	logger    logr.Logger
@@ -140,8 +140,7 @@ func (c *chartmuseum) Poll() {
 		syncCond.Message = "failed to get index.yaml and could not sync components"
 		syncCond.Reason = v1alpha1.ReasonUnavailable
 	} else {
-		diffAction, err := c.diff(indexFile)
-		if err != nil {
+		if diffAction, err := c.diff(indexFile); err != nil {
 			c.logger.Error(err, "failed to get diff")
 			syncCond.Status = v1.ConditionFalse
 			syncCond.Message = fmt.Sprintf("failed to get component synchronization information. %s", err.Error())
@@ -169,7 +168,7 @@ func (c *chartmuseum) Poll() {
 		}
 	}
 	i := v1alpha1.Repository{}
-	if err := c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.GetName(), Namespace: c.instance.GetNamespace()}, &i); err != nil {
+	if err = c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.GetName(), Namespace: c.instance.GetNamespace()}, &i); err != nil {
 		c.logger.Error(err, "try to update repository, but failed to get the latest version.", "readyCond", readyCond, "syncCond", syncCond)
 	} else {
 		iDeepCopy := i.DeepCopy()
@@ -183,7 +182,6 @@ func (c *chartmuseum) Poll() {
 			c.logger.Error(err, "")
 		}
 	}
-
 }
 
 func (c *chartmuseum) Create(component *v1alpha1.Component) error {

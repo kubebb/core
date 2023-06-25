@@ -84,6 +84,30 @@ type RepositorySpec struct {
 	PullStategy *PullStategy `json:"pullStategy,omitempty"`
 
 	Filter []FilterCond `json:"filter,omitempty"`
+	// ImageOverride means replaced images rules for this repository
+	ImageOverride []ImageOverride `json:"imageOverride,omitempty"`
+}
+
+type PathOverride struct {
+	// The path consists of slash-separated components.
+	// Each component may contain lowercase letters, digits and separators.
+	// A separator is defined as a period, one or two underscores, or one or more hyphens.
+	// A component may not start or end with a separator.
+	// While the OCI Distribution Specification supports more than two slash-separated components, most registries only support two slash-separated components.
+	// For Docker’s public registry, the path format is as follows: [NAMESPACE/]REPOSITORY:
+	//   The first, optional component is typically a user’s or an organization’s namespace.
+	//   The second, mandatory component is the repository name. When the namespace is not present, Docker uses library as the default namespace.
+	Path    string `json:"path,omitempty"`
+	NewPath string `json:"newPath,omitempty"`
+}
+
+type ImageOverride struct {
+	// Registry include host and port number, like `registry-1.docker.io` or `registry-1.docker.io:5000`
+	Registry string `json:"registry,omitempty"`
+	// NewRegistry means replaced one
+	NewRegistry string `json:"newRegistry,omitempty"`
+	// PathOverride means replaced path
+	PathOverride *PathOverride `json:"pathOverride,omitempty"`
 }
 
 // RepositoryStatus defines the observed state of Repository
