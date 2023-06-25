@@ -42,7 +42,7 @@ func IsPullStrategySame(a, b *PullStategy) bool {
 
 // ImageOverridePath is the manifest path to detect kustomize image overrides
 // can be replaced by environment variables IMAGEOVERRIDE_PATH, for example IMAGEOVERRIDE_PATH=spec/template/spec/initContainers/image:spec/initContainers/image
-var ImageOverridePath = []string{"spec/containers/image", "spec/initContainers/image"}
+var ImageOverridePath = []string{"spec/containers/image", "spec/initContainers/image", "spec/template/spec/containers/image", "spec/template/spec/initContainers/image"}
 
 func GetImageOverridePath() []string {
 	v := os.Getenv("IMAGEOVERRIDE_PATH")

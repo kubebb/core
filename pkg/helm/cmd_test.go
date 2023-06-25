@@ -98,21 +98,18 @@ func TestUnInstallByResources(t *testing.T) {
 
 func Test_getHelmTemplate(t *testing.T) {
 	type args struct {
-		ctx        context.Context
-		logger     logr.Logger
-		name       string
-		namespace  string
-		chart      string
-		version    string
-		repoName   string
-		repoUrl    string
-		set        []string
-		setString  []string
-		setFile    []string
-		SetJSON    []string
-		SetLiteral []string
-		skipCrd    bool
-		isOCI      bool
+		ctx       context.Context
+		cli       client.Client
+		logger    logr.Logger
+		name      string
+		namespace string
+		chart     string
+		version   string
+		repoName  string
+		repoUrl   string
+		override  corev1alpha1.Override
+		skipCrd   bool
+		isOCI     bool
 	}
 	tests := []struct {
 		name    string
@@ -124,7 +121,7 @@ func Test_getHelmTemplate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getHelmTemplate(tt.args.ctx, tt.args.logger, tt.args.name, tt.args.namespace, tt.args.chart, tt.args.version, tt.args.repoName, tt.args.repoUrl, tt.args.set, tt.args.setString, tt.args.setFile, tt.args.SetJSON, tt.args.SetLiteral, tt.args.skipCrd, tt.args.isOCI)
+			got, err := getHelmTemplate(tt.args.ctx, tt.args.cli, tt.args.logger, tt.args.name, tt.args.namespace, tt.args.chart, tt.args.version, tt.args.repoName, tt.args.repoUrl, tt.args.override, tt.args.skipCrd, tt.args.isOCI)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getHelmTemplate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -138,21 +135,18 @@ func Test_getHelmTemplate(t *testing.T) {
 
 func TestGetManifests(t *testing.T) {
 	type args struct {
-		ctx        context.Context
-		logger     logr.Logger
-		name       string
-		namespace  string
-		chart      string
-		version    string
-		repoName   string
-		repoUrl    string
-		set        []string
-		setString  []string
-		setFile    []string
-		SetJSON    []string
-		SetLiteral []string
-		skipCrd    bool
-		isOCI      bool
+		ctx       context.Context
+		cli       client.Client
+		logger    logr.Logger
+		name      string
+		namespace string
+		chart     string
+		version   string
+		repoName  string
+		repoUrl   string
+		override  corev1alpha1.Override
+		skipCrd   bool
+		isOCI     bool
 	}
 	tests := []struct {
 		name     string
@@ -164,7 +158,7 @@ func TestGetManifests(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotData, err := GetManifests(tt.args.ctx, tt.args.logger, tt.args.name, tt.args.namespace, tt.args.chart, tt.args.version, tt.args.repoName, tt.args.repoUrl, tt.args.set, tt.args.setString, tt.args.setFile, tt.args.SetJSON, tt.args.SetLiteral, tt.args.skipCrd, tt.args.isOCI)
+			gotData, err := GetManifests(tt.args.ctx, tt.args.cli, tt.args.logger, tt.args.name, tt.args.namespace, tt.args.chart, tt.args.version, tt.args.repoName, tt.args.repoUrl, tt.args.override, tt.args.skipCrd, tt.args.isOCI)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetManifests() error = %v, wantErr %v", err, tt.wantErr)
 				return

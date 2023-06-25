@@ -21,6 +21,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	hrepo "helm.sh/helm/v3/pkg/repo"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kustomize "sigs.k8s.io/kustomize/api/types"
@@ -59,12 +60,57 @@ type Maintainer struct {
 	URL string `json:"url,omitempty"`
 }
 
+// ValuesReference contains a reference to a resource containing Helm values,
+// and optionally the key they can be found at.
+type ValuesReference struct {
+	// Kind of the values referent, valid values are ('Secret', 'ConfigMap').
+	// +kubebuilder:validation:Enum=Secret;ConfigMap
+	// +required
+	Kind string `json:"kind"`
+
+	// Name of the values referent. Should reside in the same namespace as the
+	// referring resource.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +required
+	Name string `json:"name"`
+
+	// ValuesKey is the data key where the values.yaml or a specific value can be
+	// found at. Defaults to 'values.yaml'.
+	// When set, must be a valid Data Key, consisting of alphanumeric characters,
+	// '-', '_' or '.'.
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[\-._a-zA-Z0-9]+$`
+	// +optional
+	ValuesKey string `json:"valuesKey,omitempty"`
+
+	// TargetPath is the YAML dot notation path the value should be merged at. When
+	// set, the ValuesKey is expected to be a single flat value. Defaults to 'None',
+	// which results in the values getting merged at the root.
+	// +kubebuilder:validation:MaxLength=250
+	// +kubebuilder:validation:Pattern=`^([a-zA-Z0-9_\-.\\\/]|\[[0-9]{1,5}\])+$`
+	// +optional
+	TargetPath string `json:"targetPath,omitempty"`
+}
+
+func (v ValuesReference) GetValuesKey() string {
+	if len(v.ValuesKey) == 0 {
+		return "values.yaml"
+	}
+	return v.ValuesKey
+}
+
 // Override defines the override settings for the component
 // FIXME fix comment
 type Override struct {
 	// Values is passed to helm install --values or -f
 	// specify values in a YAML file or a URL (can specify multiple)
-	Values []string `json:"values,omitempty"`
+	// ValuesFrom holds references to resources containing Helm values for this HelmRelease,
+	// and information about how they should be merged.
+	ValuesFrom []*ValuesReference `json:"valuesFrom,omitempty"`
+	// Values holds the values for this Helm release.
+	// +optional
+	Values *apiextensionsv1.JSON `json:"values,omitempty"`
 	// Set is passed to helm install --set
 	// set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
 	Set []string `json:"set,omitempty"`

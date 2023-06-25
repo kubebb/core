@@ -185,10 +185,51 @@ spec:
                       type: string
                     type: array
                   values:
+                    description: Values holds the values for this Helm release.
+                    x-kubernetes-preserve-unknown-fields: true
+                  valuesFrom:
                     description: Values is passed to helm install --values or -f specify
-                      values in a YAML file or a URL (can specify multiple)
+                      values in a YAML file or a URL (can specify multiple) ValuesFrom
+                      holds references to resources containing Helm values for this
+                      HelmRelease, and information about how they should be merged.
                     items:
-                      type: string
+                      description: ValuesReference contains a reference to a resource
+                        containing Helm values, and optionally the key they can be
+                        found at.
+                      properties:
+                        kind:
+                          description: Kind of the values referent, valid values are
+                            ('Secret', 'ConfigMap').
+                          enum:
+                          - Secret
+                          - ConfigMap
+                          type: string
+                        name:
+                          description: Name of the values referent. Should reside
+                            in the same namespace as the referring resource.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                        targetPath:
+                          description: TargetPath is the YAML dot notation path the
+                            value should be merged at. When set, the ValuesKey is
+                            expected to be a single flat value. Defaults to 'None',
+                            which results in the values getting merged at the root.
+                          maxLength: 250
+                          pattern: ^([a-zA-Z0-9_\-.\\\/]|\[[0-9]{1,5}\])+$
+                          type: string
+                        valuesKey:
+                          description: ValuesKey is the data key where the values.yaml
+                            or a specific value can be found at. Defaults to 'values.yaml'.
+                            When set, must be a valid Data Key, consisting of alphanumeric
+                            characters, '-', '_' or '.'.
+                          maxLength: 253
+                          pattern: ^[\-._a-zA-Z0-9]+$
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
                     type: array
                 type: object
               recreate-pods:

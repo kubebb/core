@@ -44,6 +44,7 @@ func TestComponentPlanReconciler_UpdateImages(t *testing.T) {
 		name         string
 		args         args
 		wantJsonData []string
+		wantDiffStr  string
 		wantErr      bool
 	}{
 		{
@@ -73,8 +74,13 @@ func TestComponentPlanReconciler_UpdateImages(t *testing.T) {
 				repoOverride:  nil,
 				images:        []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
 			},
-			wantJsonData: []string{strings.ReplaceAll(nginxPod, `"image":"nginx"`, `"image":"nginx:v2"`), controllerDeploy},
-			wantErr:      false,
+			wantJsonData: []string{controllerDeploy, strings.ReplaceAll(nginxPod, `"image":"nginx"`, `"image":"nginx:v2"`)},
+			wantDiffStr: `spec:
+  containers:
+    '[#0]':
+      image: nginx -> nginx:v2
+`,
+			wantErr: false,
 		},
 		{
 			name: "override registry only",
@@ -83,8 +89,13 @@ func TestComponentPlanReconciler_UpdateImages(t *testing.T) {
 				repoOverride:  []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
 				images:        nil,
 			},
-			wantJsonData: []string{strings.ReplaceAll(nginxPod, `"image":"nginx"`, `"image":"docker.cc/library/nginx:latest"`), controllerDeploy},
-			wantErr:      false,
+			wantJsonData: []string{controllerDeploy, strings.ReplaceAll(nginxPod, `"image":"nginx"`, `"image":"docker.cc/library/nginx:latest"`)},
+			wantDiffStr: `spec:
+  containers:
+    '[#0]':
+      image: nginx -> docker.cc/library/nginx:latest
+`,
+			wantErr: false,
 		},
 		{
 			name: "override registry and kustomize image",
@@ -93,8 +104,13 @@ func TestComponentPlanReconciler_UpdateImages(t *testing.T) {
 				repoOverride:  []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
 				images:        []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
 			},
-			wantJsonData: []string{strings.ReplaceAll(nginxPod, `"image":"nginx"`, `"image":"docker.cc/library/nginx:v2"`), controllerDeploy},
-			wantErr:      false,
+			wantJsonData: []string{controllerDeploy, strings.ReplaceAll(nginxPod, `"image":"nginx"`, `"image":"docker.cc/library/nginx:v2"`)},
+			wantDiffStr: `spec:
+  containers:
+    '[#0]':
+      image: nginx -> docker.cc/library/nginx:v2
+`,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -103,13 +119,16 @@ func TestComponentPlanReconciler_UpdateImages(t *testing.T) {
 				Client:               fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build(),
 				kustomizeRenderMutex: sync.Mutex{},
 			}
-			gotJsonData, err := r.UpdateImages(context.TODO(), tt.args.jsonManifests, tt.args.repoOverride, tt.args.images)
+			gotJsonData, gotDiffStr, err := r.UpdateImages(context.TODO(), tt.args.jsonManifests, tt.args.repoOverride, tt.args.images)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("UpdateImages() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(gotJsonData, tt.wantJsonData) {
 				t.Errorf("UpdateImages() gotJsonData = %v, want %v", gotJsonData, tt.wantJsonData)
+			}
+			if !reflect.DeepEqual(gotDiffStr, tt.wantDiffStr) {
+				t.Errorf("UpdateImages() gotDiffStr = %q, want %q", gotDiffStr, tt.wantDiffStr)
 			}
 		})
 	}

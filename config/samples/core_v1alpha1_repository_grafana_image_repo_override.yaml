@@ -1,7 +1,7 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: Repository
 metadata:
-  name: repository-grafana-sample
+  name: repository-grafana-sample-image
   namespace: kubebb-system
 spec:
   url: https://grafana.github.io/helm-charts

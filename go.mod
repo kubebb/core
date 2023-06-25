@@ -15,6 +15,7 @@ require (
 	helm.sh/helm/v3 v3.9.4
 	istio.io/istio v0.0.0-20230403171433-e6124efb9305 // 1.15.7 matching with k8s.io version
 	k8s.io/api v0.24.2
+	k8s.io/apiextensions-apiserver v0.24.2
 	k8s.io/apimachinery v0.24.2
 	k8s.io/client-go v0.24.2
 	k8s.io/code-generator v0.24.2
@@ -291,7 +292,6 @@ require (
 	istio.io/api v0.0.0-20230322185023-b176b1f66068 // indirect
 	istio.io/client-go v1.15.7-0.20230322185723-6e1d80ef5be3 // indirect
 	istio.io/pkg v0.0.0-20230322185424-d854a078c7df // indirect
-	k8s.io/apiextensions-apiserver v0.24.2 // indirect
 	k8s.io/cli-runtime v0.24.2 // indirect
 	k8s.io/component-base v0.24.2 // indirect
 	k8s.io/gengo v0.0.0-20211129171323-c02415ce4185 // indirect

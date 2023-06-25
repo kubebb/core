@@ -5,7 +5,7 @@ metadata:
   namespace: kubebb-system
 spec:
   component:
-    name: repository-grafana-sample.grafana
+    name: repository-grafana-sample-image.grafana
     namespace: kubebb-system
   componentPlanInstallMethod: auto
   name: grafana-sample
