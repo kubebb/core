@@ -16,6 +16,8 @@ limitations under the License.
 
 package utils
 
+import "strconv"
+
 func AddString(finalizers []string, f string) []string {
 	for _, f1 := range finalizers {
 		if f1 == f {
@@ -65,4 +67,9 @@ func AddOrSwapString(strings []string, str string) (bool, []string) {
 		}
 	}
 	return true, append(strings, str)
+}
+
+// convert string to uint64
+func StringToUint64(str string) (uint64, error) {
+	return strconv.ParseUint(str, 10, 64)
 }
