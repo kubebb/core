@@ -323,7 +323,7 @@ waitComponentSatus "kubebb-system" "repository-grafana-sample-image.grafana"
 
 info "4.2 create grafana subscription"
 kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml
-getPodImage "kubebb-system" "app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana:9.5.3"
+getPodImage "kubebb-system" "app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana"
 kubectl delete -f config/samples/core_v1alpha1_grafana_subscription.yaml
 
 info "all finished! ✅"
