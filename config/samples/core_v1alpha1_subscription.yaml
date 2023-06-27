@@ -2,7 +2,7 @@ apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: Subscription
 metadata:
   name: wordpress-sample
-  namespace: default
+  namespace: kubebb-system
 spec:
   component:
     name: repository-bitnami-sample.wordpress
@@ -26,7 +26,7 @@ spec:
 #  installed:
 #    - componentPlan:
 #        name: sub-wordpress-sample-16.1.13
-#        namespace: default
+#        namespace: kubebb-system
 #      installedTime: "2023-06-07T13:34:34Z"
 #      installedVersion:
 #        appVersion: 6.2.2

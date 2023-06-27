@@ -209,17 +209,18 @@ func TestHelm_template(t *testing.T) {
 		IsHelmOCI  bool
 	}
 	type args struct {
-		ctx        context.Context
-		name       string
-		namespace  string
-		chart      string
-		version    string
-		set        []string
-		setString  []string
-		setFile    []string
-		SetJSON    []string
-		SetLiteral []string
-		skipCrd    bool
+		ctx           context.Context
+		name          string
+		namespace     string
+		chart         string
+		version       string
+		set           []string
+		setString     []string
+		setFile       []string
+		SetJSON       []string
+		SetLiteral    []string
+		ValueFileName []string
+		skipCrd       bool
 	}
 	tests := []struct {
 		name    string
@@ -237,7 +238,7 @@ func TestHelm_template(t *testing.T) {
 				WorkDir:    tt.fields.WorkDir,
 				IsHelmOCI:  tt.fields.IsHelmOCI,
 			}
-			got, err := h.template(tt.args.ctx, tt.args.name, tt.args.namespace, tt.args.chart, tt.args.version, tt.args.set, tt.args.setString, tt.args.setFile, tt.args.SetJSON, tt.args.SetLiteral, tt.args.skipCrd)
+			got, err := h.template(tt.args.ctx, tt.args.name, tt.args.namespace, tt.args.chart, tt.args.version, tt.args.set, tt.args.setString, tt.args.setFile, tt.args.SetJSON, tt.args.SetLiteral, tt.args.ValueFileName, tt.args.skipCrd)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("template() error = %v, wantErr %v", err, tt.wantErr)
 				return

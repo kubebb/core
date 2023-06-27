@@ -45,6 +45,7 @@ func NewHelm(workDir string, isHelmOCI bool) *Helm {
 
 func (h *Helm) run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, h.binaryName, args...)
+	cmd.Dir = h.WorkDir
 	cmd.Env = os.Environ()
 	if h.IsHelmOCI {
 		cmd.Env = append(cmd.Env, "HELM_EXPERIMENTAL_OCI=1")
@@ -99,7 +100,7 @@ func (h *Helm) repoRemomve(ctx context.Context, name string) (string, error) {
 	return h.run(ctx, "repo", "remove", name)
 }
 
-func (h *Helm) template(ctx context.Context, name, namespace, chart, version string, set, setString, setFile, SetJSON, SetLiteral []string, skipCrd bool) (string, error) {
+func (h *Helm) template(ctx context.Context, name, namespace, chart, version string, set, setString, setFile, SetJSON, SetLiteral, ValueFileName []string, skipCrd bool) (string, error) {
 	// TODO need --validate?
 	// TODO need --kube-version?
 	// TODO need --api-versions?
@@ -115,6 +116,7 @@ func (h *Helm) template(ctx context.Context, name, namespace, chart, version str
 	args = addArg(args, "set-file", setFile...)
 	args = addArg(args, "set-json", SetJSON...)
 	args = addArg(args, "set-literal", SetLiteral...)
+	args = addArg(args, "values", ValueFileName...)
 
 	if !skipCrd {
 		args = append(args, "--include-crds")

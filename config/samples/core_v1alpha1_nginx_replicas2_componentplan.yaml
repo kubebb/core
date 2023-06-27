@@ -1,0 +1,49 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: ComponentPlan
+metadata:
+  name: nginx-replicas-example-1
+  namespace: kubebb-system
+spec:
+  approved: true
+  component:
+    name: repository-bitnami-sample.nginx
+    namespace: kubebb-system
+  name: my-nginx-replicas-example-1
+  override:
+    values:
+      replicaCount: 2
+  repository:
+    name: repository-bitnami-sample
+    namespace: kubebb-system
+  version: 15.0.2
+---
+# or
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: ComponentPlan
+metadata:
+  name: nginx-replicas-example-2
+  namespace: kubebb-system
+spec:
+  approved: true
+  component:
+    name: repository-bitnami-sample.nginx
+    namespace: kubebb-system
+  name: my-nginx-replicas-example-2
+  override:
+    valuesFrom:
+      - kind: ConfigMap
+        name: nginx-replicas-example-2
+        valuesKey: values1.yaml
+  repository:
+    name: repository-bitnami-sample
+    namespace: kubebb-system
+  version: 15.0.2
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-replicas-example-2
+  namespace: kubebb-system
+data:
+  values1.yaml: |
+    replicaCount: 2

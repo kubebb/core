@@ -19,6 +19,7 @@ package helm
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/go-logr/logr"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
@@ -95,8 +96,8 @@ func UnInstallByResources(ctx context.Context, c client.Client, ns, planName str
 }
 
 // GetManifests get helm templates
-func GetManifests(ctx context.Context, logger logr.Logger, name, namespace, chart, version, repoName, repoUrl string, set, setString, setFile, SetJSON, SetLiteral []string, skipCrd, isOCI bool) (data []string, err error) {
-	Objs, err := getHelmTemplate(ctx, logger, name, namespace, chart, version, repoName, repoUrl, set, setString, setFile, SetJSON, SetLiteral, skipCrd, isOCI)
+func GetManifests(ctx context.Context, cli client.Client, logger logr.Logger, name, namespace, chart, version, repoName, repoUrl string, override corev1alpha1.Override, skipCrd, isOCI bool) (data []string, err error) {
+	Objs, err := getHelmTemplate(ctx, cli, logger, name, namespace, chart, version, repoName, repoUrl, override, skipCrd, isOCI)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +139,12 @@ func GetManifests(ctx context.Context, logger logr.Logger, name, namespace, char
 	return data, nil
 }
 
-func getHelmTemplate(ctx context.Context, logger logr.Logger, name, namespace, chart, version, repoName, repoUrl string, set, setString, setFile, SetJSON, SetLiteral []string, skipCrd, isOCI bool) ([]*unstructured.Unstructured, error) {
-	h := NewHelm("", isOCI)
+func getHelmTemplate(ctx context.Context, cli client.Client, logger logr.Logger, name, namespace, chart, version, repoName, repoUrl string, override corev1alpha1.Override, skipCrd, isOCI bool) ([]*unstructured.Unstructured, error) {
+	dir, err := os.MkdirTemp("", "helm")
+	if err != nil {
+		return nil, err
+	}
+	h := NewHelm(dir, isOCI)
 	out, err := h.repoAdd(ctx, repoName, repoUrl)
 	if err != nil {
 		return nil, err
@@ -150,7 +155,24 @@ func getHelmTemplate(ctx context.Context, logger logr.Logger, name, namespace, c
 		return nil, err
 	}
 	logger.V(5).Info("helm repo update", "output", out)
-	out, err = h.template(ctx, name, namespace, chart, version, set, setString, setFile, SetJSON, SetLiteral, skipCrd)
+	var valuesFiles []string
+	for _, valuesFrom := range override.ValuesFrom {
+		fileName, err := utils.ParseValuesReference(ctx, cli, namespace, h.WorkDir, valuesFrom)
+		if err != nil {
+			return nil, err
+		}
+		valuesFiles = append(valuesFiles, fileName)
+	}
+	logger.V(5).Info("parse valuesReference done")
+	fileName, err := utils.ParseValues(dir, override.Values)
+	if err != nil {
+		return nil, err
+	}
+	if fileName != "" {
+		valuesFiles = append(valuesFiles, fileName)
+	}
+	logger.V(5).Info("parse values done")
+	out, err = h.template(ctx, name, namespace, chart, version, override.Set, override.SetString, override.SetFile, override.SetJSON, override.SetLiteral, valuesFiles, skipCrd)
 	if err != nil {
 		if !isMissingDependencyErr(err) {
 			return nil, err
@@ -165,7 +187,7 @@ func getHelmTemplate(ctx context.Context, logger logr.Logger, name, namespace, c
 			return nil, err
 		}
 
-		out, err = h.template(ctx, name, namespace, chart, version, set, setString, setFile, SetJSON, SetLiteral, skipCrd)
+		out, err = h.template(ctx, name, namespace, chart, version, override.Set, override.SetString, override.SetFile, override.SetJSON, override.SetLiteral, valuesFiles, skipCrd)
 		if err != nil {
 			return nil, err
 		}

@@ -21,7 +21,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,11 +32,13 @@ import (
 	"github.com/kubebb/core/pkg/helm"
 	"github.com/kubebb/core/pkg/repoimage"
 	"github.com/kubebb/core/pkg/utils"
+	"istio.io/istio/operator/pkg/compare"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -194,18 +198,21 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
 
-		data, err := helm.GetManifests(ctx, logger, plan.Spec.Config.Name, plan.Namespace, repoName+"/"+chartName, plan.Spec.InstallVersion, repoName, repoUrl,
-			plan.Spec.Config.Override.Set, plan.Spec.Config.Override.SetString, plan.Spec.Config.Override.SetFile, plan.Spec.Config.Override.SetJSON, plan.Spec.Config.Override.SetLiteral,
-			plan.Spec.Config.SkipCRDs, false)
+		data, err := helm.GetManifests(ctx, r.Client, logger, plan.Spec.Config.Name, plan.Namespace, repoName+"/"+chartName, plan.Spec.InstallVersion, repoName, repoUrl,
+			plan.Spec.Override, plan.Spec.Config.SkipCRDs, false)
 		if err != nil {
 			logger.Error(err, "Failed to get manifest")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
 
-		data, err = r.UpdateImages(ctx, data, repo.Spec.ImageOverride, plan.Spec.Config.Override.Images)
+		var diffStr string
+		data, diffStr, err = r.UpdateImages(ctx, data, repo.Spec.ImageOverride, plan.Spec.Config.Override.Images)
 		if err != nil {
 			logger.Error(err, "Failed to Update Images")
 			return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+		}
+		if len(diffStr) != 0 {
+			logger.Info("Update Image get diff", "diff", diffStr, "registry", klog.KObj(repo))
 		}
 
 		if err = r.GenerateManifestConfigMap(plan, manifest, data); err != nil {
@@ -378,9 +385,9 @@ func (r *ComponentPlanReconciler) needRetry(maxRetry *int64, label map[string]st
 	return 1 < *maxRetry
 }
 
-func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifests []string, repoOverride []corev1alpha1.ImageOverride, images []kustomize.Image) (jsonData []string, err error) {
+func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifests []string, repoOverride []corev1alpha1.ImageOverride, images []kustomize.Image) (jsonData []string, diffStr string, err error) {
 	if len(repoOverride) == 0 && len(images) == 0 {
-		return jsonManifests, nil
+		return jsonManifests, "", nil
 	}
 	fs := filesys.MakeFsInMemory()
 	cfg := kustypes.Kustomization{}
@@ -393,25 +400,25 @@ func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifest
 		cfg.Resources = append(cfg.Resources, fileName)
 		f, err := fs.Create(fileName)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		defer f.Close()
 		if _, err = f.Write([]byte(manifest)); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 
 	kustomization, err := json.Marshal(cfg)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	f, err := fs.Create("kustomization.yaml")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer f.Close()
 	if _, err = f.Write(kustomization); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	r.kustomizeRenderMutex.Lock()
@@ -425,7 +432,7 @@ func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifest
 	k := krusty.MakeKustomizer(buildOptions)
 	resMap, err := k.Run(fs, ".")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	path := corev1alpha1.GetImageOverridePath()
 	if len(path) != 0 && len(repoOverride) != 0 {
@@ -434,12 +441,12 @@ func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifest
 			fsslice[i] = kustypes.FieldSpec{Path: p}
 		}
 		if err = resMap.ApplyFilter(repoimage.Filter{ImageOverride: repoOverride, FsSlice: fsslice}); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 	yamlResults, err := resMap.AsYaml()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	separator := "\n---\n"
 	results := bytes.Split(yamlResults, []byte(separator))
@@ -447,10 +454,36 @@ func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifest
 		if len(i) != 0 {
 			j, err := yaml.YAMLToJSON(i)
 			if err != nil {
-				return nil, err
+				return nil, "", err
 			}
 			jsonData = append(jsonData, string(j))
 		}
 	}
-	return jsonData, nil
+	l := len(jsonManifests)
+	sort.Strings(jsonManifests)
+	sort.Strings(jsonData)
+	diffLines := make([]string, 0)
+	for i := 0; i < l; i++ {
+		oldJSON := jsonManifests[i]
+		if len(jsonData) == 0 || i >= len(jsonData) {
+			break
+		}
+		newJSON := jsonData[i]
+		if oldJSON == newJSON {
+			continue
+		}
+		oldYaml, err := yaml.JSONToYAML([]byte(oldJSON))
+		if err != nil {
+			continue
+		}
+		newYaml, err := yaml.JSONToYAML([]byte(newJSON))
+		if err != nil {
+			continue
+		}
+		diff := compare.YAMLCmp(string(oldYaml), string(newYaml))
+		if diff != "" {
+			diffLines = append(diffLines, diff)
+		}
+	}
+	return jsonData, strings.Join(diffLines, "\n"), nil
 }

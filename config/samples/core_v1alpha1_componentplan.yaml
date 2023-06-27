@@ -2,7 +2,7 @@ apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: ComponentPlan
 metadata:
   name: do-once-wordpress-sample-16.1.12
-  namespace: default
+  namespace: kubebb-system
 spec:
   approved: true
   component:

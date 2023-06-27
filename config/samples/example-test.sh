@@ -144,7 +144,7 @@ function waitComponentSatus() {
 }
 
 function waitComponentPlanDone() {
-	namesapce=$1
+	namespace=$1
 	componentPlanName=$2
 	START_TIME=$(date +%s)
 	while true; do
@@ -158,6 +158,99 @@ function waitComponentPlanDone() {
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
 			error "Timeout reached"
+			kubectl -n${namespace} get ComponentPlan
+			exit 1
+		fi
+		sleep 5
+	done
+}
+
+function waitPodReady() {
+	namespace=$1
+	podLabel=$2
+	START_TIME=$(date +%s)
+	while true; do
+		readStatus=$(kubectl -n${namespace} get po -l ${podLabel} --ignore-not-found=true -o json | jq -r '.items[0].status.conditions[] | select(."type"=="Ready") | .status')
+		if [[ $readStatus -eq "True" ]]; then
+			echo "Pod ${podLabel} done"
+			break
+		fi
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			kubectl describe po -n${namespace} -l ${podLabel}
+			kubectl get po -n${namespace} --show-labels
+			exit 1
+		fi
+		sleep 5
+	done
+}
+
+function deleteComponentPlan() {
+	namespace=$1
+	componentPlanName=$2
+	START_TIME=$(date +%s)
+	while true; do
+		kubectl -n${namespace} delete ComponentPlan ${componentPlanName}
+		if [[ $? -eq 0 ]]; then
+			echo "delete componentPlan ${componentPlanName} done"
+			break
+		fi
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			exit 1
+		fi
+		sleep 30
+	done
+}
+
+function getPodImage() {
+	namespace=$1
+	podLabel=$2
+	want=$3
+	START_TIME=$(date +%s)
+	while true; do
+		images=$(kubectl -n${namespace} get po -l ${podLabel} --ignore-not-found=true -o json | jq -r '.items[0].status.containerStatuses[].image')
+		if [[ $images =~ $want ]]; then
+			echo "$want found."
+			break
+		fi
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			kubectl get po -n${namespace} -l ${podLabel} -o yaml
+			kubectl get po -n${namespace} --show-labels
+			echo $images
+			exit 1
+		fi
+		sleep 5
+	done
+}
+
+function getDeployReplicas() {
+	namesapce=$1
+	deployName=$2
+	want=$3
+	START_TIME=$(date +%s)
+	while true; do
+		images=$(kubectl -n${namespace} get deploy ${deployName} --ignore-not-found=true -o json | jq -r '.spec.replicas')
+		if [[ $images -eq $want ]]; then
+			echo "replicas $want found."
+			break
+		fi
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			kubectl describe deploy -n${namespace} ${deployName}
 			exit 1
 		fi
 		sleep 5
@@ -171,7 +264,6 @@ export IGNORE_FIXED_IMAGE_LOAD=YES
 . ./scripts/kind.sh
 
 info "2. install kubebb core"
-
 info "2.1 Add kubebb chart repository"
 helm repo add kubebb https://kubebb.github.io/components
 helm repo update
@@ -188,10 +280,13 @@ info "2.3.1 create namespace kubebb-system"
 kubectl create ns kubebb-system
 
 info "2.3.2 create kubebb release"
-helm -nkubebb-system install kubebb kubebb/kubebb --wait
-
+docker tag kubebb/core:latest kubebb/core:example-e2e
+kind load docker-image kubebb/core:example-e2e
+helm -nkubebb-system install kubebb kubebb/kubebb --set deployment.image=kubebb/core:example-e2e --wait
 cd ${RootPath}
-info "3 test nginx by doing once componentPlan"
+kubectl kustomize config/crd | kubectl apply -f -
+
+info "3 try to verify that the common steps are valid"
 info "3.1 create bitnami repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_bitnami.yaml
 waitComponentSatus "kubebb-system" "repository-bitnami-sample.nginx"
@@ -199,5 +294,36 @@ waitComponentSatus "kubebb-system" "repository-bitnami-sample.nginx"
 info "3.2 create nginx componentplan"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
+waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=do-once-nginx-sample-15.0.2"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
+
+info "3.3 create nginx-15.0.2 componentplan to verify imageOverride in componentPlan is valid"
+kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml
+waitComponentPlanDone "kubebb-system" "nginx-15.0.2"
+waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-15.0.2"
+getPodImage "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-15.0.2" "docker.io/bitnami/nginx:latest"
+deleteComponentPlan "kubebb-system" "nginx-15.0.2"
+
+info "3.4 create nginx-replicas-example-1/2 componentplan to verify value override in componentPlan is valid"
+kubectl apply -f config/samples/core_v1alpha1_nginx_replicas2_componentplan.yaml
+waitComponentPlanDone "kubebb-system" "nginx-replicas-example-1"
+waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-replicas-example-1"
+getDeployReplicas "kubebb-system" "my-nginx-replicas-example-1" "2"
+deleteComponentPlan "kubebb-system" "nginx-replicas-example-1"
+
+waitComponentPlanDone "kubebb-system" "nginx-replicas-example-2"
+waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-replicas-example-2"
+getDeployReplicas "kubebb-system" "my-nginx-replicas-example-2" "2"
+deleteComponentPlan "kubebb-system" "nginx-replicas-example-2"
+
+info "4 try to verify that the repository imageOverride steps are valid"
+info "4.1 create repository-grafana-sample-image repository"
+kubectl apply -f config/samples/core_v1alpha1_repository_grafana_image_repo_override.yaml
+waitComponentSatus "kubebb-system" "repository-grafana-sample-image.grafana"
+
+info "4.2 create grafana subscription"
+kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml
+getPodImage "kubebb-system" "app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana:9.5.3"
+kubectl delete -f config/samples/core_v1alpha1_grafana_subscription.yaml
 
 info "all finished! ✅"
