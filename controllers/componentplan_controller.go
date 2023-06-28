@@ -271,7 +271,10 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallSuccess())
 		}
 	}
-
+	if !plan.Spec.Approved {
+		logger.Info("component plan not approved, skip install...")
+		return ctrl.Result{}, nil
+	}
 	logger.Info("install the component plan...")
 	switch manifest.Labels[string(corev1alpha1.ComponentPlanTypeInstalled)] {
 	case "":
