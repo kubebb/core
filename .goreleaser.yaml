@@ -1,0 +1,90 @@
+# Make sure to check the documentation at https://goreleaser.com
+builds:
+  - env:
+      - CGO_ENABLED=0
+    binary: manager
+    id: manager
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+dockers:
+  - use: buildx
+    image_templates:
+      - "kubebb/core:v{{ .Version }}-amd64"
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version=v{{.Version}}"
+      - "--build-arg=GO_VER={{.Env.GO_VER}}"
+      - "--build-arg=GO_TAGS={{.Env.GO_TAGS}}"
+#      - "--build-arg=BUILD_ID={{.Env.SEMREV_LABEL}}"  #todo
+#      - "--build-arg=BUILD_DATE={{.Env.BUILD_DATE}}"  #todo
+      - "--platform=linux/amd64"
+    dockerfile: goreleaser.dockefile
+  - use: buildx
+    image_templates:
+        - "kubebb/core:v{{ .Version }}-arm64v8"
+    build_flag_templates:
+        - "--pull"
+        - "--label=org.opencontainers.image.created={{.Date}}"
+        - "--label=org.opencontainers.image.title={{.ProjectName}}"
+        - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+        - "--label=org.opencontainers.image.version=v{{.Version}}"
+        - "--build-arg=GO_VER={{.Env.GO_VER}}"
+        - "--build-arg=GO_TAGS={{.Env.GO_TAGS}}"
+        #      - "--build-arg=BUILD_ID={{.Env.SEMREV_LABEL}}"  #todo
+        #      - "--build-arg=BUILD_DATE={{.Env.BUILD_DATE}}"  #todo
+        - "--platform=linux/arm64"
+    dockerfile: goreleaser.dockefile
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  use: github
+  groups:
+    - title: New Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - '^Merge pull request'
+release:
+  draft: true
+  replace_existing_draft: false
+  mode: append
+  header: |
+    ## {{.ProjectName}}-v{{.Version}}
+
+    Welcome to this new release!
+    
+    ### Images built for this release:
+    core: `kubebb/core:v{{ .Version }}`
+    
+    ### Breaking Changes:
+    None
+    
+    ### Feature summary 🚀 🚀 🚀
+    TODO
+  footer: |
+    ## Thanks to our Contributors!
+    
+    Thank you to everyone who contributed to {{.Tag}}! ❤️
+
+    And thank you very much to everyone else not listed here who contributed in other ways like filing issues, giving feedback, testing fixes, helping users in slack, etc. 🙏
+  name_template: "v{{.Version}}"
+docker_manifests:
+  - name_template: "kubebb/core:v{{ .Version }}"
+    image_templates:
+      - "kubebb/core:v{{ .Version }}-amd64"
+      - "kubebb/core:v{{ .Version }}-arm64v8"
+    skip_push: false
+    use: docker

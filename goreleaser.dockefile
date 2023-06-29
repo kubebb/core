@@ -1,0 +1,8 @@
+FROM alpine/helm:latest as helm
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=helm /usr/bin/helm /usr/bin/helm
+COPY manager .
+USER 65532:65532
+
+ENTRYPOINT ["/manager"]
