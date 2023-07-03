@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
 	github.com/distribution/distribution/v3 v3.0.0-20220526142353-ffbd94cbe269
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.2.3
@@ -25,6 +26,11 @@ require (
 	sigs.k8s.io/kustomize/api v0.11.4
 	sigs.k8s.io/kustomize/kyaml v0.13.6
 	sigs.k8s.io/yaml v1.3.0
+)
+
+require (
+	github.com/mitchellh/mapstructure v1.5.0
+	github.com/spf13/cobra v1.6.1
 )
 
 require (
@@ -145,6 +151,7 @@ require (
 	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
+	github.com/hokaccha/go-prettyjson v0.0.0-20211117102719-0474bc63780f // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
@@ -183,7 +190,6 @@ require (
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
@@ -235,7 +241,6 @@ require (
 	github.com/sourcegraph/go-diff v0.7.0 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	github.com/spf13/cobra v1.6.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.12.0 // indirect
