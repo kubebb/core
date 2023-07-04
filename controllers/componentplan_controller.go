@@ -191,7 +191,8 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Error(err, "Failed to get Repository")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
-		repoName := repo.Name
+		// Note: repoName should be in namepsaced to avoid confilicts when same repo name in different namespaces are used
+		repoName := repo.NamespacedName()
 		repoUrl := repo.Spec.URL
 		if repoUrl == "" {
 			err = errors.New("repo url is empty")

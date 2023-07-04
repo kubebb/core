@@ -108,11 +108,18 @@ func GetManifests(ctx context.Context, cli client.Client, logger logr.Logger, na
 		}
 
 		var targets []*unstructured.Unstructured
+		var appendTarget = func(obj *unstructured.Unstructured) {
+			if obj == nil {
+				return
+			}
+			obj.SetNamespace(namespace)
+			targets = append(targets, obj)
+		}
 		if obj.IsList() {
 			err = obj.EachListItem(func(object runtime.Object) error {
 				unstructuredObj, ok := object.(*unstructured.Unstructured)
 				if ok {
-					targets = append(targets, unstructuredObj)
+					appendTarget(unstructuredObj)
 					return nil
 				}
 				return fmt.Errorf("resource list item has unexpected type")
@@ -123,7 +130,7 @@ func GetManifests(ctx context.Context, cli client.Client, logger logr.Logger, na
 		} else if utils.IsNullList(obj) {
 			// noop
 		} else {
-			targets = []*unstructured.Unstructured{obj}
+			appendTarget(obj)
 		}
 
 		manifests = append(manifests, targets...)
