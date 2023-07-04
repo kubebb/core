@@ -70,14 +70,15 @@ func NewChartmuseum(
 		fm[f.Name] = f
 	}
 	return &chartmuseum{
-		instance:  instance,
-		c:         c,
-		ctx:       ctx,
-		logger:    logger,
-		duration:  duration,
-		cancel:    cancel,
-		scheme:    scheme,
-		repoName:  fmt.Sprintf("%s-%s", instance.GetNamespace(), instance.GetName()),
+		instance: instance,
+		c:        c,
+		ctx:      ctx,
+		logger:   logger,
+		duration: duration,
+		cancel:   cancel,
+		scheme:   scheme,
+		// Note: repoName should be in namepsaced to avoid confilicts when same repo name in different namespaces are used
+		repoName:  instance.NamespacedName(),
 		filterMap: fm,
 	}
 }

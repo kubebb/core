@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
@@ -30,6 +31,11 @@ const (
 
 	ComponentRepositoryLabel = "kubebb.component.repository"
 )
+
+// NamespacedName return the namespaced name of the repository in string format
+func (repo *Repository) NamespacedName() string {
+	return fmt.Sprintf("%s.%s", repo.GetNamespace(), repo.GetName())
+}
 
 // IsPullStrategySame Determine whether the contents of two structures are the same
 func IsPullStrategySame(a, b *PullStategy) bool {
