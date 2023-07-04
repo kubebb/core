@@ -168,6 +168,7 @@ func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Cli
 	for i, manifest := range manifests {
 		obj := &unstructured.Unstructured{}
 		if err = json.Unmarshal([]byte(manifest), obj); err != nil {
+			logger.Error(err, "Unmarshal error", "manifest", manifest)
 			return nil, nil, err
 		}
 		has := &unstructured.Unstructured{}
@@ -178,6 +179,7 @@ func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Cli
 		if err != nil && apierrors.IsNotFound(err) {
 			isNew = true
 		} else if err != nil {
+			logger.Error(err, "Resource get error, no notFound", "manifest", manifest, "obj", klog.KObj(obj))
 			return nil, nil, err
 		}
 		r := v1alpha1.Resource{

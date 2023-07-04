@@ -31,6 +31,7 @@ func TestInstall(t *testing.T) {
 	type args struct {
 		ctx       context.Context
 		client    client.Client
+		logger    logr.Logger
 		planName  string
 		manifests []string
 	}
@@ -43,7 +44,7 @@ func TestInstall(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := Install(tt.args.ctx, tt.args.client, tt.args.planName, tt.args.manifests); (err != nil) != tt.wantErr {
+			if err := Install(tt.args.ctx, tt.args.client, tt.args.logger, tt.args.planName, tt.args.manifests); (err != nil) != tt.wantErr {
 				t.Errorf("Install() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

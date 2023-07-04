@@ -226,7 +226,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		newPlan.Status.Resources, newPlan.Status.Images, err = utils.GetResourcesAndImages(ctx, logger, r.Client, data)
 		if err != nil {
 			logger.Error(err, "Failed to get resources")
-			return ctrl.Result{Requeue: true, RequeueAfter: time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+			return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
 		err = r.Status().Patch(ctx, newPlan, client.MergeFrom(plan))
 		if err != nil {
@@ -242,7 +242,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Configmap created successfully
 		// We will requeue the reconciliation so that we can ensure the state
 		// and move forward for the next operations
-		return ctrl.Result{RequeueAfter: time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstalling())
+		return ctrl.Result{RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstalling())
 	} else if err != nil {
 		logger.Error(err, "Failed to get template Configmap")
 		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
@@ -261,7 +261,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		_ = r.UpdateManifestConfigMapLabel(ctx, plan, corev1alpha1.ComponentPlanReasonInstalling)
 		logger.Info("install the component plan now...")
-		err = helm.Install(ctx, r.Client, plan.Name, data)
+		err = helm.Install(ctx, r.Client, logger, plan.Name, data)
 		if err != nil {
 			_ = r.UpdateManifestConfigMapLabel(ctx, plan, corev1alpha1.ComponentPlanReasonInstallFailed)
 			logger.Error(err, "install failed")
