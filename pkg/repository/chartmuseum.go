@@ -186,7 +186,12 @@ func (c *chartmuseum) Poll() {
 }
 
 func (c *chartmuseum) Create(component *v1alpha1.Component) error {
-	return c.c.Create(c.ctx, component)
+	status := component.Status
+	if err := c.c.Create(c.ctx, component); err != nil {
+		return err
+	}
+	component.Status = status
+	return c.Update(component)
 }
 
 func (c *chartmuseum) Update(component *v1alpha1.Component) error {
