@@ -126,6 +126,7 @@ func IsNullList(obj *unstructured.Unstructured) bool {
 
 func ResourceDiffStr(ctx context.Context, source, exist *unstructured.Unstructured, ignorePaths []string, c client.Client) (string, error) {
 	newOne := source.DeepCopy()
+	newOne.SetResourceVersion(exist.GetResourceVersion())
 	if err := c.Patch(ctx, newOne, client.MergeFrom(exist), client.DryRunAll); err != nil {
 		return "", err
 	}
