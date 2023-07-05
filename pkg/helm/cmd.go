@@ -24,22 +24,26 @@ import (
 	"github.com/go-logr/logr"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/pkg/utils"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Install installs a helm chart to the cluster
-func Install(ctx context.Context, client client.Client, planName string, manifests []string) (err error) {
+func Install(ctx context.Context, client client.Client, logger logr.Logger, planName string, manifests []string) (err error) {
 	for _, manifest := range manifests {
 		obj := &unstructured.Unstructured{}
 		if err = json.Unmarshal([]byte(manifest), obj); err != nil {
+			logger.Error(err, "failed to unmarshal manifest", "manifest", manifest)
 			return err
 		}
 		if !utils.IsCRD(obj) {
 			if err = corev1alpha1.AddComponentPlanLabel(obj, planName); err != nil {
+				logger.Error(err, "failed to add label", "obj", klog.KObj(obj))
 				return err
 			}
 		}
@@ -47,6 +51,7 @@ func Install(ctx context.Context, client client.Client, planName string, manifes
 			return nil
 		})
 		if err != nil {
+			logger.Error(err, "failed to create or update", "obj", klog.KObj(obj))
 			return err
 		}
 	}
@@ -109,10 +114,15 @@ func GetManifests(ctx context.Context, cli client.Client, logger logr.Logger, na
 
 		var targets []*unstructured.Unstructured
 		var appendTarget = func(obj *unstructured.Unstructured) {
-			if obj == nil {
-				return
+			if rs, err := cli.RESTMapper().RESTMapping(obj.GroupVersionKind().GroupKind()); err != nil {
+				logger.Error(err, "get RESTMapping err, just ignore", "obj", klog.KObj(obj))
+			} else {
+				if rs.Scope.Name() == meta.RESTScopeNameNamespace {
+					obj.SetNamespace(namespace)
+				} else {
+					obj.SetNamespace("")
+				}
 			}
-			obj.SetNamespace(namespace)
 			targets = append(targets, obj)
 		}
 		if obj.IsList() {
