@@ -80,7 +80,7 @@ type RepositorySpec struct {
 
 	RepositoryType string `json:"repositoryType,omitempty"`
 
-	// PullStategy pullStategy for this repository
+	// PullStategy for this repository
 	PullStategy *PullStategy `json:"pullStategy,omitempty"`
 
 	Filter []FilterCond `json:"filter,omitempty"`

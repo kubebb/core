@@ -117,7 +117,7 @@ spec:
               insecure:
                 type: boolean
               pullStategy:
-                description: PullStategy pullStategy for this repository
+                description: PullStategy for this repository
                 properties:
                   intervalSeconds:
                     description: Interval for pulling

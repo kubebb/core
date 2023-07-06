@@ -18,7 +18,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -65,7 +64,7 @@ func jsonObjectParse(f interface{}) v1beta1.Menu {
 		case nil:
 		case []interface{}:
 			menuList := jsonArrayParse(vv)
-			if menuList != nil && len(menuList) != 0 {
+			if len(menuList) != 0 {
 				subMenus = append(subMenus, menuList...)
 			} else {
 				curLevel[k] = v
@@ -95,7 +94,7 @@ func jsonObjectParse(f interface{}) v1beta1.Menu {
 	curMenu.TypeMeta = metav1.TypeMeta{Kind: "Menu", APIVersion: v1beta1.GroupVersion.String()}
 	curMenu.ObjectMeta.Name = curMenu.Spec.Id
 	curMenu.Spec.Id = ""
-	if subMenus != nil && len(subMenus) != 0 {
+	if len(subMenus) != 0 {
 		False := false
 		for _, menu := range subMenus {
 			menu.Spec.ParentOwnerReferences = metav1.OwnerReference{
@@ -112,7 +111,6 @@ func jsonObjectParse(f interface{}) v1beta1.Menu {
 			b, _ := yaml.Marshal(menu)
 			fmt.Println(string(b))
 			fmt.Println("---")
-
 		}
 	}
 
@@ -129,7 +127,6 @@ func init() {
 
 func main() {
 	Execute()
-
 }
 
 var rootCmd = &cobra.Command{
@@ -149,7 +146,7 @@ func Execute() {
 }
 func menuGenerate(input, output string) {
 	False := false
-	menuByte, err := ioutil.ReadFile(InputPath)
+	menuByte, err := os.ReadFile(InputPath)
 	if err != nil {
 		klog.Error(err)
 		return
@@ -206,7 +203,6 @@ func menuGenerate(input, output string) {
 		//b, _ := json.MarshalIndent(topMenu, "", "  ")
 		fmt.Println(string(b))
 	}
-	return
 }
 
 func helmAnnotation(menu *v1beta1.Menu) {

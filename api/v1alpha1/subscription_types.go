@@ -49,7 +49,7 @@ type SubscriptionSpec struct {
 type SubscriptionStatus struct {
 	ConditionedStatus `json:",inline"`
 
-	// Installed records all componentplans installed, ordered by install time.
+	// Installed records all componentplans installed, ordered by installation time.
 	// +optional
 	Installed []Installed `json:"installed,omitempty"`
 

@@ -68,7 +68,7 @@ type ValuesReference struct {
 	// +required
 	Kind string `json:"kind"`
 
-	// Name of the values referent. Should reside in the same namespace as the
+	// Name of the values' referent. Should reside in the same namespace as the
 	// referring resource.
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
