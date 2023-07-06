@@ -36,14 +36,14 @@ spec:
             description: MenuGroupSpec defines the Position of the menu
             properties:
               column:
-                description: menu column postion
+                description: menu column position
                 type: integer
               name:
                 description: Menu name
                 type: string
               ranking:
-                description: ranking  in Column, the smaller the number, the higher
-                  postion 菜单组在当前列中的排序，数字越小越靠前
+                description: ranking in Column, the smaller the number, the higher
+                  the position 菜单组在当前列中的排序，数字越小越靠前
                 type: integer
               type:
                 type: string

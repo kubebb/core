@@ -115,7 +115,7 @@ func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.L
 	if instance.Labels == nil {
 		instance.Labels = make(map[string]string)
 	}
-	// check label, report not done (need another update event)  if it doesn't exist or not equal to the name of the repository.
+	// check label, report not done (need another update event) if it doesn't exist or not equal to the name of the repository.
 	if v, ok := instance.Labels[corev1alpha1.ComponentRepositoryLabel]; !ok || v != repoName {
 		// add component.repository=<repository-name> to labels
 		done = false

@@ -205,7 +205,7 @@ spec:
                           - ConfigMap
                           type: string
                         name:
-                          description: Name of the values referent. Should reside
+                          description: Name of the values' referent. Should reside
                             in the same namespace as the referring resource.
                           maxLength: 253
                           minLength: 1

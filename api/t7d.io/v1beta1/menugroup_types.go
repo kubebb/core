@@ -36,9 +36,9 @@ type MenuGroupSpec struct {
 	Type MenuType `json:"type"`
 	// Menu name
 	Name string `json:"name"`
-	// menu column postion
+	// menu column position
 	Column uint8 `json:"column"`
-	// ranking  in Column, the smaller the number, the higher postion 菜单组在当前列中的排序，数字越小越靠前
+	// ranking in Column, the smaller the number, the higher the position 菜单组在当前列中的排序，数字越小越靠前
 	Ranking uint8 `json:"ranking"`
 }
 

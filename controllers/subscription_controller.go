@@ -74,7 +74,7 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	sub := &corev1alpha1.Subscription{}
 	err := r.Get(ctx, req.NamespacedName, sub)
 	if err != nil {
-		// There's no need to requeue if the resource no longer exist. Otherwise we'll be
+		// There's no need to requeue if the resource no longer exist. Otherwise, we'll be
 		// requeued implicitly because we return an error.
 		logger.Error(err, "Failed to get Subscription")
 		return reconcile.Result{}, utils.IgnoreNotFound(err)

@@ -78,7 +78,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	plan := &corev1alpha1.ComponentPlan{}
 	err := r.Get(ctx, req.NamespacedName, plan)
 	if err != nil {
-		// There's no need to requeue if the resource no longer exist. Otherwise we'll be
+		// There's no need to requeue if the resource no longer exist. Otherwise, we'll be
 		// requeued implicitly because we return an error.
 		logger.V(4).Info("Failed to get ComponentPlan")
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
@@ -291,7 +291,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("last one install success. just return")
 		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallSuccess())
 	case string(corev1alpha1.ComponentPlanReasonInstallFailed):
-		logger.Info("last one install failed.")
+		logger.Info("last one installation failed.")
 		return install()
 	}
 	return ctrl.Result{}, nil

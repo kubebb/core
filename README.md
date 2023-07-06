@@ -60,4 +60,4 @@ This project is standing on the shoulders of giants. We would like to thank the 
 
 ## Support
 
-If you need support, start with the troubleshooting guide, or create github [issues](https://github.com/kubebb/core/issues/new)
+If you need support, start with the troubleshooting guide, or create GitHub [issues](https://github.com/kubebb/core/issues/new)
