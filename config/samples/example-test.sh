@@ -266,7 +266,7 @@ export IGNORE_FIXED_IMAGE_LOAD=YES
 info "2. install kubebb core"
 info "2.1 Add kubebb chart repository"
 helm repo add kubebb https://kubebb.github.io/components
-helm repo update
+helm repo update kubebb
 
 info "2.2 search kubebb"
 search_result=$(helm search repo kubebb/kubebb)

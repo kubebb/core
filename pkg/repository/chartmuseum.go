@@ -98,9 +98,13 @@ type chartmuseum struct {
 
 func (c *chartmuseum) Start() {
 	c.logger.Info("Start to fetch")
-	_, _ = helm.RepoRemove(c.ctx, c.repoName)
-	if _, err := helm.RepoAdd(c.ctx, c.repoName, c.instance.Spec.URL); err != nil {
+	_ = helm.RepoRemove(c.ctx, c.logger, c.repoName)
+	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL); err != nil {
 		c.logger.Error(err, "Failed to add repository")
+		return
+	}
+	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName); err != nil {
+		c.logger.Error(err, "Failed to update repository")
 		return
 	}
 	go wait.Until(c.Poll, c.duration, c.ctx.Done())
@@ -108,7 +112,7 @@ func (c *chartmuseum) Start() {
 
 func (c *chartmuseum) Stop() {
 	c.logger.Info("Delete Or Update Repository, stop watcher")
-	if _, err := helm.RepoRemove(c.ctx, c.repoName); err != nil {
+	if err := helm.RepoRemove(c.ctx, c.logger, c.repoName); err != nil {
 		c.logger.Error(err, "Failed to remove repository")
 	}
 	c.cancel()
@@ -179,7 +183,7 @@ func (c *chartmuseum) Poll() {
 		}
 	}
 	if updateRepo {
-		if _, err = helm.RepoUpdate(c.ctx, c.repoName); err != nil {
+		if err = helm.RepoUpdate(c.ctx, c.logger, c.repoName); err != nil {
 			c.logger.Error(err, "")
 		}
 	}

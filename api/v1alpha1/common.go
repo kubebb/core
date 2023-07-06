@@ -17,7 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"path/filepath"
 	"regexp"
+	"strings"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	hrepo "helm.sh/helm/v3/pkg/repo"
@@ -93,15 +96,20 @@ type ValuesReference struct {
 	TargetPath string `json:"targetPath,omitempty"`
 }
 
-func (v ValuesReference) GetValuesKey() string {
+func (v *ValuesReference) GetValuesKey() string {
 	if len(v.ValuesKey) == 0 {
 		return "values.yaml"
 	}
 	return v.ValuesKey
 }
 
+// GetValuesFileDir returns the dir path to this ValuesReference file,
+// for example: $HOME/.cache/helm/secret.default.testone
+func (v *ValuesReference) GetValuesFileDir(helmCacheHome, namespace string) string {
+	return filepath.Join(helmCacheHome, strings.ToLower(v.Kind)+"."+namespace+"."+v.Name)
+}
+
 // Override defines the override settings for the component
-// FIXME fix comment
 type Override struct {
 	// Values is passed to helm install --values or -f
 	// specify values in a YAML file or a URL (can specify multiple)
@@ -112,24 +120,16 @@ type Override struct {
 	// +optional
 	Values *apiextensionsv1.JSON `json:"values,omitempty"`
 	// Set is passed to helm install --set
-	// set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+	// can specify multiple or separate values with commas: key1=val1,key2=val2
+	// Helm also provides other set options, such as --set-json or --set-literal,
+	// which can be replaced by values or valuesFrom fields.
 	Set []string `json:"set,omitempty"`
 	// SetString is passed to helm install --set-string
 	// set STRING values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
 	// https://github.com/helm/helm/pull/3599
+	// Helm also provides other set options, such as --set-json or --set-literal,
+	// which can be replaced by values or valuesFrom fields.
 	SetString []string `json:"set-string,omitempty"`
-	// SetFile is passed to helm install --set-file
-	// set values from respective files specified via the command line (can specify multiple or separate values with commas: key1=path1,key2=path2)
-	// https://github.com/helm/helm/pull/3758
-	SetFile []string `json:"set-file,omitempty"`
-	// SetJSON is passed to helm install --set-json
-	// set JSON values on the command line (can specify multiple or separate values with commas: key1=jsonval1,key2=jsonval2)
-	// https://github.com/helm/helm/pull/10693
-	SetJSON []string `json:"set-json,omitempty"`
-	// SetLiteral is passed to helm install --set-literal
-	// set a literal STRING value on the command line
-	// https://github.com/helm/helm/pull/9182
-	SetLiteral []string `json:"set-literal,omitempty"`
 
 	// Images for replace old image
 	// see https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/images
@@ -137,39 +137,30 @@ type Override struct {
 	Images []kustomize.Image `json:"images,omitempty"`
 }
 
-// NameConfig defines the name of helm release
-// If Name and NameTemplate are both set, will use Name first.
-// If both not set, will use helm install --generate-name
-type NameConfig struct {
-	// Name is pass to helm install <chart> <name>, name arg
-	Name string `json:"name,omitempty"`
-	// NameTemplate is pass to helm install --name-template
-	// FIXME add logic
-	NameTemplate string `json:"nameTemplate,omitempty"`
+// GetValueFileDir returns the dir path to Override.Value file,
+// for example: $HOME/.cache/helm/embed.default.testone
+func (v *Override) GetValueFileDir(helmCacheHome, namespace, name string) string {
+	return filepath.Join(helmCacheHome, "embed."+namespace+"."+name)
 }
 
 // Config defines the configuration of the ComponentPlan
 // Greatly inspired by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/install.go#L161
 // And https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/upgrade.go#L70
 // Note: we will helm INSTALL release if not exists or helm UPGRADE if exists.**
-// Note: helm release will be installed/upgraded in same namespace with ComponentPlan, So no args like --create-namespace
-// Note: helm release will be installed/upgraded, so no args like --dry-run
-// Note: helm release will be installed/upgraded without show notes, so no args like --render-subchart-notes
-// Note: helm release will be upgraded with Override Config, so no args like --reset-values or --reuse-values
-// TODO: we should consider hooks, --no-hooks helm template --hooks
+// Note: no --devel config, because it equivalent to version '>0.0.0-0'.
+// Note: no --nameTemplate config, because we need a determined name, nameTemplate may produce different results when it is run multiple times.
+// Note: no --generateName config with the same reason above.
+// Note: no --reset-values or --reuse-values config, because we use Override config
+// TODO: add --verify config after we handle keyring config
 type Config struct {
 	Override Override `json:"override,omitempty"`
 
-	NameConfig `json:",inline"`
+	// Name is pass to helm install <chart> <name>, name arg
+	Name string `json:"name,omitempty"`
 
-	// FIXME reconsider there config because we will use helm template not helm install
-	// Force is pass to helm install/upgrade --force
+	// Force is pass to helm upgrade --force
 	// force resource updates through a replacement strategy
 	Force bool `json:"force,omitempty"`
-
-	// Replace is pass to helm install --replace
-	// re-use the given name, only if that name is a deleted release which remains in the history. This is unsafe in production
-	Replace bool `json:"replace,omitempty"`
 
 	// TimeoutSeconds is pass to helm install/upgrade --timeout, default is 300s
 	// time to wait for any individual Kubernetes operation (like Jobs for hooks)
@@ -187,13 +178,13 @@ type Config struct {
 	// add a custom description
 	Description string `json:"description,omitempty"`
 
-	// Devel is pass to helm install/upgrade --devel
-	// use development versions, too. Equivalent to version '>0.0.0-0'. If --version is set, this is ignored
-	Devel bool `json:"devel,omitempty"`
-
 	// DependencyUpdate is pass to helm install/upgrade --dependency-update
 	// update dependencies if they are missing before installing the chart
 	DependencyUpdate bool `json:"dependencyUpdate,omitempty"`
+
+	// DisableHooks is pass to helm install/upgrade --no-hooks
+	// if set, prevent hooks from running during install and disable pre/post upgrade hooks
+	DisableHooks bool `json:"disableHooks,omitempty"`
 
 	// DisableOpenAPIValidation is pass to helm install/upgrade --disable-openapi-validation
 	// if set, the installation process will not validate rendered templates against the Kubernetes OpenAPI Schema
@@ -211,12 +202,25 @@ type Config struct {
 	// enable DNS lookups when rendering templates
 	EnableDNS bool `json:"enableDNS,omitempty"`
 
-	// Recreate is pass to helm upgrade --recreate-pods
-	// performs pods restart for the resource if applicable
-	Recreate bool `json:"recreate-pods,omitempty"`
+	// MaxHistory is pass to helm upgrade --history-max
+	// limit the maximum number of revisions saved per release. Use 0 for no limit
+	MaxHistory *int `json:"historyMax,omitempty"`
 
 	// MaxRetry
 	MaxRetry *int64 `json:"maxRetry,omitempty"`
+}
+
+func (c *Config) Timeout() time.Duration {
+	if c.TimeOutSeconds == 0 {
+		return 300 * time.Second // default value in helm install/upgrade --timeout
+	}
+	return time.Duration(c.TimeOutSeconds) * time.Second
+}
+func (c *Config) GetMaxHistory() int {
+	if c.MaxHistory == nil {
+		return 10 // default value in helm upgrade --history-max
+	}
+	return *c.MaxHistory
 }
 
 // UpdateCondWithFixedLen updates the Conditions of the resource and limits the length of the Conditions field to l.

@@ -92,10 +92,10 @@ spec:
                 description: Description is pass to helm install/upgrade --description
                   add a custom description
                 type: string
-              devel:
-                description: Devel is pass to helm install/upgrade --devel use development
-                  versions, too. Equivalent to version '>0.0.0-0'. If --version is
-                  set, this is ignored
+              disableHooks:
+                description: DisableHooks is pass to helm install/upgrade --no-hooks
+                  if set, prevent hooks from running during install and disable pre/post
+                  upgrade hooks
                 type: boolean
               disableOpenAPIValidation:
                 description: DisableOpenAPIValidation is pass to helm install/upgrade
@@ -107,10 +107,14 @@ spec:
                   enable DNS lookups when rendering templates
                 type: boolean
               force:
-                description: FIXME reconsider there config because we will use helm
-                  template not helm install Force is pass to helm install/upgrade
-                  --force force resource updates through a replacement strategy
+                description: Force is pass to helm upgrade --force force resource
+                  updates through a replacement strategy
                 type: boolean
+              historyMax:
+                description: MaxHistory is pass to helm upgrade --history-max limit
+                  the maximum number of revisions saved per release. Use 0 for no
+                  limit
+                type: integer
               maxRetry:
                 description: MaxRetry
                 format: int64
@@ -118,13 +122,8 @@ spec:
               name:
                 description: Name is pass to helm install <chart> <name>, name arg
                 type: string
-              nameTemplate:
-                description: NameTemplate is pass to helm install --name-template
-                  FIXME add logic
-                type: string
               override:
                 description: Override defines the override settings for the component
-                  FIXME fix comment
                 properties:
                   images:
                     description: Images for replace old image see https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/images
@@ -150,37 +149,21 @@ spec:
                       type: object
                     type: array
                   set:
-                    description: 'Set is passed to helm install --set set values on
-                      the command line (can specify multiple or separate values with
-                      commas: key1=val1,key2=val2)'
-                    items:
-                      type: string
-                    type: array
-                  set-file:
-                    description: 'SetFile is passed to helm install --set-file set
-                      values from respective files specified via the command line
-                      (can specify multiple or separate values with commas: key1=path1,key2=path2)
-                      https://github.com/helm/helm/pull/3758'
-                    items:
-                      type: string
-                    type: array
-                  set-json:
-                    description: 'SetJSON is passed to helm install --set-json set
-                      JSON values on the command line (can specify multiple or separate
-                      values with commas: key1=jsonval1,key2=jsonval2) https://github.com/helm/helm/pull/10693'
-                    items:
-                      type: string
-                    type: array
-                  set-literal:
-                    description: SetLiteral is passed to helm install --set-literal
-                      set a literal STRING value on the command line https://github.com/helm/helm/pull/9182
+                    description: 'Set is passed to helm install --set can specify
+                      multiple or separate values with commas: key1=val1,key2=val2
+                      Helm also provides other set options, such as --set-json or
+                      --set-literal, which can be replaced by values or valuesFrom
+                      fields.'
                     items:
                       type: string
                     type: array
                   set-string:
                     description: 'SetString is passed to helm install --set-string
                       set STRING values on the command line (can specify multiple
-                      or separate values with commas: key1=val1,key2=val2) https://github.com/helm/helm/pull/3599'
+                      or separate values with commas: key1=val1,key2=val2) https://github.com/helm/helm/pull/3599
+                      Helm also provides other set options, such as --set-json or
+                      --set-literal, which can be replaced by values or valuesFrom
+                      fields.'
                     items:
                       type: string
                     type: array
@@ -232,15 +215,6 @@ spec:
                       type: object
                     type: array
                 type: object
-              recreate-pods:
-                description: Recreate is pass to helm upgrade --recreate-pods performs
-                  pods restart for the resource if applicable
-                type: boolean
-              replace:
-                description: Replace is pass to helm install --replace re-use the
-                  given name, only if that name is a deleted release which remains
-                  in the history. This is unsafe in production
-                type: boolean
               repository:
                 description: RepositoryRef is a reference to the Repository
                 properties:

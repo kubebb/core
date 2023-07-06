@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/json"
 	kubeyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,13 +47,6 @@ func IgnoreNotFound(err error) error {
 		return nil
 	}
 	return err
-}
-
-// IsCRD returns true if the supplied object is a CRD
-// inspire by github.com/argoproj/gitops-engine/pkg/utils/kube
-func IsCRD(u *unstructured.Unstructured) bool {
-	gvk := u.GroupVersionKind()
-	return gvk.Kind == "CustomResourceDefinition" && gvk.Group == "apiextensions.k8s.io"
 }
 
 // SplitYAML splits a YAML file into unstructured objects. Returns list of all unstructured objects
@@ -103,27 +95,6 @@ func SplitYAMLToString(yamlData []byte) ([]string, error) {
 	return objs, nil
 }
 
-// IsNullList checks if the object is a "List" type where items is null instead of an empty list.
-// Handles a corner case where obj.IsList() returns false when a manifest is like:
-// ---
-// apiVersion: v1
-// items: null
-// kind: ConfigMapList
-// copy from https://github.com/argoproj/argo-cd/blob/50b2f03657026a0987e4910eca4778e8950e6d87/reposerver/repository/repository.go#L1525
-func IsNullList(obj *unstructured.Unstructured) bool {
-	if _, ok := obj.Object["spec"]; ok {
-		return false
-	}
-	if _, ok := obj.Object["status"]; ok {
-		return false
-	}
-	field, ok := obj.Object["items"]
-	if !ok {
-		return false
-	}
-	return field == nil
-}
-
 func ResourceDiffStr(ctx context.Context, source, exist *unstructured.Unstructured, ignorePaths []string, c client.Client) (string, error) {
 	newOne := source.DeepCopy()
 	newOne.SetResourceVersion(exist.GetResourceVersion())
@@ -164,14 +135,14 @@ var ComponentPlanDiffIgnorePaths = []string{
 }
 
 // GetResourcesAndImages get resource slices, image lists from manifests
-func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Client, manifests []string) (resources []v1alpha1.Resource, images []string, err error) {
+func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Client, data string) (resources []v1alpha1.Resource, images []string, err error) {
+	manifests, err := SplitYAML([]byte(data))
+	if err != nil {
+		return nil, nil, err
+	}
 	resources = make([]v1alpha1.Resource, len(manifests))
 	for i, manifest := range manifests {
-		obj := &unstructured.Unstructured{}
-		if err = json.Unmarshal([]byte(manifest), obj); err != nil {
-			logger.Error(err, "Unmarshal error", "manifest", manifest)
-			return nil, nil, err
-		}
+		obj := manifest
 		has := &unstructured.Unstructured{}
 		has.SetKind(obj.GetKind())
 		has.SetAPIVersion(obj.GetAPIVersion())

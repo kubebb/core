@@ -17,47 +17,33 @@ limitations under the License.
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/pkg/helm"
-	"github.com/kubebb/core/pkg/repoimage"
 	"github.com/kubebb/core/pkg/utils"
-	"istio.io/istio/operator/pkg/compare"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/klog/v2"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/kustomize/api/krusty"
-	kustomize "sigs.k8s.io/kustomize/api/types"
-	kustypes "sigs.k8s.io/kustomize/api/types"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
-	"sigs.k8s.io/yaml"
 )
 
 // ComponentPlanReconciler reconciles a ComponentPlan object
 type ComponentPlanReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	// For https://github.com/kubernetes-sigs/kustomize/issues/3659
-	kustomizeRenderMutex sync.Mutex
 }
 
 // +kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=componentplans,verbs=get;list;watch;create;update;patch;delete
@@ -89,7 +75,11 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	component := &corev1alpha1.Component{}
 	err = r.Get(ctx, types.NamespacedName{Namespace: plan.Spec.ComponentRef.Namespace, Name: plan.Spec.ComponentRef.Name}, component)
 	if err != nil {
-		logger.Error(err, "Failed to get Component", "Component.Namespace", plan.Spec.ComponentRef.Namespace, "Component.Name", plan.Spec.ComponentRef.Name)
+		if apierrors.IsNotFound(err) {
+			logger.Info("Failed to get Component", "Component.Namespace", plan.Spec.ComponentRef.Namespace, "Component.Name", plan.Spec.ComponentRef.Name)
+		} else {
+			logger.Error(err, "Failed to get Component", "Component.Namespace", plan.Spec.ComponentRef.Namespace, "Component.Name", plan.Spec.ComponentRef.Name)
+		}
 		return reconcile.Result{Requeue: true, RequeueAfter: time.Minute}, utils.IgnoreNotFound(err)
 	}
 	logger.V(4).Info("Get Component instance", "Component.Namespace", component.Namespace, "Component.Name", component.Name)
@@ -98,7 +88,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if plan.Spec.RepositoryRef == nil || plan.Spec.RepositoryRef.Name == "" {
 		newPlan := plan.DeepCopy()
 		for _, o := range component.GetOwnerReferences() {
-			if o.Kind == "Repository" {
+			if o.Kind == (&corev1alpha1.Repository{}).GroupVersionKind().Kind {
 				newPlan.Spec.RepositoryRef = &corev1.ObjectReference{
 					Name:      o.Name,
 					Namespace: component.Namespace,
@@ -125,7 +115,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Add a finalizer. Then, we can define some operations which should
-	// occurs before the ComponentPlan to be deleted.
+	// occur before the ComponentPlan to be deleted.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
 	if !controllerutil.ContainsFinalizer(plan, corev1alpha1.Finalizer) {
 		logger.Info("Adding Finalizer for ComponentPlan")
@@ -148,12 +138,12 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		// Perform all operations required before remove the finalizer and allow
 		// the Kubernetes API to remove ComponentPlan
-		if err = r.doFinalizerOperationsForPlan(ctx, plan); err != nil {
+		if err = r.doFinalizerOperationsForPlan(ctx, logger, plan); err != nil {
 			logger.Error(err, "Failed to re-fetch ComponentPlan")
 			return ctrl.Result{}, err
 		}
 
-		logger.Info("Removing Finalizer for ComponentPlan after successfully perform the operations")
+		logger.Info("Removing Finalizer for ComponentPlan after successfully performing the operations")
 		if ok := controllerutil.RemoveFinalizer(plan, corev1alpha1.Finalizer); !ok {
 			return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, nil
 		}
@@ -164,9 +154,23 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
+	// FIXME spec.resourceVersion
 	if plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeSucceeded).Status == corev1.ConditionTrue {
 		logger.Info("ComponentPlan is already succeeded, no need to reconcile")
 		return ctrl.Result{}, nil
+	}
+
+	repo := &corev1alpha1.Repository{}
+	if err = r.Get(ctx, types.NamespacedName{Name: plan.Spec.RepositoryRef.Name, Namespace: plan.Spec.RepositoryRef.Namespace}, repo); err != nil {
+		logger.Error(err, "Failed to get Repository")
+		return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+	}
+
+	// Note: repoName should be in namepsaced to avoid confilicts when the same repo name in different namespaces is used
+	//chartName := repo.NamespacedName() + "/" + component.Status.Name
+	chartName := component.Status.Name
+	if chartName == "" {
+		return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, nil
 	}
 
 	// Check its helm template configmap exist
@@ -180,40 +184,16 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Error(err, "Failed to get Component")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
-		chartName := component.Status.Name
-		if chartName == "" {
-			err = errors.New("chart name is empty")
-			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
-		}
 
-		repo := &corev1alpha1.Repository{}
-		if err = r.Get(ctx, types.NamespacedName{Name: plan.Spec.RepositoryRef.Name, Namespace: plan.Spec.RepositoryRef.Namespace}, repo); err != nil {
-			logger.Error(err, "Failed to get Repository")
+		getter, err := r.buildRESTClientGetter()
+		if err != nil {
+			logger.Error(err, "Failed to build RESTClientGetter")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 		}
-		// Note: repoName should be in namepsaced to avoid confilicts when same repo name in different namespaces are used
-		repoName := repo.NamespacedName()
-		repoUrl := repo.Spec.URL
-		if repoUrl == "" {
-			err = errors.New("repo url is empty")
-			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
-		}
-
-		data, err := helm.GetManifests(ctx, r.Client, logger, plan.Spec.Config.Name, plan.Namespace, repoName+"/"+chartName, plan.Spec.InstallVersion, repoName, repoUrl,
-			plan.Spec.Override, plan.Spec.Config.SkipCRDs, false)
+		data, err := helm.GetManifests(ctx, getter, r.Client, logger, plan, repo, chartName)
 		if err != nil {
 			logger.Error(err, "Failed to get manifest")
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
-		}
-
-		var diffStr string
-		data, diffStr, err = r.UpdateImages(ctx, data, repo.Spec.ImageOverride, plan.Spec.Config.Override.Images)
-		if err != nil {
-			logger.Error(err, "Failed to Update Images")
-			return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
-		}
-		if len(diffStr) != 0 {
-			logger.Info("Update Image get diff", "diff", diffStr, "registry", klog.KObj(repo))
 		}
 
 		if err = r.GenerateManifestConfigMap(plan, manifest, data); err != nil {
@@ -255,13 +235,15 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Error(err, "will not retry")
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnSucceeded(err))
 		}
-		var data []string
-		for _, v := range manifest.Data {
-			data = append(data, v)
-		}
+
 		_ = r.UpdateManifestConfigMapLabel(ctx, plan, corev1alpha1.ComponentPlanReasonInstalling)
 		logger.Info("install the component plan now...")
-		err = helm.Install(ctx, r.Client, logger, plan.Name, data)
+		getter, err := r.buildRESTClientGetter()
+		if err != nil {
+			logger.Error(err, "Failed to build RESTClientGetter")
+			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+		}
+		err = helm.InstallOrUpgrade(ctx, getter, r.Client, logger, plan, repo, chartName)
 		if err != nil {
 			_ = r.UpdateManifestConfigMapLabel(ctx, plan, corev1alpha1.ComponentPlanReasonInstallFailed)
 			logger.Error(err, "install failed")
@@ -284,14 +266,14 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("try to first install the component plan to cluster...")
 		return install()
 	case string(corev1alpha1.ComponentPlanReasonInstalling):
-		logger.Info("last one is installing... skip for 1 minute")
+		logger.Info("the last one is installing... skip for 1 minute")
 		// Just installing the helm chart, wait one minute to recheck
 		return ctrl.Result{RequeueAfter: time.Minute}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstalling())
 	case string(corev1alpha1.ComponentPlanReasonInstallSuccess):
 		logger.Info("last one install success. just return")
 		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallSuccess())
 	case string(corev1alpha1.ComponentPlanReasonInstallFailed):
-		logger.Info("last one installation failed.")
+		logger.Info("the last one installation failed.")
 		return install()
 	}
 	return ctrl.Result{}, nil
@@ -306,19 +288,22 @@ func (r *ComponentPlanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // doFinalizerOperationsForPlan performs all operations required before remove the finalizer
-func (r *ComponentPlanReconciler) doFinalizerOperationsForPlan(ctx context.Context, plan *corev1alpha1.ComponentPlan) (err error) {
-	return helm.UnInstallByResources(ctx, r.Client, plan.Namespace, plan.Name, plan.Status.Resources)
+func (r *ComponentPlanReconciler) doFinalizerOperationsForPlan(ctx context.Context, logger logr.Logger, plan *corev1alpha1.ComponentPlan) (err error) {
+	getter, err := r.buildRESTClientGetter()
+	if err != nil {
+		logger.Error(err, "Failed to build RESTClientGetter")
+		return err
+	}
+	return helm.Uninstall(ctx, getter, logger, plan)
 }
 
-func (r *ComponentPlanReconciler) GenerateManifestConfigMap(plan *corev1alpha1.ComponentPlan, manifest *corev1.ConfigMap, data []string) (err error) {
+func (r *ComponentPlanReconciler) GenerateManifestConfigMap(plan *corev1alpha1.ComponentPlan, manifest *corev1.ConfigMap, data string) (err error) {
 	if manifest.Labels == nil {
 		manifest.Labels = make(map[string]string)
 	}
 	manifest.Labels[string(corev1alpha1.ComponentPlanTypeInstalled)] = string(corev1alpha1.ComponentPlanReasonWaitInstall)
 	manifest.Data = make(map[string]string)
-	for i, d := range data {
-		manifest.Data[fmt.Sprintf("%d", i)] = d
-	}
+	manifest.Data["manifest"] = data
 	return controllerutil.SetOwnerReference(plan, manifest, r.Scheme)
 }
 
@@ -389,105 +374,12 @@ func (r *ComponentPlanReconciler) needRetry(maxRetry *int64, label map[string]st
 	return 1 < *maxRetry
 }
 
-func (r *ComponentPlanReconciler) UpdateImages(ctx context.Context, jsonManifests []string, repoOverride []corev1alpha1.ImageOverride, images []kustomize.Image) (jsonData []string, diffStr string, err error) {
-	if len(repoOverride) == 0 && len(images) == 0 {
-		return jsonManifests, "", nil
-	}
-	fs := filesys.MakeFsInMemory()
-	cfg := kustypes.Kustomization{}
-	cfg.APIVersion = kustypes.KustomizationVersion
-	cfg.Kind = kustypes.KustomizationKind
-	cfg.Images = images
-
-	for i, manifest := range jsonManifests {
-		fileName := fmt.Sprintf("%d.json", i)
-		cfg.Resources = append(cfg.Resources, fileName)
-		f, err := fs.Create(fileName)
-		if err != nil {
-			return nil, "", err
-		}
-		defer f.Close()
-		if _, err = f.Write([]byte(manifest)); err != nil {
-			return nil, "", err
-		}
-	}
-
-	kustomization, err := json.Marshal(cfg)
+// FIXME
+func (r *ComponentPlanReconciler) buildRESTClientGetter() (genericclioptions.RESTClientGetter, error) {
+	cfg, err := ctrl.GetConfig()
 	if err != nil {
-		return nil, "", err
+		return nil, fmt.Errorf("failed to get config for in-cluster REST client: %w", err)
 	}
-	f, err := fs.Create("kustomization.yaml")
-	if err != nil {
-		return nil, "", err
-	}
-	defer f.Close()
-	if _, err = f.Write(kustomization); err != nil {
-		return nil, "", err
-	}
-
-	r.kustomizeRenderMutex.Lock()
-	defer r.kustomizeRenderMutex.Unlock()
-
-	buildOptions := &krusty.Options{
-		LoadRestrictions: kustypes.LoadRestrictionsNone,
-		PluginConfig:     kustypes.DisabledPluginConfig(),
-	}
-
-	k := krusty.MakeKustomizer(buildOptions)
-	resMap, err := k.Run(fs, ".")
-	if err != nil {
-		return nil, "", err
-	}
-	path := corev1alpha1.GetImageOverridePath()
-	if len(path) != 0 && len(repoOverride) != 0 {
-		fsslice := make([]kustypes.FieldSpec, len(path))
-		for i, p := range path {
-			fsslice[i] = kustypes.FieldSpec{Path: p}
-		}
-		if err = resMap.ApplyFilter(repoimage.Filter{ImageOverride: repoOverride, FsSlice: fsslice}); err != nil {
-			return nil, "", err
-		}
-	}
-	yamlResults, err := resMap.AsYaml()
-	if err != nil {
-		return nil, "", err
-	}
-	separator := "\n---\n"
-	results := bytes.Split(yamlResults, []byte(separator))
-	for _, i := range results {
-		if len(i) != 0 {
-			j, err := yaml.YAMLToJSON(i)
-			if err != nil {
-				return nil, "", err
-			}
-			jsonData = append(jsonData, string(j))
-		}
-	}
-	l := len(jsonManifests)
-	sort.Strings(jsonManifests)
-	sort.Strings(jsonData)
-	diffLines := make([]string, 0)
-	for i := 0; i < l; i++ {
-		oldJSON := jsonManifests[i]
-		if len(jsonData) == 0 || i >= len(jsonData) {
-			break
-		}
-		newJSON := jsonData[i]
-		if oldJSON == newJSON {
-			continue
-		}
-		oldYaml, err := yaml.JSONToYAML([]byte(oldJSON))
-		if err != nil {
-			continue
-		}
-		newYaml, err := yaml.JSONToYAML([]byte(newJSON))
-		if err != nil {
-			continue
-		}
-		diff := compare.YAMLCmp(string(oldYaml), string(newYaml))
-		if diff != "" {
-			diffLines = append(diffLines, diff)
-		}
-	}
-	return jsonData, strings.Join(diffLines, "\n"), nil
+	config := genericclioptions.NewConfigFlags(true).WithDiscoveryBurst(cfg.Burst).WithDiscoveryQPS(cfg.QPS)
+	return config, nil
 }
