@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,9 +82,6 @@ type MenuSpec struct {
 	// 父菜单 ID
 	// +optional
 	Parent string `json:"parent,omitempty"`
-	//对应 k8s 资源的 name
-	// +optional
-	ParentOwnerReferences metav1.OwnerReference `json:"parentOwnerReferences,omitempty"`
 	// menu 显示控制
 	// +optional
 	Disabled bool `json:"disabled,omitempty"`
