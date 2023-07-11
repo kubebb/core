@@ -21,8 +21,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type Router struct {
+	// the path for request acccessing
+	Path string `json:"path,omitempty"`
+	// the path of the static file
+	Entry string `json:"entry,omitempty"`
+}
+
 // ComponentSpec defines the desired state of Component
 type ComponentSpec struct {
+	Portal Router `json:"portal,omitempty"`
 }
 
 // ComponentStatus defines the observed state of Component
