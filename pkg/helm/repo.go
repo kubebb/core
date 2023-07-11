@@ -1,0 +1,179 @@
+/*
+ * Copyright 2023 The Kubebb Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package helm
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/gofrs/flock"
+	"github.com/pkg/errors"
+	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/helmpath"
+	"helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/yaml"
+)
+
+// RepoAdd
+// inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_add.go
+func RepoAdd(ctx context.Context, logger logr.Logger, name, url string) (err error) {
+	entry := repo.Entry{Name: name, URL: url} // TODO add auth args
+	repoFile := settings.RepositoryConfig
+	repoCache := settings.RepositoryCache
+
+	// Ensure the file directory exists as it is required for file locking
+	if err = os.MkdirAll(filepath.Dir(repoFile), os.ModePerm); err != nil && !os.IsExist(err) {
+		return err
+	}
+
+	// Acquire a file lock for process synchronization
+	repoFileExt := filepath.Ext(repoFile)
+	var lockPath string
+	if len(repoFileExt) > 0 && len(repoFileExt) < len(repoFile) {
+		lockPath = strings.TrimSuffix(repoFile, repoFileExt) + ".lock"
+	} else {
+		lockPath = repoFile + ".lock"
+	}
+	fileLock := flock.New(lockPath)
+	lockCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	locked, err := fileLock.TryLockContext(lockCtx, time.Second)
+	if err == nil && locked {
+		defer fileLock.Unlock() //nolint:all
+	}
+	if err != nil {
+		return err
+	}
+
+	b, err := os.ReadFile(repoFile)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	var f repo.File
+	if err := yaml.Unmarshal(b, &f); err != nil {
+		return err
+	}
+
+	// Check if the repo name is legal
+	if strings.Contains(entry.Name, "/") {
+		return errors.Errorf("repository name (%s) contains '/', please specify a different name without '/'", entry.Name)
+	}
+
+	r, err := repo.NewChartRepository(&entry, getter.All(settings))
+	if err != nil {
+		return err
+	}
+
+	if repoCache != "" {
+		r.CachePath = repoCache
+	}
+	if _, err := r.DownloadIndexFile(); err != nil {
+		return errors.Wrapf(err, "looks like %q is not a valid chart repository or cannot be reached", entry.URL)
+	}
+
+	f.Update(&entry)
+
+	if err := f.WriteFile(repoFile, 0644); err != nil {
+		return err
+	}
+	logger.Info(fmt.Sprintf("%q has been added to your repositories", entry.Name))
+	return nil
+}
+
+// RepoUpdate
+// inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_update.go#L117
+func RepoUpdate(ctx context.Context, logger logr.Logger, name string) (err error) {
+	log := logger.WithValues("name", name)
+	repoFile := settings.RepositoryConfig
+	repoCache := settings.RepositoryCache
+
+	f, err := repo.LoadFile(repoFile)
+	switch {
+	case os.IsNotExist(errors.Cause(err)):
+		return errors.New("no repositories found.")
+	case err != nil:
+		return errors.Wrapf(err, "failed loading file: %s", repoFile)
+	case len(f.Repositories) == 0:
+		return errors.New("no repositories found.")
+	}
+
+	var wantRepo *repo.ChartRepository
+	for _, cfg := range f.Repositories {
+		if cfg.Name != name {
+			continue
+		}
+		wantRepo, err = repo.NewChartRepository(cfg, getter.All(settings))
+		if err != nil {
+			return err
+		}
+		if repoCache != "" {
+			wantRepo.CachePath = repoCache
+		}
+	}
+
+	logger.Info("Hang tight while we grab the latest from your chart repositories...")
+
+	if _, err := wantRepo.DownloadIndexFile(); err != nil {
+		log.Error(err, "Unable to get an update from the %q chart repository (%s)", wantRepo.Config.Name, wantRepo.Config.URL)
+		return err
+	}
+	log.Info(fmt.Sprintf("Successfully got an update from the %q chart repository", wantRepo.Config.Name))
+	return nil
+}
+
+// RepoRemove
+// inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_remove.go#L117
+func RepoRemove(ctx context.Context, logger logr.Logger, name string) (err error) {
+	log := logger.WithValues("name", name)
+	repoFile := settings.RepositoryConfig
+	repoCache := settings.RepositoryCache
+	r, err := repo.LoadFile(repoFile)
+	if os.IsNotExist(errors.Cause(err)) || len(r.Repositories) == 0 {
+		return errors.New("no repositories configured")
+	}
+
+	if !r.Remove(name) {
+		return errors.Errorf("no repo named %q found", name)
+	}
+	if err := r.WriteFile(repoFile, 0644); err != nil {
+		return err
+	}
+
+	idx := filepath.Join(repoCache, helmpath.CacheChartsFile(name))
+	if _, err := os.Stat(idx); err == nil {
+		_ = os.Remove(idx)
+	}
+
+	idx = filepath.Join(repoCache, helmpath.CacheIndexFile(name))
+	if _, err := os.Stat(idx); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return errors.Wrapf(err, "can't remove index file %s", idx)
+	}
+	if err = os.Remove(idx); err != nil {
+		return err
+	}
+
+	log.Info(fmt.Sprintf("%q has been removed from your repositories", name))
+	return nil
+}

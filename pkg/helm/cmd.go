@@ -18,218 +18,67 @@ package helm
 
 import (
 	"context"
-	"fmt"
-	"os"
 
 	"github.com/go-logr/logr"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
-	"github.com/kubebb/core/pkg/utils"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/klog/v2"
+	"helm.sh/helm/v3/pkg/release"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// Install installs a helm chart to the cluster
-func Install(ctx context.Context, client client.Client, logger logr.Logger, planName string, manifests []string) (err error) {
-	for _, manifest := range manifests {
-		obj := &unstructured.Unstructured{}
-		if err = json.Unmarshal([]byte(manifest), obj); err != nil {
-			logger.Error(err, "failed to unmarshal manifest", "manifest", manifest)
-			return err
-		}
-		if !utils.IsCRD(obj) {
-			if err = corev1alpha1.AddComponentPlanLabel(obj, planName); err != nil {
-				logger.Error(err, "failed to add label", "obj", klog.KObj(obj))
-				return err
-			}
-		}
-		_, err = controllerutil.CreateOrUpdate(ctx, client, obj, func() error {
-			return nil
-		})
-		if err != nil {
-			logger.Error(err, "failed to create or update", "obj", klog.KObj(obj))
-			return err
-		}
-	}
-	return nil
+// InstallOrUpgrade installs / ungrade a helm chart to the cluster
+func InstallOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, chartName string) (err error) {
+	_, err = installOrUpgrade(ctx, getter, cli, logger, cpl, repo, false, chartName)
+	return err
 }
 
-// UnInstallByManifest remove a helm chart from the cluster
-func UnInstallByManifest(ctx context.Context, client client.Client, manifests []string) (err error) {
-	for _, manifest := range manifests {
-		obj := &unstructured.Unstructured{}
-		if err = json.Unmarshal([]byte(manifest), obj); err != nil {
-			return err
-		}
-		err = client.Delete(ctx, obj)
-		if utils.IgnoreNotFound(err) != nil {
-			return err
-		}
+// Uninstall installs a helm chart to the cluster
+func Uninstall(ctx context.Context, getter genericclioptions.RESTClientGetter, logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (err error) {
+	h, err := NewHelmWarpper(getter, cpl.Namespace, logger)
+	if err != nil {
+		return err
 	}
-	return nil
-}
-
-// UnInstallByResources remove a helm chart from the cluster
-func UnInstallByResources(ctx context.Context, c client.Client, ns, planName string, resources []corev1alpha1.Resource) (err error) {
-	for _, resource := range resources {
-		obj := &unstructured.Unstructured{}
-		obj.SetKind(resource.Kind)
-		obj.SetName(resource.Name)
-		obj.SetAPIVersion(resource.APIVersion)
-		obj.SetNamespace(ns)
-		err = c.Get(ctx, client.ObjectKeyFromObject(obj), obj)
-		if utils.IgnoreNotFound(err) != nil {
-			return err
-		}
-		labels := obj.GetLabels()
-		if labels == nil {
-			continue
-		}
-		if labels[corev1alpha1.ComponentPlanKey] != planName {
-			continue
-		}
-		err = c.Delete(ctx, obj)
-		if utils.IgnoreNotFound(err) != nil {
-			return err
-		}
+	// FIXME should also check version
+	rel, err := h.getLastRelease(cpl)
+	if err != nil {
+		return err
 	}
-	return nil
+	if rel == nil {
+		return nil
+	}
+	return h.uninstall(logger, cpl)
 }
 
 // GetManifests get helm templates
-func GetManifests(ctx context.Context, cli client.Client, logger logr.Logger, name, namespace, chart, version, repoName, repoUrl string, override corev1alpha1.Override, skipCrd, isOCI bool) (data []string, err error) {
-	Objs, err := getHelmTemplate(ctx, cli, logger, name, namespace, chart, version, repoName, repoUrl, override, skipCrd, isOCI)
+func GetManifests(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, chartName string) (data string, err error) {
+	rel, err := installOrUpgrade(ctx, getter, cli, logger, cpl, repo, true, chartName)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	manifests := make([]*unstructured.Unstructured, 0)
-	for _, obj := range Objs {
-		if obj == nil {
-			continue
-		}
-
-		var targets []*unstructured.Unstructured
-		var appendTarget = func(obj *unstructured.Unstructured) {
-			if rs, err := cli.RESTMapper().RESTMapping(obj.GroupVersionKind().GroupKind()); err != nil {
-				logger.Error(err, "get RESTMapping err, just ignore", "obj", klog.KObj(obj))
-			} else {
-				if rs.Scope.Name() == meta.RESTScopeNameNamespace {
-					obj.SetNamespace(namespace)
-				} else {
-					obj.SetNamespace("")
-				}
-			}
-			targets = append(targets, obj)
-		}
-		if obj.IsList() {
-			err = obj.EachListItem(func(object runtime.Object) error {
-				unstructuredObj, ok := object.(*unstructured.Unstructured)
-				if ok {
-					appendTarget(unstructuredObj)
-					return nil
-				}
-				return fmt.Errorf("resource list item has unexpected type")
-			})
-			if err != nil {
-				return nil, err
-			}
-		} else if utils.IsNullList(obj) {
-			// noop
-		} else {
-			appendTarget(obj)
-		}
-
-		manifests = append(manifests, targets...)
-	}
-	data = make([]string, len(manifests))
-	for i, m := range manifests {
-		manifestStr, err := json.Marshal(m.Object)
-		if err != nil {
-			return nil, err
-		}
-		data[i] = string(manifestStr)
-	}
-	return data, nil
+	return rel.Manifest, nil
 }
 
-func getHelmTemplate(ctx context.Context, cli client.Client, logger logr.Logger, name, namespace, chart, version, repoName, repoUrl string, override corev1alpha1.Override, skipCrd, isOCI bool) ([]*unstructured.Unstructured, error) {
-	dir, err := os.MkdirTemp("", "helm")
+// installOrUpgrade installs / ungrade a helm chart to the cluster
+func installOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, dryRun bool, chartName string) (rel *release.Release, err error) {
+	h, err := NewHelmWarpper(getter, cpl.Namespace, logger)
 	if err != nil {
 		return nil, err
 	}
-	h := NewHelm(dir, isOCI)
-	out, err := h.repoAdd(ctx, repoName, repoUrl)
+	rel, err = h.getLastRelease(cpl)
 	if err != nil {
 		return nil, err
 	}
-	logger.V(5).Info("helm repo add", "output", out)
-	out, err = h.repoUpdate(ctx, repoName)
-	if err != nil {
-		return nil, err
-	}
-	logger.V(5).Info("helm repo update", "output", out)
-	var valuesFiles []string
-	for _, valuesFrom := range override.ValuesFrom {
-		fileName, err := utils.ParseValuesReference(ctx, cli, namespace, h.WorkDir, valuesFrom)
+	if rel == nil {
+		rel, err = h.install(ctx, logger, cli, cpl, repo, dryRun, chartName)
 		if err != nil {
 			return nil, err
 		}
-		valuesFiles = append(valuesFiles, fileName)
-	}
-	logger.V(5).Info("parse valuesReference done")
-	fileName, err := utils.ParseValues(dir, override.Values)
-	if err != nil {
-		return nil, err
-	}
-	if fileName != "" {
-		valuesFiles = append(valuesFiles, fileName)
-	}
-	logger.V(5).Info("parse values done")
-	out, err = h.template(ctx, name, namespace, chart, version, override.Set, override.SetString, override.SetFile, override.SetJSON, override.SetLiteral, valuesFiles, skipCrd)
-	if err != nil {
-		if !isMissingDependencyErr(err) {
-			return nil, err
-		}
-		// FIXME check this
-		if err = cleanupChartLockFile("TODO"); err != nil {
-			return nil, err
-		}
-
-		_, err := h.dependencyBuild(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		out, err = h.template(ctx, name, namespace, chart, version, override.Set, override.SetString, override.SetFile, override.SetJSON, override.SetLiteral, valuesFiles, skipCrd)
-		if err != nil {
-			return nil, err
-		}
-	}
-	var _out string
-	if len(out) > 20 {
-		_out = out[:20]
+		logger.Info("install completed", "release.Version", rel.Version, "release.Info", rel.Info)
 	} else {
-		_out = out
+		rel, err = h.upgrade(ctx, logger, cli, cpl, repo, dryRun, chartName)
+		if err != nil {
+			return nil, err
+		}
 	}
-	logger.V(5).Info("helm template", "output first 20", _out)
-	return utils.SplitYAML([]byte(out))
-}
-
-func RepoAdd(ctx context.Context, name, _url string) (string, error) {
-	h := NewHelm("", false)
-	return h.repoAdd(ctx, name, _url)
-}
-
-func RepoUpdate(ctx context.Context, name string) (string, error) {
-	h := NewHelm("", false)
-	return h.repoUpdate(ctx, name)
-}
-
-func RepoRemove(ctx context.Context, name string) (string, error) {
-	h := NewHelm("", false)
-	return h.repoRemomve(ctx, name)
+	return rel, nil
 }

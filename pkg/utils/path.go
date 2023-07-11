@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// ParseValuesReference parses ValuesReference
 func ParseValuesReference(ctx context.Context, cli client.Client, ns, dir string, reference *v1alpha1.ValuesReference) (fileName string, err error) {
 	if dir == "" || reference == nil {
 		return "", nil
@@ -67,9 +68,12 @@ func ParseValuesReference(ctx context.Context, cli client.Client, ns, dir string
 			data = string(binaryData)
 		}
 	default:
-		return "", errors.New("no kind setting found")
+		return "", errors.New("no Kind setting found")
 	}
-	f, err := os.OpenFile(filepath.Join(dir, reference.GetValuesKey()), os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, 0700)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	f, err := os.Create(filepath.Join(dir, reference.GetValuesKey()))
 	if err != nil {
 		return "", err
 	}
@@ -77,11 +81,12 @@ func ParseValuesReference(ctx context.Context, cli client.Client, ns, dir string
 	if _, err := f.WriteString(data); err != nil {
 		return "", err
 	}
-	return reference.GetValuesKey(), nil
+	return filepath.Join(dir, reference.GetValuesKey()), nil
 }
 
+// ParseValues parses Values
 func ParseValues(dir string, reference *apiextensionsv1.JSON) (fileName string, err error) {
-	if dir == "" || reference == nil {
+	if dir == "" || reference == nil || reference.Raw == nil {
 		return "", nil
 	}
 	data, err := yaml.JSONToYAML(reference.Raw)
@@ -89,6 +94,9 @@ func ParseValues(dir string, reference *apiextensionsv1.JSON) (fileName string, 
 		return "", err
 	}
 	fileName = fmt.Sprintf("%d.yaml", rand.Int31())
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
 	f, err := os.Create(filepath.Join(dir, fileName))
 	if err != nil {
 		return "", err
@@ -97,5 +105,5 @@ func ParseValues(dir string, reference *apiextensionsv1.JSON) (fileName string, 
 	if _, err := f.Write(data); err != nil {
 		return "", err
 	}
-	return fileName, nil
+	return filepath.Join(dir, fileName), nil
 }
