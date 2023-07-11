@@ -1,6 +1,8 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: ComponentPlan
 metadata:
+# labels:
+#   core.kubebb.k8s.com.cn/componentplan-release: nginx
   name: nginx-15.0.2
   namespace: kubebb-system
 spec:
@@ -33,6 +35,9 @@ spec:
 #      type: Succeeded
 #  images:
 #    - docker.io/bitnami/nginx:latest
+#  installedRevision: 1
+#  latest: true
+#  observedGeneration: 1
 #  resources:
 #    - NewCreated: true
 #      apiVersion: v1

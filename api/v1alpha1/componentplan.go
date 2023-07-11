@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	ComponentPlanKey                    = Group + "/componentplan"
-	ComponentPlanConfigMapRetryLabelKey = "retry"
+	ComponentPlanKey                  = Group + "/componentplan"
+	ComponentPlanReleaseNameLabel     = Group + "/componentplan-release"
+	ComponentPlanRetryTimesAnnotation = Group + "/componentplan-retry"
 )
 
 // ConditionType for ComponentPlan

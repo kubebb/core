@@ -27,9 +27,8 @@ import (
 )
 
 // InstallOrUpgrade installs / ungrade a helm chart to the cluster
-func InstallOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, chartName string) (err error) {
-	_, err = installOrUpgrade(ctx, getter, cli, logger, cpl, repo, false, chartName)
-	return err
+func InstallOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, chartName string) (rel *release.Release, err error) {
+	return installOrUpgrade(ctx, getter, cli, logger, cpl, repo, false, chartName)
 }
 
 // Uninstall installs a helm chart to the cluster
@@ -38,15 +37,26 @@ func Uninstall(ctx context.Context, getter genericclioptions.RESTClientGetter, l
 	if err != nil {
 		return err
 	}
-	// FIXME should also check version
-	rel, err := h.getLastRelease(cpl)
+	rel, err := h.getLastRelease(cpl.GetReleaseName())
 	if err != nil {
 		return err
 	}
 	if rel == nil {
 		return nil
 	}
+	if rel.Version != cpl.Status.InstalledRevision {
+		return nil
+	}
 	return h.uninstall(logger, cpl)
+}
+
+// GetLastRelease get last release revision
+func GetLastRelease(getter genericclioptions.RESTClientGetter, logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (rel *release.Release, err error) {
+	h, err := NewHelmWarpper(getter, cpl.Namespace, logger)
+	if err != nil {
+		return nil, err
+	}
+	return h.getLastRelease(cpl.GetReleaseName())
 }
 
 // GetManifests get helm templates
@@ -64,7 +74,7 @@ func installOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGe
 	if err != nil {
 		return nil, err
 	}
-	rel, err = h.getLastRelease(cpl)
+	rel, err = h.getLastRelease(cpl.GetReleaseName())
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +83,12 @@ func installOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGe
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("install completed", "release.Version", rel.Version, "release.Info", rel.Info)
+		extraLog := []interface{}{"release.Version", rel.Version}
+		if rel.Info != nil {
+			// do not show release.Info.Note which is long and not useful for controllers
+			extraLog = append(extraLog, "release.Info.status", rel.Info.Status, "release.Info.firstDeployed", rel.Info.FirstDeployed, "release.Info.lastDeployed", rel.Info.LastDeployed, "release.Info.deleted", rel.Info.Deleted, "release.Info.description", rel.Info.Description)
+		}
+		logger.Info("install completed", extraLog...)
 	} else {
 		rel, err = h.upgrade(ctx, logger, cli, cpl, repo, dryRun, chartName)
 		if err != nil {

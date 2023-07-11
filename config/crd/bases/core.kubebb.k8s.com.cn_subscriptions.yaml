@@ -117,7 +117,6 @@ spec:
                 type: integer
               maxRetry:
                 description: MaxRetry
-                format: int64
                 type: integer
               name:
                 description: Name is pass to helm install <chart> <name>, name arg

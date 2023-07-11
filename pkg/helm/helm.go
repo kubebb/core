@@ -183,8 +183,8 @@ func (h *HelmWrapper) uninstall(logger logr.Logger, cpl *corev1alpha1.ComponentP
 }
 
 // getLastRelease observes the last revision
-func (h *HelmWrapper) getLastRelease(cpl *corev1alpha1.ComponentPlan) (*release.Release, error) {
-	rel, err := h.config.Releases.Last(cpl.GetReleaseName())
+func (h *HelmWrapper) getLastRelease(releaseName string) (*release.Release, error) {
+	rel, err := h.config.Releases.Last(releaseName)
 	if err != nil && errors.Is(err, driver.ErrReleaseNotFound) {
 		err = nil
 	}
