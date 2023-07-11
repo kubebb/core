@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
-  name: menugroups.component.t7d.io
+  name: menugroups.core.kubebb.k8s.com.cn
 spec:
-  group: component.t7d.io
+  group: core.kubebb.k8s.com.cn
   names:
     kind: MenuGroup
     listKind: MenuGroupList
@@ -15,7 +15,7 @@ spec:
     singular: menugroup
   scope: Cluster
   versions:
-  - name: v1beta1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: MenuGroup is the Schema for the menugroups API

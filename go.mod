@@ -4,17 +4,16 @@ go 1.20
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
-	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
 	github.com/distribution/distribution/v3 v3.0.0-20220526142353-ffbd94cbe269
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v1.2.3
 	github.com/gofrs/flock v0.8.1
 	github.com/golangci/golangci-lint v1.52.2
-	github.com/mitchellh/mapstructure v1.5.0
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.26.0
 	github.com/pkg/errors v0.9.1
-	github.com/spf13/cobra v1.6.1
+	github.com/spf13/cobra v1.6.1 // indirect
 	github.com/stretchr/testify v1.8.2
 	helm.sh/helm/v3 v3.9.4
 	istio.io/istio v0.0.0-20230403171433-e6124efb9305 // 1.15.7 matching with k8s.io version
@@ -153,7 +152,6 @@ require (
 	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
-	github.com/hokaccha/go-prettyjson v0.0.0-20211117102719-0474bc63780f // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
