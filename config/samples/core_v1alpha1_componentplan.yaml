@@ -1,6 +1,8 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: ComponentPlan
 metadata:
+# labels:
+#   core.kubebb.k8s.com.cn/componentplan-release: wordpress
   name: do-once-wordpress-sample-16.1.12
   namespace: kubebb-system
 spec:
@@ -31,6 +33,9 @@ spec:
 #  images:
 #    - docker.io/bitnami/mariadb:10.11.3-debian-11-r5
 #    - docker.io/bitnami/wordpress:6.2.2-debian-11-r9
+#  installedRevision: 1
+#  latest: true
+#  observedGeneration: 1
 #  resources:
 #    - apiVersion: v1
 #      kind: ServiceAccount

@@ -117,7 +117,6 @@ spec:
                 type: integer
               maxRetry:
                 description: MaxRetry
-                format: int64
                 type: integer
               name:
                 description: Name is pass to helm install <chart> <name>, name arg
@@ -324,6 +323,33 @@ spec:
                 items:
                   type: string
                 type: array
+              installedRevision:
+                description: InstalledRevision represents the helm release Revision
+                  that is installed by this ComponentPlan
+                type: integer
+              latest:
+                description: Latest indicates whether the ComponentPlan corresponds
+                  to the latest helm release Revision FIXME rethink this field
+                type: boolean
+              observedGeneration:
+                description: observedGeneration is the most recent metadata.generation
+                  when this ComponentPlan installed successfully or failed and reached
+                  the max retry times. When the ComponentPlan is Done (Succeeded or
+                  Failed), update spec will change metadata.generation We can compare
+                  metadata.generation and status.observedgeneration to determine whether
+                  to Reconcile again.
+                format: int64
+                type: integer
+              portal:
+                description: 'Portal only use for kubebb, FIXME: parse it'
+                properties:
+                  entry:
+                    description: the path of the static file
+                    type: string
+                  path:
+                    description: the path for request acccessing
+                    type: string
+                type: object
               resources:
                 items:
                   description: Resource represents one single resource in the ComponentPlan

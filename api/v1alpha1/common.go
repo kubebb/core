@@ -207,7 +207,7 @@ type Config struct {
 	MaxHistory *int `json:"historyMax,omitempty"`
 
 	// MaxRetry
-	MaxRetry *int64 `json:"maxRetry,omitempty"`
+	MaxRetry *int `json:"maxRetry,omitempty"`
 }
 
 func (c *Config) Timeout() time.Duration {
@@ -221,6 +221,12 @@ func (c *Config) GetMaxHistory() int {
 		return 10 // default value in helm upgrade --history-max
 	}
 	return *c.MaxHistory
+}
+func (c *Config) GetMaxRetry() int {
+	if c.MaxRetry == nil {
+		return 5
+	}
+	return *c.MaxRetry
 }
 
 // UpdateCondWithFixedLen updates the Conditions of the resource and limits the length of the Conditions field to l.

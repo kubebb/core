@@ -40,9 +40,35 @@ type ComponentPlanSpec struct {
 
 // ComponentPlanStatus defines the observed state of ComponentPlan
 type ComponentPlanStatus struct {
+	// observedGeneration is the most recent metadata.generation
+	// when this ComponentPlan installed successfully or failed and reached the max retry times.
+	// When the ComponentPlan is Done (Succeeded or Failed), update spec will change metadata.generation
+	// We can compare metadata.generation and status.observedgeneration to determine whether to Reconcile again.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty" protobuf:"varint,1,opt,name=observedGeneration"`
+	// InstalledRevision represents the helm release Revision that is installed by this ComponentPlan
+	// +optional
+	InstalledRevision int `json:"installedRevision,omitempty"`
+	// Latest indicates whether the ComponentPlan corresponds to the latest helm release Revision
+	// +optional
+	// FIXME rethink this field
+	Latest bool `json:"latest,omitempty"`
+	// Portal only use for kubebb, FIXME: parse it
+	// +optional
+	Portal Router `json:"portal,omitempty"`
+
 	ConditionedStatus `json:",inline"`
-	Resources         []Resource `json:"resources,omitempty"`
-	Images            []string   `json:"images,omitempty"`
+	// +optional
+	Resources []Resource `json:"resources,omitempty"`
+	// +optional
+	Images []string `json:"images,omitempty"`
+}
+
+type Router struct {
+	// the path for request acccessing
+	Path string `json:"path,omitempty"`
+	// the path of the static file
+	Entry string `json:"entry,omitempty"`
 }
 
 // Resource represents one single resource in the ComponentPlan
