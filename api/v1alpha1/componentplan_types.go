@@ -28,8 +28,6 @@ import (
 type ComponentPlanSpec struct {
 	// ComponentRef is a reference to the Component
 	ComponentRef *corev1.ObjectReference `json:"component"`
-	// RepositoryRef is a reference to the Repository
-	RepositoryRef *corev1.ObjectReference `json:"repository,omitempty"`
 	// InstallVersion represents the version that is to be installed by this ComponentPlan
 	InstallVersion string `json:"version"`
 	// Approved indicates whether the ComponentPlan has been approved
