@@ -262,7 +262,6 @@ func (r *SubscriptionReconciler) CreateComponentPlan(ctx context.Context, sub *c
 	}
 	plan.Spec.Config = sub.Spec.Config
 	plan.Spec.ComponentRef = sub.Spec.ComponentRef
-	plan.Spec.RepositoryRef = sub.Spec.RepositoryRef
 	plan.Spec.InstallVersion = fetch.Version
 	if sub.Spec.ComponentPlanInstallMethod.IsAuto() {
 		plan.Spec.Approved = true

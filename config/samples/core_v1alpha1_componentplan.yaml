@@ -12,9 +12,6 @@ spec:
     namespace: kubebb-system
   name: my-wordpress
   override: {}
-  repository:
-    name: repository-bitnami-sample
-    namespace: kubebb-system
   version: 16.1.12
 #status:
 #  conditions:

@@ -15,9 +15,6 @@ spec:
     images:
       - name: docker.io/bitnami/nginx
         newTag: latest # default is docker.io/bitnami/nginx:1.25.1-debian-11-r0
-  repository:
-    name: repository-bitnami-sample
-    namespace: kubebb-system
   version: 15.0.2
 #status:
 #  conditions:

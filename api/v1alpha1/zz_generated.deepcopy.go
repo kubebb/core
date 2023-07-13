@@ -154,11 +154,6 @@ func (in *ComponentPlanSpec) DeepCopyInto(out *ComponentPlanSpec) {
 		*out = new(corev1.ObjectReference)
 		**out = **in
 	}
-	if in.RepositoryRef != nil {
-		in, out := &in.RepositoryRef, &out.RepositoryRef
-		*out = new(corev1.ObjectReference)
-		**out = **in
-	}
 	in.Config.DeepCopyInto(&out.Config)
 }
 
