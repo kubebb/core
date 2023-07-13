@@ -108,10 +108,12 @@ spec:
                 description: 菜单对应路由是否可以切换租户
                 type: boolean
               text:
-                description: 菜单组中文名称
+                description: 菜单中文名称
+                maxLength: 64
                 type: string
               textEn:
-                description: 菜单组英文名称
+                description: 菜单英文名称
+                maxLength: 64
                 type: string
               useChildrenReplaceSider:
                 description: 是否在进入子页面后将 sider 替换

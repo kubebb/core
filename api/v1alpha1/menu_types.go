@@ -27,9 +27,13 @@ import (
 type MenuSpec struct {
 	// 菜单组中文名称
 	Id string `json:"id,omitempty"`
-	// 菜单组中文名称
+
+	// 菜单中文名称
+	// +kubebuilder:validation:MaxLength:=64
 	Text string `json:"text,omitempty"`
-	// 菜单组英文名称
+
+	// 菜单英文名称
+	// +kubebuilder:validation:MaxLength:=64
 	TextEn string `json:"textEn"`
 	/** 菜单组所在列序号 */
 	// +optional
