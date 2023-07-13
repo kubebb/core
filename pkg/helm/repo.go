@@ -27,15 +27,61 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/gofrs/flock"
 	"github.com/pkg/errors"
+	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/helmpath"
+	"helm.sh/helm/v3/pkg/plugin"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
+
 	"sigs.k8s.io/yaml"
 )
 
+// collectPlugins scans for getter plugins.
+// This will load plugins according to the cli.
+func collectPlugins(settings *cli.EnvSettings) (getter.Providers, error) {
+	plugins, err := plugin.FindPlugins(settings.PluginsDirectory)
+	if err != nil {
+		return nil, err
+	}
+	var result getter.Providers
+	for _, plugin := range plugins {
+		for _, downloader := range plugin.Metadata.Downloaders {
+			result = append(result, getter.Provider{
+				Schemes: downloader.Protocols,
+				New: getter.NewPluginGetter(
+					downloader.Command,
+					settings,
+					plugin.Metadata.Name,
+					plugin.Dir,
+				),
+			})
+		}
+	}
+	return result, nil
+}
+
+func allProviders(settings *cli.EnvSettings, httpRequestTimeout time.Duration) getter.Providers {
+	result := getter.Providers{
+		{
+			Schemes: []string{"http", "https"},
+			New: func(options ...getter.Option) (getter.Getter, error) {
+				return getter.NewHTTPGetter(append(options, getter.WithTimeout(httpRequestTimeout))...)
+			},
+		},
+		{
+			Schemes: []string{registry.OCIScheme},
+			New:     getter.NewOCIGetter,
+		},
+	}
+	pluginDownloaders, _ := collectPlugins(settings)
+	result = append(result, pluginDownloaders...)
+	return result
+}
+
 // RepoAdd
 // inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_add.go
-func RepoAdd(ctx context.Context, logger logr.Logger, name, url string) (err error) {
+func RepoAdd(ctx context.Context, logger logr.Logger, name, url string, httpRequestTimeout time.Duration) (err error) {
 	entry := repo.Entry{Name: name, URL: url} // TODO add auth args
 	repoFile := settings.RepositoryConfig
 	repoCache := settings.RepositoryCache
@@ -79,7 +125,7 @@ func RepoAdd(ctx context.Context, logger logr.Logger, name, url string) (err err
 		return errors.Errorf("repository name (%s) contains '/', please specify a different name without '/'", entry.Name)
 	}
 
-	r, err := repo.NewChartRepository(&entry, getter.All(settings))
+	r, err := repo.NewChartRepository(&entry, allProviders(settings, httpRequestTimeout))
 	if err != nil {
 		return err
 	}
@@ -102,7 +148,7 @@ func RepoAdd(ctx context.Context, logger logr.Logger, name, url string) (err err
 
 // RepoUpdate
 // inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_update.go#L117
-func RepoUpdate(ctx context.Context, logger logr.Logger, name string) (err error) {
+func RepoUpdate(ctx context.Context, logger logr.Logger, name string, httpRequestTimeout time.Duration) (err error) {
 	log := logger.WithValues("name", name)
 	repoFile := settings.RepositoryConfig
 	repoCache := settings.RepositoryCache
@@ -122,7 +168,8 @@ func RepoUpdate(ctx context.Context, logger logr.Logger, name string) (err error
 		if cfg.Name != name {
 			continue
 		}
-		wantRepo, err = repo.NewChartRepository(cfg, getter.All(settings))
+		wantRepo, err = repo.NewChartRepository(cfg, allProviders(settings, httpRequestTimeout))
+
 		if err != nil {
 			return err
 		}

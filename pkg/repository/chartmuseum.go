@@ -99,11 +99,11 @@ type chartmuseum struct {
 func (c *chartmuseum) Start() {
 	c.logger.Info("Start to fetch")
 	_ = helm.RepoRemove(c.ctx, c.logger, c.repoName)
-	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL); err != nil {
+	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to add repository")
 		return
 	}
-	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName); err != nil {
+	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to update repository")
 		return
 	}
@@ -183,7 +183,7 @@ func (c *chartmuseum) Poll() {
 		}
 	}
 	if updateRepo {
-		if err = helm.RepoUpdate(c.ctx, c.logger, c.repoName); err != nil {
+		if err = helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
 			c.logger.Error(err, "")
 		}
 	}
