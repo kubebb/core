@@ -10,7 +10,4 @@ spec:
     namespace: kubebb-system
   name: my-nginx
   override: {}
-  repository:
-    name: repository-bitnami-sample
-    namespace: kubebb-system
   version: 15.0.2

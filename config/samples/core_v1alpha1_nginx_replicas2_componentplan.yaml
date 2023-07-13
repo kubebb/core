@@ -12,9 +12,6 @@ spec:
   override:
     values:
       replicaCount: 2
-  repository:
-    name: repository-bitnami-sample
-    namespace: kubebb-system
   version: 15.0.2
 ---
 # or
@@ -34,9 +31,6 @@ spec:
       - kind: ConfigMap
         name: nginx-replicas-example-2
         valuesKey: values1.yaml
-  repository:
-    name: repository-bitnami-sample
-    namespace: kubebb-system
   version: 15.0.2
 ---
 apiVersion: v1

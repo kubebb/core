@@ -86,6 +86,10 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		return reconcile.Result{Requeue: true, RequeueAfter: time.Minute}, utils.IgnoreNotFound(err)
 	}
+	if component.Status.RepositoryRef == nil || component.Status.RepositoryRef.Name == "" || component.Status.RepositoryRef.Namespace == "" {
+		logger.Info("Failed to get Component.Status.RepositoryRef, wait 30s to retry", "obj", klog.KObj(component))
+		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * 30}, nil
+	}
 	logger.V(4).Info("Get Component instance", "Component", klog.KObj(component))
 
 	if plan.Labels[corev1alpha1.ComponentPlanReleaseNameLabel] != plan.Spec.Name {
@@ -98,26 +102,6 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Error(err, "Failed to update ComponentPlan release label")
 		}
 		return ctrl.Result{Requeue: true}, err
-	}
-
-	// Update spec.repositoryRef if needed
-	if plan.Spec.RepositoryRef == nil || plan.Spec.RepositoryRef.Name == "" {
-		newPlan := plan.DeepCopy()
-		for _, o := range component.GetOwnerReferences() {
-			if o.Kind == (&corev1alpha1.Repository{}).GroupVersionKind().Kind {
-				newPlan.Spec.RepositoryRef = &corev1.ObjectReference{
-					Name:      o.Name,
-					Namespace: component.Namespace,
-				}
-				break
-			}
-		}
-		if err = r.Patch(ctx, newPlan, client.MergeFrom(plan)); err != nil {
-			logger.Error(err, "Failed to patch ComponentPlan.Spec.RepositoryRef", "Repository.Namespace", newPlan.Spec.RepositoryRef.Namespace, "Repository.Name", newPlan.Spec.RepositoryRef.Name)
-			return ctrl.Result{Requeue: true}, err
-		}
-		logger.V(4).Info("Patch ComponentPlan.Spec.RepositoryRef")
-		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// Set the status as Unknown when no status are available.
@@ -188,7 +172,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	repo := &corev1alpha1.Repository{}
-	if err = r.Get(ctx, types.NamespacedName{Name: plan.Spec.RepositoryRef.Name, Namespace: plan.Spec.RepositoryRef.Namespace}, repo); err != nil {
+	if err = r.Get(ctx, types.NamespacedName{Name: component.Status.RepositoryRef.Name, Namespace: component.Status.RepositoryRef.Namespace}, repo); err != nil {
 		logger.Error(err, "Failed to get Repository")
 		return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
 	}
