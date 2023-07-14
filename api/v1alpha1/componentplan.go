@@ -30,15 +30,21 @@ const (
 const (
 	ComponentPlanTypeSucceeded ConditionType = "Succeeded"
 	ComponentPlanTypeApproved  ConditionType = "Approved"
-	ComponentPlanTypeInstalled ConditionType = "Installed"
+	ComponentPlanTypeActioned  ConditionType = "Actioned"
 )
 
 // Condition resons for ComponentPlan
 const (
-	ComponentPlanReasonWaitInstall    ConditionReason = "WaitInstall"
-	ComponentPlanReasonInstalling     ConditionReason = "Installing"
-	ComponentPlanReasonInstallSuccess ConditionReason = "InstallSuccess"
-	ComponentPlanReasonInstallFailed  ConditionReason = "InstallFailed"
+	ComponentPlanReasonWaitDo           ConditionReason = "WaitDo"
+	ComponentPlanReasonInstalling       ConditionReason = "Installing"
+	ComponentPlanReasonUpgrading        ConditionReason = "Upgrading"
+	ComponentPlanReasonUnInstalling     ConditionReason = "UnInstalling"
+	ComponentPlanReasonInstallSuccess   ConditionReason = "InstallSuccess"
+	ComponentPlanReasonInstallFailed    ConditionReason = "InstallFailed"
+	ComponentPlanReasonUnInstallSuccess ConditionReason = "UnInstallSuccess"
+	ComponentPlanReasonUnInstallFailed  ConditionReason = "UnInstallFailed"
+	ComponentPlanReasonUpgradeSuccess   ConditionReason = "UpgradeSuccess"
+	ComponentPlanReasonUpgradeFailed    ConditionReason = "UpgradeFailed"
 )
 
 // GenerateComponentPlanName generates the name of the component plan for a given subscription
@@ -55,6 +61,10 @@ func ComponentPlanSucceeded() Condition {
 	return componentPlanCondition(ComponentPlanTypeSucceeded, "", corev1.ConditionTrue, nil)
 }
 
+func ComponentPlanInitSucceded() Condition {
+	return componentPlanCondition(ComponentPlanTypeSucceeded, "", corev1.ConditionFalse, nil)
+}
+
 func ComponentPlanUnSucceeded(err error) Condition {
 	return componentPlanCondition(ComponentPlanTypeSucceeded, "", corev1.ConditionFalse, err)
 }
@@ -68,35 +78,47 @@ func ComponentPlanUnAppreoved() Condition {
 }
 
 func ComponentPlanInstallSuccess() Condition {
-	return componentPlanCondition(ComponentPlanTypeInstalled, "", corev1.ConditionTrue, nil)
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonInstallSuccess, corev1.ConditionTrue, nil)
 }
 
 func ComponentPlanInstallFailed(err error) Condition {
-	return componentPlanCondition(ComponentPlanTypeInstalled, ComponentPlanReasonInstallFailed, corev1.ConditionFalse, err)
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonInstallFailed, corev1.ConditionFalse, err)
 }
 
 func ComponentPlanInstalling() Condition {
-	return componentPlanCondition(ComponentPlanTypeInstalled, ComponentPlanReasonInstalling, corev1.ConditionFalse, nil)
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonInstalling, corev1.ConditionFalse, nil)
 }
 
-func ComponentPlanWaitInstall() Condition {
-	return componentPlanCondition(ComponentPlanTypeInstalled, ComponentPlanReasonWaitInstall, corev1.ConditionFalse, nil)
+func ComponentPlanUnInstallSuccess() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUnInstallSuccess, corev1.ConditionTrue, nil)
+}
+
+func ComponentPlanUnInstallFailed(err error) Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUnInstallFailed, corev1.ConditionFalse, err)
+}
+
+func ComponentPlanUnInstalling() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUnInstalling, corev1.ConditionFalse, nil)
+}
+
+func ComponentPlanUpgradeSuccess() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUpgradeSuccess, corev1.ConditionTrue, nil)
+}
+
+func ComponentPlanUpgradeFailed(err error) Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUpgradeFailed, corev1.ConditionFalse, err)
+}
+
+func ComponentPlanUpgrading() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUpgrading, corev1.ConditionFalse, nil)
+}
+func ComponentPlanWaitDo(err error) Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonWaitDo, corev1.ConditionFalse, err)
 }
 
 func componentPlanCondition(ct ConditionType, reason ConditionReason, status corev1.ConditionStatus, err error) Condition {
 	if status == "" {
 		status = corev1.ConditionUnknown
-	}
-	switch ct {
-	case ComponentPlanTypeSucceeded:
-	case ComponentPlanTypeApproved:
-	case ComponentPlanTypeInstalled:
-		switch reason {
-		case ComponentPlanReasonInstallSuccess:
-			status = corev1.ConditionTrue
-		case ComponentPlanReasonInstallFailed, ComponentPlanReasonWaitInstall, ComponentPlanReasonInstalling:
-			status = corev1.ConditionFalse
-		}
 	}
 	c := Condition{
 		Type:               ct,
@@ -108,6 +130,18 @@ func componentPlanCondition(ct ConditionType, reason ConditionReason, status cor
 		c.Message = err.Error()
 	}
 	return c
+}
+
+func (c *ComponentPlan) InitCondition() []Condition {
+	if c.Spec.Approved {
+		return []Condition{ComponentPlanAppreoved(), ComponentPlanWaitDo(nil), ComponentPlanInitSucceded()}
+	} else {
+		return []Condition{ComponentPlanUnAppreoved(), ComponentPlanWaitDo(nil), ComponentPlanInitSucceded()}
+	}
+}
+
+func (c *ComponentPlan) InActionedReason(cr ConditionReason) bool {
+	return c.Status.GetCondition(ComponentPlanTypeActioned).Reason == cr
 }
 
 func (c *ComponentPlan) GetReleaseName() string {
