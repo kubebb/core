@@ -101,7 +101,7 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	// i.CaFile // FIXME
 	i.InsecureSkipTLSverify = repo.Spec.Insecure
 	i.PassCredentialsAll = false // TODO do we need add this args to override?
-	i.PostRenderer = newPostRenderer(repo.Spec.ImageOverride, cpl.Spec.Override.Images, cpl.GetName())
+	i.PostRenderer = newPostRenderer(repo.Spec.ImageOverride, cpl.Spec.Override.Images)
 	log.V(4).Info(fmt.Sprintf("Original chart version: %q", i.Version))
 
 	i.ReleaseName = cpl.GetReleaseName()
@@ -151,7 +151,7 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 	// i.CaFile // FIXME
 	i.InsecureSkipTLSverify = repo.Spec.Insecure
 	i.PassCredentialsAll = false // TODO do we need add this args to override?
-	i.PostRenderer = newPostRenderer(repo.Spec.ImageOverride, cpl.Spec.Override.Images, cpl.GetName())
+	i.PostRenderer = newPostRenderer(repo.Spec.ImageOverride, cpl.Spec.Override.Images)
 
 	chartRequested, vals, err := h.prepare(ctx, cli, log, i.ChartPathOptions, cpl, chartName)
 	if err != nil {

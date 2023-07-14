@@ -111,9 +111,8 @@ func Test_postRenderer_Run(t *testing.T) {
 	testBuf := bytes.NewBuffer([]byte(nginxPod + "\n---\n" + controllerDeploy))
 	//controllerDeployBuf := bytes.NewBuffer([]byte(controllerDeploy))
 	type fields struct {
-		repoOverride      []corev1alpha1.ImageOverride
-		images            []kustomize.Image
-		componentPlanName string
+		repoOverride []corev1alpha1.ImageOverride
+		images       []kustomize.Image
 	}
 	type args struct {
 		renderedManifests *bytes.Buffer
@@ -128,9 +127,8 @@ func Test_postRenderer_Run(t *testing.T) {
 		{
 			name: "empty config, empty input",
 			fields: fields{
-				repoOverride:      nil,
-				images:            nil,
-				componentPlanName: "",
+				repoOverride: nil,
+				images:       nil,
 			},
 			args: args{
 				renderedManifests: bytes.NewBuffer(nil),
@@ -141,9 +139,8 @@ func Test_postRenderer_Run(t *testing.T) {
 		{
 			name: "empty override will not change input",
 			fields: fields{
-				repoOverride:      nil,
-				images:            nil,
-				componentPlanName: "",
+				repoOverride: nil,
+				images:       nil,
 			},
 			args: args{
 				renderedManifests: testBuf,
@@ -154,9 +151,8 @@ func Test_postRenderer_Run(t *testing.T) {
 		{
 			name: "kustomize image tags only",
 			fields: fields{
-				repoOverride:      nil,
-				images:            []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
-				componentPlanName: "",
+				repoOverride: nil,
+				images:       []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
 			},
 			args: args{
 				renderedManifests: testBuf,
@@ -167,9 +163,8 @@ func Test_postRenderer_Run(t *testing.T) {
 		{
 			name: "override registry only",
 			fields: fields{
-				repoOverride:      []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
-				images:            nil,
-				componentPlanName: "",
+				repoOverride: []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
+				images:       nil,
 			},
 			args: args{
 				renderedManifests: testBuf,
@@ -180,9 +175,8 @@ func Test_postRenderer_Run(t *testing.T) {
 		{
 			name: "override registry and kustomize image",
 			fields: fields{
-				repoOverride:      []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
-				images:            []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
-				componentPlanName: "",
+				repoOverride: []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
+				images:       []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
 			},
 			args: args{
 				renderedManifests: testBuf,
@@ -193,9 +187,8 @@ func Test_postRenderer_Run(t *testing.T) {
 		{
 			name: "override registry, kustomize image and define componentplan name",
 			fields: fields{
-				repoOverride:      []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
-				images:            []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
-				componentPlanName: "abcd",
+				repoOverride: []corev1alpha1.ImageOverride{{Registry: "docker.io", NewRegistry: "docker.cc"}},
+				images:       []kustomize.Image{{Name: "nginx", NewTag: "v2"}},
 			},
 			args: args{
 				renderedManifests: testBuf,
@@ -210,7 +203,6 @@ func Test_postRenderer_Run(t *testing.T) {
 				kustomizeRenderMutex: sync.Mutex{},
 				repoOverride:         tt.fields.repoOverride,
 				images:               tt.fields.images,
-				componentPlanName:    tt.fields.componentPlanName,
 			}
 			gotModifiedManifests, err := c.Run(tt.args.renderedManifests)
 			if (err != nil) != tt.wantErr {

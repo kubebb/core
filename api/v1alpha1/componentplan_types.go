@@ -50,7 +50,7 @@ type ComponentPlanStatus struct {
 	// Latest indicates whether the ComponentPlan corresponds to the latest helm release Revision
 	// +optional
 	// FIXME rethink this field
-	Latest bool `json:"latest,omitempty"`
+	Latest *bool `json:"latest,omitempty"`
 	// Portal only use for kubebb, FIXME: parse it
 	// +optional
 	Portal Router `json:"portal,omitempty"`
