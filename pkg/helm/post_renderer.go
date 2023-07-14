@@ -36,11 +36,10 @@ type postRenderer struct {
 	kustomizeRenderMutex sync.Mutex
 	repoOverride         []corev1alpha1.ImageOverride
 	images               []kustomize.Image
-	componentPlanName    string
 }
 
-func newPostRenderer(repoOverride []corev1alpha1.ImageOverride, images []kustomize.Image, componentPlanName string) *postRenderer {
-	return &postRenderer{repoOverride: repoOverride, images: images, componentPlanName: componentPlanName}
+func newPostRenderer(repoOverride []corev1alpha1.ImageOverride, images []kustomize.Image) *postRenderer {
+	return &postRenderer{repoOverride: repoOverride, images: images}
 }
 
 func (c *postRenderer) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
@@ -49,9 +48,6 @@ func (c *postRenderer) Run(renderedManifests *bytes.Buffer) (modifiedManifests *
 	cfg.APIVersion = kustypes.KustomizationVersion
 	cfg.Kind = kustypes.KustomizationKind
 	cfg.Images = c.images
-	if c.componentPlanName != "" {
-		cfg.CommonLabels = map[string]string{corev1alpha1.ComponentPlanKey: c.componentPlanName}
-	}
 
 	cfg.Resources = append(cfg.Resources, inputFile)
 	f, err := fs.Create(inputFile)

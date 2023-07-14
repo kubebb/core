@@ -158,7 +158,7 @@ function waitComponentPlanDone() {
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
 			error "Timeout reached"
-			kubectl -n${namespace} get ComponentPlan
+			kubectl -n${namespace} get ComponentPlan -o yaml
 			exit 1
 		fi
 		sleep 5
@@ -172,7 +172,7 @@ function waitPodReady() {
 	while true; do
 		readStatus=$(kubectl -n${namespace} get po -l ${podLabel} --ignore-not-found=true -o json | jq -r '.items[0].status.conditions[] | select(."type"=="Ready") | .status')
 		if [[ $readStatus -eq "True" ]]; then
-			echo "Pod ${podLabel} done"
+			echo "Pod ${podLabel} ready"
 			break
 		fi
 
@@ -257,8 +257,21 @@ function getDeployReplicas() {
 	done
 }
 
+function validateComponentPlanStatusLatestValue() {
+	namespace=$1
+	componentPlanName=$2
+	want=$3
+	latestValue=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} -ojson | jq -r '.status.latest')
+	if [[ $latestValue != $want ]]; then
+		echo "componentPlan ${componentPlanName} status.latest is $latestValue, not $want"
+		kubectl -n${namespace} get ComponentPlan ${componentPlanName} -o yaml
+		exit 1
+		break
+	fi
+}
+
 info "1. create kind cluster"
-git clone https://github.com/kubebb/building-base.git ${InstallDirPath}
+git clone https://github.com/kubebb/building-base.git ${InstallDirPath} || true
 cd ${InstallDirPath}
 export IGNORE_FIXED_IMAGE_LOAD=YES
 . ./scripts/kind.sh
@@ -294,25 +307,25 @@ waitComponentSatus "kubebb-system" "repository-bitnami-sample.nginx"
 info "3.2 create nginx componentplan"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
-waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=do-once-nginx-sample-15.0.2"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
 info "3.3 create nginx-15.0.2 componentplan to verify imageOverride in componentPlan is valid"
 kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml
 waitComponentPlanDone "kubebb-system" "nginx-15.0.2"
-waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-15.0.2"
-getPodImage "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-15.0.2" "docker.io/bitnami/nginx:latest"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+getPodImage "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2" "docker.io/bitnami/nginx:latest"
 deleteComponentPlan "kubebb-system" "nginx-15.0.2"
 
 info "3.4 create nginx-replicas-example-1/2 componentplan to verify value override in componentPlan is valid"
 kubectl apply -f config/samples/core_v1alpha1_nginx_replicas2_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "nginx-replicas-example-1"
-waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-replicas-example-1"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-replicas-example-1,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getDeployReplicas "kubebb-system" "my-nginx-replicas-example-1" "2"
 deleteComponentPlan "kubebb-system" "nginx-replicas-example-1"
 
 waitComponentPlanDone "kubebb-system" "nginx-replicas-example-2"
-waitPodReady "kubebb-system" "core.kubebb.k8s.com.cn/componentplan=nginx-replicas-example-2"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-replicas-example-2,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getDeployReplicas "kubebb-system" "my-nginx-replicas-example-2" "2"
 deleteComponentPlan "kubebb-system" "nginx-replicas-example-2"
 
@@ -323,7 +336,27 @@ waitComponentSatus "kubebb-system" "repository-grafana-sample-image.grafana"
 
 info "4.2 create grafana subscription"
 kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml
-getPodImage "kubebb-system" "app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana"
+getPodImage "kubebb-system" "app.kubernetes.io/instance=grafana-sample,app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana"
 kubectl delete -f config/samples/core_v1alpha1_grafana_subscription.yaml
+
+info "5 try to verify that common use of componentPlan are valid"
+info "5.1 create componentPlan do-once-nginx-sample-15.0.2"
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
+waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+
+info "5.2 update componentPlan do-once-nginx-sample-15.0.2 with update replicaCount to 2"
+kubectl patch componentplan -n kubebb-system do-once-nginx-sample-15.0.2 --type='json' \
+	-p='[{"op": "replace", "path": "/spec/override", "value": {"values": {"replicaCount": 2}}}]'
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+getDeployReplicas "kubebb-system" "my-nginx" "2"
+
+info "5.3 create new componentPlan to update nginx version"
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_15.1.0.yaml
+waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.1.0"
+validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.1.0" "true"
+validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.0.2" "false"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0"
 
 info "all finished! ✅"

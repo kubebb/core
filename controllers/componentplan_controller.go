@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -307,7 +308,7 @@ func (r *ComponentPlanReconciler) PatchConditionWithRevision(ctx context.Context
 		func(plan *corev1alpha1.ComponentPlan) (newPlan *corev1alpha1.ComponentPlan) {
 			newPlan = plan.DeepCopy()
 			newPlan.Status.InstalledRevision = revision
-			newPlan.Status.Latest = true
+			newPlan.Status.Latest = pointer.Bool(true)
 			return newPlan
 		},
 	}, condition...)
@@ -413,12 +414,14 @@ func (r *ComponentPlanReconciler) updateLatest(ctx context.Context, logger logr.
 		logger.Info("no release found, just skip")
 		return
 	}
-	for i, cur := range list.Items {
-		if LatestShouldBe := cur.Status.InstalledRevision == rel.Version; cur.Status.Latest != LatestShouldBe {
-			cur.Status.Latest = LatestShouldBe
-			if err := r.Patch(ctx, &cur, client.MergeFrom(&list.Items[i])); err != nil {
+	for _, cur := range list.Items {
+		if latestShouldBe := cur.Status.InstalledRevision == rel.Version; cur.Status.Latest == nil || *cur.Status.Latest != latestShouldBe {
+			newCur := cur.DeepCopy()
+			newCur.Status.Latest = pointer.Bool(latestShouldBe)
+			if err := r.Status().Patch(ctx, newCur, client.MergeFrom(&cur)); err != nil {
 				logger.Error(err, "Failed to update ComponentPlan status.Latest", "obj", klog.KObj(&cur))
 			}
+			logger.Info("Update ComponentPlan status.Latest", "obj", klog.KObj(&cur))
 		}
 	}
 }
