@@ -359,4 +359,12 @@ validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0"
 
+info "5.4 valid long running componentPlan install don not block others to install"
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_long_ready.yaml
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
+waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready"
+waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
+
 info "all finished! ✅"

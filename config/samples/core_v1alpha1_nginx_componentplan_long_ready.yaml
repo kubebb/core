@@ -1,0 +1,18 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: ComponentPlan
+metadata:
+  name: nginx-15.0.2-long-ready
+  namespace: kubebb-system
+spec:
+  approved: true
+  component:
+    name: repository-bitnami-sample.nginx
+    namespace: kubebb-system
+  name: nginx-long-ready
+  override:
+    set:
+      - startupProbe.enabled=true
+      - startupProbe.initialDelaySeconds=3600
+  timeoutSeconds: 7200
+  wait: true
+  version: 15.0.2
