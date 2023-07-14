@@ -289,35 +289,55 @@ func FilterMatchVersionConstraint(cond FilterCond, version string) bool {
 
 // Match determines if this component is retained, and if so, filters for conforming versions.
 func Match(fc map[string]FilterCond, filter Filter, funcs ...FilterFunc) ([]int, bool) {
-	var versions []int
+	var (
+		versions []int
+		keep     bool
+	)
 	if len(funcs) == 0 {
 		funcs = defaultFilterFuncs
 	}
-	if len(fc) == 0 {
-		for i := range filter.Versions {
-			versions = append(versions, i)
-		}
-		return versions, true
-	}
+
+	// When the chart package name is not in the fc or the versionFilter is empty
+	// It means that we remove or keep the version information of the whole chart package.
+	// chart package name does not exist or operation=keep directly retains all information
 	filterCond, ok := fc[filter.Name]
-	if ok && filterCond.Operation == FilterOpIgnore {
-		return versions, false
-	}
-
-	for i, v := range filter.Versions {
-		if v.Deprecated && !filterCond.Deprecated {
-			continue
-		}
-
-		for _, f := range funcs {
-			if f(filterCond, v.Version) {
+	if !ok || filterCond.VersionedFilterCond == nil {
+		keep = !ok || filterCond.Operation == FilterOpKeep
+		if keep {
+			for i := range filter.Versions {
 				versions = append(versions, i)
-				break
 			}
 		}
+		return versions, keep
 	}
 
-	return versions, true
+	// The filterCond.deprecated field is where we filter the versions we want to keep to see if they are deprecated or not.
+	// filterCond.deprecated=true means we will keep the deprecated version, otherwise we will not keep it.
+	// If operation=keep, a version can be kept as long as it satisfies a certain filter function
+	// If operation=ignore, a version is kept only if all filter functions are not satisfied.
+	for i, v := range filter.Versions {
+		keep = false
+		for _, f := range funcs {
+			if f(filterCond, v.Version) {
+				if filterCond.Operation == FilterOpKeep && (filterCond.Deprecated || !v.Deprecated) {
+					keep = true
+				}
+				if filterCond.Operation == FilterOpIgnore {
+					keep = false
+				}
+				break
+			}
+			if filterCond.Operation == FilterOpIgnore && (filterCond.Deprecated || !v.Deprecated) {
+				keep = true
+			}
+		}
+
+		if keep {
+			versions = append(versions, i)
+		}
+	}
+
+	return versions, len(versions) != 0
 }
 
 func IsCondSame(c1, c2 FilterCond) bool {
