@@ -22,7 +22,6 @@ import (
 )
 
 const (
-	ComponentPlanKey                  = Group + "/componentplan"
 	ComponentPlanReleaseNameLabel     = Group + "/componentplan-release"
 	ComponentPlanRetryTimesAnnotation = Group + "/componentplan-retry"
 )

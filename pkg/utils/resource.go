@@ -128,8 +128,6 @@ func OmitManagedFields(o runtime.Object) runtime.Object {
 var ComponentPlanDiffIgnorePaths = []string{
 	"metadata.generation",
 	"metadata.resourceVersion",
-	"metadata.labels." + v1alpha1.ComponentPlanKey,
-	"spec.template.metadata.labels." + v1alpha1.ComponentPlanKey,
 	"metadata.labels.helm.sh/chart",
 	"spec.template.metadata.labels.helm.sh/chart",
 }
