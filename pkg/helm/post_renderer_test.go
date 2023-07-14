@@ -70,7 +70,6 @@ kind: Pod
 metadata:
   labels:
     app: nginx
-    core.kubebb.k8s.com.cn/componentplan: abcd
   name: nginx
   namespace: default
 spec:
@@ -84,7 +83,6 @@ kind: Deployment
 metadata:
   labels:
     control-plane: controller-manager
-    core.kubebb.k8s.com.cn/componentplan: abcd
   name: controller-manager
   namespace: baas-system
 spec:
@@ -92,13 +90,11 @@ spec:
   selector:
     matchLabels:
       control-plane: controller-manager
-      core.kubebb.k8s.com.cn/componentplan: abcd
       name: controller-manager
   template:
     metadata:
       labels:
         control-plane: controller-manager
-        core.kubebb.k8s.com.cn/componentplan: abcd
         name: controller-manager
     spec:
       containers:
