@@ -18,16 +18,15 @@ package repository
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/go-logr/logr"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/helmpath"
 	hrepo "helm.sh/helm/v3/pkg/repo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -36,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -133,7 +131,10 @@ func (c *chartmuseum) Poll() {
 		Type:               v1alpha1.TypeSynced,
 	}
 
-	updateRepo := false
+	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
+		c.logger.Error(err, "Failed to update repository")
+		return
+	}
 	indexFile, err := c.fetchIndexYaml()
 	if err != nil {
 		c.logger.Error(err, "Failed to fetch index file")
@@ -151,7 +152,6 @@ func (c *chartmuseum) Poll() {
 			syncCond.Message = fmt.Sprintf("failed to get component synchronization information. %s", err.Error())
 			syncCond.Reason = v1alpha1.ReasonUnavailable
 		} else {
-			updateRepo = len(diffAction[0]) > 0 || len(diffAction[1]) > 0 || len(diffAction[2]) > 0
 			for _, item := range diffAction[0] {
 				c.logger.Info("create component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
 				if err := c.Create(&item); err != nil && !errors.IsAlreadyExists(err) {
@@ -182,11 +182,6 @@ func (c *chartmuseum) Poll() {
 			c.logger.Error(err, "failed to patch repository status")
 		}
 	}
-	if updateRepo {
-		if err = helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
-			c.logger.Error(err, "")
-		}
-	}
 }
 
 func (c *chartmuseum) Create(component *v1alpha1.Component) error {
@@ -207,95 +202,17 @@ func (c *chartmuseum) Delete(component *v1alpha1.Component) error {
 }
 
 func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
-	u := strings.TrimSuffix(c.instance.Spec.URL, "/") + "/index.yaml"
-	c.logger.Info("Requesting", "URL", u)
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	var settings = cli.New()
+	repoCache := settings.RepositoryCache
+	fname := filepath.Join(repoCache, helmpath.CacheIndexFile(c.repoName))
+	data, err := os.ReadFile(fname)
 	if err != nil {
-		c.logger.Error(err, "")
 		return nil, err
 	}
 
-	httpClient := &http.Client{}
-	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
-	var (
-		username, password        string
-		caData, keyData, certData []byte
-	)
-	if c.instance.Spec.AuthSecret != "" {
-		secret := v1.Secret{}
-		if err := c.c.Get(c.ctx, types.NamespacedName{Namespace: c.instance.GetNamespace(), Name: c.instance.Spec.AuthSecret}, &secret); err != nil {
-			c.logger.Error(err, "")
-			return nil, err
-		}
-
-		username = string(secret.Data[v1alpha1.Username])
-		password = string(secret.Data[v1alpha1.Password])
-		if username != "" && password != "" {
-			c.logger.Info("SetBasicAuth", "Secret", c.instance.GetNamespace()+"/"+c.instance.Spec.AuthSecret)
-			req.SetBasicAuth(username, password)
-		}
-
-		caData = secret.Data[v1alpha1.CAData]
-		keyData = secret.Data[v1alpha1.KeyData]
-		certData = secret.Data[v1alpha1.CertData]
-	}
-
-	if strings.HasPrefix(u, "https") {
-		c.logger.Info("Skip", "TLS", c.instance.Spec.Insecure)
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: c.instance.Spec.Insecure}
-		if !c.instance.Spec.Insecure {
-			if len(caData) > 0 {
-				x509Pool := x509.NewCertPool()
-				x509Pool.AppendCertsFromPEM(caData)
-				transport.TLSClientConfig.RootCAs = x509Pool
-			}
-			if len(keyData) > 0 && len(certData) > 0 {
-				cert, err := tls.X509KeyPair(certData, keyData)
-				if err != nil {
-					c.logger.Error(err, "")
-					return nil, err
-				}
-				transport.TLSClientConfig.Certificates = []tls.Certificate{cert}
-			}
-		}
-	}
-
-	steps := 1
-	if c.instance.Spec.PullStategy != nil {
-		if c.instance.Spec.PullStategy.TimeoutSeconds > 0 {
-			httpClient.Timeout = time.Duration(c.instance.Spec.PullStategy.TimeoutSeconds) * time.Second
-			c.logger.Info("Set HTTP Client", "Timeout", httpClient.Timeout)
-		}
-		if c.instance.Spec.PullStategy.Retry > 0 {
-			steps = c.instance.Spec.PullStategy.Retry
-		}
-	}
-
-	httpClient.Transport = transport
 	repositories := hrepo.IndexFile{}
-	if err := retry.OnError(wait.Backoff{Factor: 1.0, Steps: steps, Duration: time.Second * 5}, func(error) bool {
-		return true
-	}, func() error {
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			c.logger.Error(err, "do request error")
-			return err
-		}
-		defer resp.Body.Close()
-
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			c.logger.Error(err, "read response error")
-			return err
-		}
-
-		if err = yaml.Unmarshal(data, &repositories); err != nil {
-			c.logger.Error(err, "unmarshal response body error")
-			return err
-		}
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("timeout, exceeds maximum number of attempts %d", steps)
+	if err = yaml.Unmarshal(data, &repositories); err != nil {
+		return nil, err
 	}
 	return &repositories, nil
 }
