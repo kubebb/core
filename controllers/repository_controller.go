@@ -145,6 +145,17 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 		}
 		return false, err
 	}
+	if instanceDeepCopy.Labels == nil {
+		instanceDeepCopy.Labels = make(map[string]string)
+	}
+	if v, ok := instanceDeepCopy.Labels[v1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
+		instanceDeepCopy.Labels[v1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
+		err := r.Client.Update(ctx, instanceDeepCopy)
+		if err != nil {
+			logger.Error(err, "")
+		}
+		return false, err
+	}
 
 	return true, nil
 }
@@ -159,7 +170,8 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 		!reflect.DeepEqual(oldRepo.Status.URLHistory, newRepo.Status.URLHistory) ||
 		len(oldRepo.Finalizers) != len(newRepo.Finalizers) ||
 		newRepo.DeletionTimestamp != nil ||
-		!reflect.DeepEqual(oldRepo.Spec.Filter, newRepo.Spec.Filter)
+		!reflect.DeepEqual(oldRepo.Spec.Filter, newRepo.Spec.Filter) ||
+		!reflect.DeepEqual(oldRepo.Labels, newRepo.Labels)
 }
 
 // SetupWithManager sets up the controller with the Manager.
