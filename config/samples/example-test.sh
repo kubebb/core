@@ -367,4 +367,10 @@ waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes
 deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready"
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
 
+info "5.5 valid can install to other namespace"
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.metadata.namespace="default"' | kubectl apply -f -
+waitComponentPlanDone "default" "do-once-nginx-sample-15.0.2"
+waitPodReady "default" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+deleteComponentPlan "default" "do-once-nginx-sample-15.0.2"
+
 info "all finished! ✅"
