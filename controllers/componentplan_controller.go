@@ -107,7 +107,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Set the status as Unknown when no status are available.
 	if plan.Status.Conditions == nil || len(plan.Status.Conditions) == 0 {
-		return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, r.initCondition(plan)...)
+		return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, plan.InitCondition()...)
 	}
 
 	// Add a finalizer. Then, we can define some operations which should
@@ -143,29 +143,46 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	isPlanMarkedToBeDeleted := plan.GetDeletionTimestamp() != nil
 	if isPlanMarkedToBeDeleted && controllerutil.ContainsFinalizer(plan, corev1alpha1.Finalizer) {
 		logger.Info("Performing Finalizer Operations for Plan before delete CR")
+		if plan.InActionedReason(corev1alpha1.ComponentPlanReasonUnInstalling) {
+			logger.Info("the last one is uninstalling... skip for 1 minute")
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		}
+		if plan.InActionedReason(corev1alpha1.ComponentPlanReasonUnInstallFailed) {
+			// TODO do we need uninstall retry like install or upgrade done?
+			logger.Info("the last one is uninstallfailed, just skip this one")
+			return ctrl.Result{}, nil
+		}
+		if plan.InActionedReason(corev1alpha1.ComponentPlanReasonUnInstallSuccess) {
+			logger.Info("Removing Finalizer for ComponentPlan after successfully performing the operations")
+			if ok := controllerutil.RemoveFinalizer(plan, corev1alpha1.Finalizer); !ok {
+				return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, nil
+			}
 
+			if err = r.Update(ctx, plan); err != nil {
+				logger.Error(err, "Failed to remove finalizer for ComponentPlan")
+				return ctrl.Result{}, err
+			}
+			logger.Info("Remove ComponentPlan done")
+			return ctrl.Result{}, nil
+		}
+
+		_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnInstalling())
 		// Perform all operations required before remove the finalizer and allow
 		// the Kubernetes API to remove ComponentPlan
-		if err = r.doFinalizerOperationsForPlan(ctx, logger, getter, plan); err != nil {
-			logger.Error(err, "Failed to re-fetch ComponentPlan")
-			return ctrl.Result{}, err
-		}
-
-		logger.Info("Removing Finalizer for ComponentPlan after successfully performing the operations")
-		if ok := controllerutil.RemoveFinalizer(plan, corev1alpha1.Finalizer); !ok {
-			return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, nil
-		}
-
-		if err = r.Update(ctx, plan); err != nil {
-			logger.Error(err, "Failed to remove finalizer for ComponentPlan")
-			return ctrl.Result{}, err
-		}
+		go func() {
+			if err = r.doFinalizerOperationsForPlan(ctx, logger, getter, plan); err != nil {
+				logger.Error(err, "Failed to uninstall ComponentPlan")
+				_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnInstallFailed(err))
+			}
+			_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnInstallSuccess())
+		}()
+		return ctrl.Result{}, nil
 	}
 
 	if plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeSucceeded).Status == corev1.ConditionTrue {
 		if r.isGenerationUpdate(plan) {
 			logger.Info("ComponentPlan.Spec is changed, need to install or upgrade...")
-			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, r.initCondition(plan)...)
+			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, plan.InitCondition()...)
 		} else {
 			logger.Info("ComponentPlan is unchanged and has been successful, no need to reconcile")
 			return ctrl.Result{}, nil
@@ -174,8 +191,8 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	repo := &corev1alpha1.Repository{}
 	if err = r.Get(ctx, types.NamespacedName{Name: component.Status.RepositoryRef.Name, Namespace: component.Status.RepositoryRef.Namespace}, repo); err != nil {
-		logger.Error(err, "Failed to get Repository")
-		return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+		logger.Error(err, "Failed to get Repository, wait 15 seconds for another try")
+		return ctrl.Result{Requeue: true, RequeueAfter: 15 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanWaitDo(err))
 	}
 
 	chartName := component.Status.Name
@@ -193,12 +210,12 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		data, err := helm.GetManifests(ctx, getter, r.Client, logger, plan, repo, chartName)
 		if err != nil {
 			logger.Error(err, "Failed to get manifest")
-			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanWaitDo(err))
 		}
 
 		if err = r.GenerateManifestConfigMap(plan, manifest, data); err != nil {
 			logger.Error(err, "Failed to generate manifest configmap")
-			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanWaitDo(err))
 		}
 		logger.Info("Generate a new template Configmap", "ConfigMap", klog.KObj(manifest))
 
@@ -206,7 +223,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		newPlan.Status.Resources, newPlan.Status.Images, err = utils.GetResourcesAndImages(ctx, logger, r.Client, data)
 		if err != nil {
 			logger.Error(err, "Failed to get resources")
-			return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+			return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanWaitDo(err))
 		}
 		err = r.Status().Patch(ctx, newPlan, client.MergeFrom(plan))
 		if err != nil {
@@ -219,25 +236,24 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		})
 		if err != nil {
 			logger.Error(err, "Failed to create or update template Configmap", "ConfigMap", klog.KObj(manifest))
-			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanWaitDo(err))
 		}
 		logger.Info(fmt.Sprintf("Reconcile ComponentPlan template Configmap, result:%s", res))
 	} else if err != nil {
 		logger.Error(err, "Failed to get template Configmap")
-		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanWaitDo(err))
 	}
 
 	// Install the component plan
 	if !plan.Spec.Approved {
-		logger.Info("component plan not approved, skip install...")
+		logger.Info("component plan isn't approved, skip install or upgrade...")
 		return ctrl.Result{}, nil
 	}
 	if r.isDone(plan) {
 		return ctrl.Result{}, nil
 	}
 	if r.isHelmDoing(plan) {
-		logger.Info("the last one is installing... skip for 1 minute")
-		// Just installing the helm chart, wait one minute to recheck
+		logger.Info("the last one is installing/upgrding... skip for 1 minute")
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 	if !r.needRetry(plan) {
@@ -245,15 +261,42 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnSucceeded(maxRetryErr))
 	}
 
-	logger.Info("install the component plan now...")
-	_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstalling())
-	rel, err := helm.InstallOrUpgrade(ctx, getter, r.Client, logger, plan, repo, chartName)
+	rel, err := helm.GetLastRelease(getter, logger, plan)
 	if err != nil {
-		logger.Error(err, "install or upgrade failed")
-		return ctrl.Result{Requeue: true, RequeueAfter: 10 * time.Second}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+		logger.Error(err, "Failed to get last release")
+		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUnSucceeded(err))
 	}
-	logger.Info("install successfully", "release.Revision", rel.Version)
-	return ctrl.Result{}, r.PatchConditionWithRevision(ctx, plan, logger, rel.Version, corev1alpha1.ComponentPlanInstallSuccess())
+	var install bool
+	if rel == nil {
+		install = true
+		logger.Info("no release found, will install the component plan")
+		_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstalling())
+	} else {
+		logger.Info(fmt.Sprintf("in cluster find release version:%d, will upgrade", rel.Version))
+		_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUpgrading())
+	}
+
+	go func(install bool) {
+		rel, err := helm.InstallOrUpgrade(ctx, getter, r.Client, logger, plan, repo, chartName)
+		if err != nil {
+			if install {
+				logger.Error(err, "install failed")
+				_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstallFailed(err))
+			} else {
+				logger.Error(err, "upgrade failed")
+				_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUpgradeFailed(err))
+			}
+			return
+		}
+		if install {
+			logger.Info("install successfully", "release.Revision", rel.Version)
+			_ = r.PatchConditionWithRevision(ctx, plan, logger, rel.Version, corev1alpha1.ComponentPlanInstallSuccess())
+		} else {
+			logger.Info("upgrade successfully", "release.Revision", rel.Version)
+			_ = r.PatchConditionWithRevision(ctx, plan, logger, rel.Version, corev1alpha1.ComponentPlanUpgradeSuccess())
+		}
+	}(install)
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -273,7 +316,6 @@ func (r *ComponentPlanReconciler) GenerateManifestConfigMap(plan *corev1alpha1.C
 	if manifest.Labels == nil {
 		manifest.Labels = make(map[string]string)
 	}
-	manifest.Labels[string(corev1alpha1.ComponentPlanTypeInstalled)] = string(corev1alpha1.ComponentPlanReasonWaitInstall)
 	manifest.Data = make(map[string]string)
 	manifest.Data["manifest"] = data
 	return controllerutil.SetOwnerReference(plan, manifest, r.Scheme)
@@ -373,20 +415,12 @@ func (r *ComponentPlanReconciler) buildRESTClientGetter() (genericclioptions.RES
 	return config, nil
 }
 
-func (r *ComponentPlanReconciler) initCondition(plan *corev1alpha1.ComponentPlan) []corev1alpha1.Condition {
-	if plan.Spec.Approved {
-		return []corev1alpha1.Condition{corev1alpha1.ComponentPlanAppreoved(), corev1alpha1.ComponentPlanWaitInstall()}
-	} else {
-		return []corev1alpha1.Condition{corev1alpha1.ComponentPlanUnAppreoved(), corev1alpha1.ComponentPlanWaitInstall()}
-	}
-}
-
 func (r *ComponentPlanReconciler) isGenerationUpdate(plan *corev1alpha1.ComponentPlan) bool {
 	return plan.Status.ObservedGeneration != 0 && plan.Status.ObservedGeneration != plan.GetGeneration()
 }
 
 func (r *ComponentPlanReconciler) isDone(plan *corev1alpha1.ComponentPlan) bool {
-	installedCondition := plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeInstalled)
+	installedCondition := plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeActioned)
 	// if successed or max retry times reached, no need to update retry times
 	if installedCondition.Status == corev1.ConditionTrue || installedCondition.Message == maxRetryErr.Error() {
 		return true
@@ -395,7 +429,7 @@ func (r *ComponentPlanReconciler) isDone(plan *corev1alpha1.ComponentPlan) bool 
 }
 
 func (r *ComponentPlanReconciler) isHelmDoing(plan *corev1alpha1.ComponentPlan) bool {
-	return plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeInstalled).Equal(corev1alpha1.ComponentPlanInstalling())
+	return plan.InActionedReason(corev1alpha1.ComponentPlanReasonInstalling) || plan.InActionedReason(corev1alpha1.ComponentPlanReasonUpgrading)
 }
 
 func (r *ComponentPlanReconciler) updateLatest(ctx context.Context, logger logr.Logger, getter genericclioptions.RESTClientGetter, cpl *corev1alpha1.ComponentPlan) {
