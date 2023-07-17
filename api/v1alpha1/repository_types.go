@@ -78,6 +78,7 @@ type RepositorySpec struct {
 
 	Insecure bool `json:"insecure,omitempty"`
 
+	// +kubebuilder:default:=unknown
 	RepositoryType string `json:"repositoryType,omitempty"`
 
 	// PullStategy for this repository

@@ -130,6 +130,7 @@ spec:
                     type: integer
                 type: object
               repositoryType:
+                default: unknown
                 type: string
               url:
                 description: URL chart repository address

@@ -30,6 +30,7 @@ const (
 	KeyData  = "keydata"
 
 	ComponentRepositoryLabel = "kubebb.component.repository"
+	RepositoryTypeLabel      = "kubebb.repository.type"
 )
 
 // NamespacedName return the namespaced name of the repository in string format
