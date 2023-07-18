@@ -46,6 +46,10 @@ const (
 	SubscriptionReasonReconcileError   = ReasonReconcileError
 )
 
+const (
+	ComponentPlanCreated = "CreateComponentPlan"
+)
+
 // SubscriptionAvailable returns a condition that indicates the subscription is
 // currently observed to be available for use.
 func SubscriptionAvailable() Condition {

@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,7 +51,8 @@ const (
 // SubscriptionReconciler reconciles a Subscription object
 type SubscriptionReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Recorder record.EventRecorder
+	Scheme   *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=subscriptions,verbs=get;list;watch;create;update;patch;delete
@@ -138,10 +140,13 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// create componentplan
+	componentPlanName := corev1alpha1.GenerateComponentPlanName(sub, latestVersionFetch.Version)
 	if err = r.CreateComponentPlan(ctx, sub, latestVersionFetch); err != nil {
 		logger.Error(err, "Failed to create component plan")
+		r.Recorder.Eventf(sub, corev1alpha1.ComponentPlanCreated, "Fail", "failed to create componentPlan %s with error: %s", componentPlanName, err)
 		return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypePlanSynce, err))
 	}
+	r.Recorder.Eventf(sub, corev1alpha1.ComponentPlanCreated, "Success", "componentPlan %s create successfully", componentPlanName)
 	logger.V(4).Info("create component plan")
 
 	// update status.Installed
