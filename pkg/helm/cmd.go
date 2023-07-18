@@ -83,17 +83,24 @@ func installOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGe
 		if err != nil {
 			return nil, err
 		}
-		extraLog := []interface{}{"release.Version", rel.Version}
-		if rel.Info != nil {
-			// do not show release.Info.Note which is long and not useful for controllers
-			extraLog = append(extraLog, "release.Info.status", rel.Info.Status, "release.Info.firstDeployed", rel.Info.FirstDeployed, "release.Info.lastDeployed", rel.Info.LastDeployed, "release.Info.deleted", rel.Info.Deleted, "release.Info.description", rel.Info.Description)
-		}
-		logger.Info("install completed", extraLog...)
+		logger.Info("install completed", ReleaseLog(rel)...)
 	} else {
+		logger.Info("find last release", ReleaseLog(rel)...)
 		rel, err = h.upgrade(ctx, logger, cli, cpl, repo, dryRun, chartName)
 		if err != nil {
 			return nil, err
 		}
+		logger.Info("upgrade completed", ReleaseLog(rel)...)
 	}
 	return rel, nil
+}
+
+// ReleaseLog generates a log slice for a Helm release object.
+func ReleaseLog(rel *release.Release) []interface{} {
+	l := []interface{}{"release.Version", rel.Version}
+	if rel.Info != nil {
+		// do not show release.Info.Note which is long and not useful for controllers
+		l = append(l, "release.Info.status", rel.Info.Status, "release.Info.firstDeployed", rel.Info.FirstDeployed, "release.Info.lastDeployed", rel.Info.LastDeployed, "release.Info.deleted", rel.Info.Deleted, "release.Info.description", rel.Info.Description)
+	}
+	return l
 }

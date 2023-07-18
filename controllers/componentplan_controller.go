@@ -272,7 +272,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("no release found, will install the component plan")
 		_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanInstalling())
 	} else {
-		logger.Info(fmt.Sprintf("in cluster find release version:%d, will upgrade", rel.Version))
+		logger.Info(fmt.Sprintf("in cluster find release version:%d, will upgrade", rel.Version), helm.ReleaseLog(rel)...)
 		_ = r.PatchCondition(ctx, plan, logger, corev1alpha1.ComponentPlanUpgrading())
 	}
 
@@ -289,10 +289,10 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return
 		}
 		if install {
-			logger.Info("install successfully", "release.Revision", rel.Version)
+			logger.Info("install successfully", helm.ReleaseLog(rel)...)
 			_ = r.PatchConditionWithRevision(ctx, plan, logger, rel.Version, corev1alpha1.ComponentPlanInstallSuccess())
 		} else {
-			logger.Info("upgrade successfully", "release.Revision", rel.Version)
+			logger.Info("upgrade successfully", helm.ReleaseLog(rel)...)
 			_ = r.PatchConditionWithRevision(ctx, plan, logger, rel.Version, corev1alpha1.ComponentPlanUpgradeSuccess())
 		}
 	}(install)
