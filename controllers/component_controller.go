@@ -94,7 +94,6 @@ func (r *ComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // UpdateComponent updates new component, add finalizer if necessary.
 func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Component) (bool, error) {
-	done := true
 
 	var repoName string
 	// check if ownerReferences exist, report done (nothing to do) if it doesn't.
@@ -105,7 +104,7 @@ func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.L
 		}
 	}
 	if repoName == "" {
-		return done, nil
+		return true, nil
 	}
 
 	if instance.Labels == nil {
@@ -114,17 +113,16 @@ func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.L
 	// check label, report not done (need another update event) if it doesn't exist or not equal to the name of the repository.
 	if v, ok := instance.Labels[corev1alpha1.ComponentRepositoryLabel]; !ok || v != repoName {
 		// add component.repository=<repository-name> to labels
-		done = false
 		instance.Labels[corev1alpha1.ComponentRepositoryLabel] = repoName
 		logger.V(4).Info("Component repository label added", "Label", corev1alpha1.ComponentRepositoryLabel)
 		err := r.Client.Update(ctx, instance)
 		if err != nil {
 			logger.Error(err, "Failed to add component repository label")
 		}
-		return done, err
+		return false, err
 	}
 
-	return done, nil
+	return true, nil
 }
 
 // OnComponentUpdate checks if a reconcile process is needed when updating. Default true.
