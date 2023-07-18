@@ -50,15 +50,13 @@ spec:
                       description: If True, the current version will be retained even
                         if it is deprecated.
                       type: boolean
+                    enabled:
+                      description: Enable filtering on the component, if false, no
+                        action will be taken on the component, in other worlds, all
+                        versions of the component will be retained.
+                      type: boolean
                     name:
                       description: Name of the component
-                      type: string
-                    operation:
-                      default: keep
-                      description: default is keep
-                      enum:
-                      - keep
-                      - ignore
                       type: string
                     versionedFilterCond:
                       description: VersionedFilterCond filters which version in component
