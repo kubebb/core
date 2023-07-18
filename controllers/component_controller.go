@@ -18,11 +18,13 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,7 +39,8 @@ import (
 // ComponentReconciler reconciles a Component object
 type ComponentReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=components,verbs=get;list;watch;create;update;patch;delete
@@ -88,6 +91,8 @@ func (r *ComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Component{}, builder.WithPredicates(predicate.Funcs{
 			UpdateFunc: r.OnComponentUpdate,
+			CreateFunc: r.OnComponentCreate,
+			DeleteFunc: r.OnComponentDel,
 		})).
 		Complete(r)
 }
@@ -129,6 +134,22 @@ func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.L
 func (r *ComponentReconciler) OnComponentUpdate(event event.UpdateEvent) bool {
 	oldObj := event.ObjectOld.(*corev1alpha1.Component)
 	newObj := event.ObjectNew.(*corev1alpha1.Component)
-
+	added, deleted, deprecated := corev1alpha1.ComponentVersionDiff(*oldObj, *newObj)
+	if len(added) > 0 || len(deleted) > 0 || len(deprecated) > 0 {
+		r.Recorder.Event(newObj, corev1alpha1.ComponentVersionChange, "Update",
+			fmt.Sprintf(corev1alpha1.UpdateEventMsgTemplate, newObj.GetName(), len(added), len(deleted), len(deprecated)))
+	}
 	return oldObj.ResourceVersion != newObj.ResourceVersion || !reflect.DeepEqual(oldObj.Status, newObj.Status)
+}
+
+func (r *ComponentReconciler) OnComponentCreate(event event.CreateEvent) bool {
+	o := event.Object.(*corev1alpha1.Component)
+	r.Recorder.Event(o, corev1alpha1.ComponentCreated, "Create", fmt.Sprintf(corev1alpha1.AddEventMsgTemplate, o.GetName()))
+	return true
+}
+
+func (r *ComponentReconciler) OnComponentDel(event event.DeleteEvent) bool {
+	o := event.Object.(*corev1alpha1.Component)
+	r.Recorder.Event(o, corev1alpha1.ComponentDeleted, "Delete", fmt.Sprintf(corev1alpha1.DelEventMsgTemplate, o.GetName()))
+	return true
 }
