@@ -113,13 +113,8 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Add a finalizer. Then, we can define some operations which should
 	// occur before the ComponentPlan to be deleted.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
-	if !controllerutil.ContainsFinalizer(plan, corev1alpha1.Finalizer) {
+	if newAdded := controllerutil.AddFinalizer(plan, corev1alpha1.Finalizer); newAdded {
 		logger.Info("Try to add Finalizer for ComponentPlan")
-		if ok := controllerutil.AddFinalizer(plan, corev1alpha1.Finalizer); !ok {
-			logger.Info("Finalizer for ComponentPlan has already been added")
-			return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, nil
-		}
-
 		if err = r.Update(ctx, plan); err != nil {
 			logger.Error(err, "Failed to update ComponentPlan to add finalizer, will try again later")
 			return ctrl.Result{}, err
