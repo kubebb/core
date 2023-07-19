@@ -106,7 +106,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Set the status as Unknown when no status are available.
-	if plan.Status.Conditions == nil || len(plan.Status.Conditions) == 0 {
+	if len(plan.Status.Conditions) == 0 {
 		return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, plan, logger, plan.InitCondition()...)
 	}
 
