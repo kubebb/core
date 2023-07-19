@@ -22,6 +22,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -136,7 +137,7 @@ func (r *ComponentReconciler) OnComponentUpdate(event event.UpdateEvent) bool {
 	newObj := event.ObjectNew.(*corev1alpha1.Component)
 	added, deleted, deprecated := corev1alpha1.ComponentVersionDiff(*oldObj, *newObj)
 	if len(added) > 0 || len(deleted) > 0 || len(deprecated) > 0 {
-		r.Recorder.Event(newObj, corev1alpha1.ComponentVersionChange, "Update",
+		r.Recorder.Event(newObj, v1.EventTypeNormal, "Update",
 			fmt.Sprintf(corev1alpha1.UpdateEventMsgTemplate, newObj.GetName(), len(added), len(deleted), len(deprecated)))
 	}
 	return oldObj.ResourceVersion != newObj.ResourceVersion || !reflect.DeepEqual(oldObj.Status, newObj.Status)
@@ -144,12 +145,12 @@ func (r *ComponentReconciler) OnComponentUpdate(event event.UpdateEvent) bool {
 
 func (r *ComponentReconciler) OnComponentCreate(event event.CreateEvent) bool {
 	o := event.Object.(*corev1alpha1.Component)
-	r.Recorder.Event(o, corev1alpha1.ComponentCreated, "Create", fmt.Sprintf(corev1alpha1.AddEventMsgTemplate, o.GetName()))
+	r.Recorder.Event(o, v1.EventTypeNormal, "Create", fmt.Sprintf(corev1alpha1.AddEventMsgTemplate, o.GetName()))
 	return true
 }
 
 func (r *ComponentReconciler) OnComponentDel(event event.DeleteEvent) bool {
 	o := event.Object.(*corev1alpha1.Component)
-	r.Recorder.Event(o, corev1alpha1.ComponentDeleted, "Delete", fmt.Sprintf(corev1alpha1.DelEventMsgTemplate, o.GetName()))
+	r.Recorder.Event(o, v1.EventTypeNormal, "Delete", fmt.Sprintf(corev1alpha1.DelEventMsgTemplate, o.GetName()))
 	return true
 }

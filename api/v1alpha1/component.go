@@ -19,12 +19,6 @@ package v1alpha1
 import "github.com/Masterminds/semver/v3"
 
 const (
-	ComponentCreated       = "Created"
-	ComponentVersionChange = "VersionChanged"
-	ComponentDeleted       = "Deleted"
-)
-
-const (
 	AddEventMsgTemplate    = "add new component %s"
 	DelEventMsgTemplate    = "delete component %s"
 	UpdateEventMsgTemplate = "update component %s. %d new,  %d deleted,  %d deprecated"
