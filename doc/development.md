@@ -109,11 +109,3 @@ Build Dependencies
   catalog-build    Build a catalog image.
   catalog-push     Push a catalog image.
 ```
-## develop component.t7d.io
-
-To ensure compatibility, we still use the domain: `t7d.io`, the group is `component`, and place the following CRDs:
-- Component
-- Menu
-- MenuGroup
-
-NOTE: Because [operator-sdk does not support multi-domain development](https://github.com/operator-framework/operator-sdk/issues/5979), all operations involving this group need to be done **manually**, and cannot be automatically generated using `operator-sdk` related commands.
