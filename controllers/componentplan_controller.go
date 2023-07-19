@@ -25,15 +25,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
-	"github.com/kubebb/core/pkg/helm"
-	"github.com/kubebb/core/pkg/utils"
 	"helm.sh/helm/v3/pkg/release"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,6 +39,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
+	"github.com/kubebb/core/pkg/helm"
+	"github.com/kubebb/core/pkg/utils"
 )
 
 var (
@@ -54,10 +56,11 @@ const (
 // ComponentPlanReconciler reconciles a ComponentPlan object
 type ComponentPlanReconciler struct {
 	client.Client
-	Scheme           *runtime.Scheme
 	mu               sync.Mutex
 	helmPending      sync.Map
 	helmUninstalling sync.Map
+	Recorder         record.EventRecorder
+	Scheme           *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=componentplans,verbs=get;list;watch;create;update;patch;delete
@@ -258,8 +261,12 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		})
 		if err != nil {
 			logger.Error(err, "Failed to create or update template Configmap", "ConfigMap", klog.KObj(manifest))
+			r.Recorder.Eventf(plan, corev1.EventTypeWarning, "Fail", "failed to create or update template configmap %s with error %s", manifest.GetName(), err)
+
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanWaitDo(err))
 		}
+		r.Recorder.Eventf(plan, corev1.EventTypeNormal, "Success", "configmap %s created successfully", manifest.GetName())
+
 		logger.Info(fmt.Sprintf("Reconcile ComponentPlan template Configmap, result:%s", res))
 	} else if err != nil {
 		logger.Error(err, "Failed to get template Configmap")
@@ -314,9 +321,12 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if revision == revisionNoExist {
 				logger.Error(err, "componentplan install failed")
 				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, true, corev1alpha1.ComponentPlanInstallFailed(err))
+				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "InstallationFailure", "%s install failed", rel.Name)
+
 			} else {
 				logger.Error(err, "componentplan upgrade failed")
 				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, true, corev1alpha1.ComponentPlanUpgradeFailed(err))
+				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "UpgradeFailure", "%s upgrade failed", rel.Name)
 			}
 			return
 		}
@@ -324,9 +334,12 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if revision == revisionNoExist {
 			logger.Info("componentplan install successfully", helm.ReleaseLog(rel)...)
 			_ = r.PatchCondition(ctx, plan, logger, rel.Version, true, false, corev1alpha1.ComponentPlanInstallSuccess())
+			r.Recorder.Eventf(plan, corev1.EventTypeNormal, "InstallationSuccess", "%s install successfully", rel.Name)
+
 		} else {
 			logger.Info("componentplan upgrade successfully", helm.ReleaseLog(rel)...)
 			_ = r.PatchCondition(ctx, plan, logger, rel.Version, true, false, corev1alpha1.ComponentPlanUpgradeSuccess())
+			r.Recorder.Eventf(plan, corev1.EventTypeNormal, "UpgradeSuccess", "%s upgrade successfully", rel.Name)
 		}
 	}(revision)
 	return ctrl.Result{}, nil

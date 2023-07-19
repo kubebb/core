@@ -107,8 +107,9 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.ComponentPlanReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("componentplan-reconcile"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ComponentPlan")
 		os.Exit(1)
