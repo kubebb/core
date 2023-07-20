@@ -110,6 +110,9 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 		return nil, err
 	}
 	i.Namespace = cpl.Namespace
+	if dryRun {
+		i.ClientOnly = true
+	}
 	return i.RunWithContext(ctx, chartRequested, vals)
 }
 

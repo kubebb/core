@@ -146,7 +146,7 @@ func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Cli
 		has.SetAPIVersion(obj.GetAPIVersion())
 		err = c.Get(ctx, client.ObjectKeyFromObject(obj), has)
 		var isNew bool
-		if err != nil && apierrors.IsNotFound(err) {
+		if err != nil && apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 			isNew = true
 		} else if err != nil {
 			logger.Error(err, "Resource get error, no notFound", "manifest", manifest, "obj", klog.KObj(obj))
