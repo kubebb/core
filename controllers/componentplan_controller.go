@@ -369,9 +369,21 @@ func (r *ComponentPlanReconciler) GenerateManifestConfigMap(plan *corev1alpha1.C
 
 // PatchCondition patch subscription status condition
 func (r *ComponentPlanReconciler) PatchCondition(ctx context.Context, plan *corev1alpha1.ComponentPlan, logger logr.Logger, revision int, isDone, isFailed bool, condition ...corev1alpha1.Condition) (err error) {
+	annotation := r.updateStatusRetryTimes(plan, isFailed)
+	if len(annotation) > 0 {
+		if err := r.Get(ctx, client.ObjectKeyFromObject(plan), plan); err != nil {
+			logger.Error(err, "Failed to Prare Update ComponentPlan")
+			return err
+		}
+		updated := plan.DeepCopy()
+		updated.SetAnnotations(annotation)
+		if err := r.Patch(ctx, updated, client.MergeFrom(plan)); err != nil {
+			logger.Error(err, "Failed to Update ComponentPlan")
+			return err
+		}
+	}
 	newPlan := r.setCondition(plan, condition...)
 	newPlan = r.updateStatusRevision(newPlan, revision)
-	newPlan = r.updateStatusRetryTimes(newPlan, isFailed)
 	newPlan = r.updateStatusObservedGeneration(newPlan, isDone)
 	if err := r.Status().Patch(ctx, newPlan, client.MergeFrom(plan)); err != nil {
 		logger.Error(err, "Failed to patch ComponentPlan status")
@@ -412,19 +424,17 @@ func (r *ComponentPlanReconciler) updateStatusRevision(plan *corev1alpha1.Compon
 	return newPlan
 }
 
-func (r *ComponentPlanReconciler) updateStatusRetryTimes(plan *corev1alpha1.ComponentPlan, isFailed bool) (newPlan *corev1alpha1.ComponentPlan) {
-	if isFailed && !r.statusShowDone(plan) {
-		return plan
+func (r *ComponentPlanReconciler) updateStatusRetryTimes(plan *corev1alpha1.ComponentPlan, isFailed bool) (annotation map[string]string) {
+	if !isFailed || r.statusShowDone(plan) {
+		return
 	}
-	newPlan = plan.DeepCopy()
-	annotation := plan.GetAnnotations()
+	annotation = plan.GetAnnotations()
 	if annotation == nil {
 		annotation = make(map[string]string)
 	}
 	hasRetry, _ := strconv.Atoi(annotation[corev1alpha1.ComponentPlanRetryTimesAnnotation])
 	annotation[corev1alpha1.ComponentPlanRetryTimesAnnotation] = strconv.Itoa(hasRetry + 1)
-	newPlan.SetAnnotations(annotation)
-	return newPlan
+	return
 }
 
 func (r *ComponentPlanReconciler) updateStatusObservedGeneration(plan *corev1alpha1.ComponentPlan, isDone bool) (newPlan *corev1alpha1.ComponentPlan) {
