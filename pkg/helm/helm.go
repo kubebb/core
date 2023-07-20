@@ -109,7 +109,7 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	if err != nil {
 		return nil, err
 	}
-	i.Namespace = settings.Namespace()
+	i.Namespace = cpl.Namespace
 	return i.RunWithContext(ctx, chartRequested, vals)
 }
 
@@ -157,7 +157,7 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 	if err != nil {
 		return nil, err
 	}
-	i.Namespace = settings.Namespace()
+	i.Namespace = cpl.Namespace
 	return i.RunWithContext(ctx, cpl.GetReleaseName(), chartRequested, vals)
 }
 

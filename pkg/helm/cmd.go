@@ -18,6 +18,7 @@ package helm
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
@@ -83,14 +84,14 @@ func installOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGe
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("install completed", ReleaseLog(rel)...)
+		logger.Info(fmt.Sprintf("helm install completed dryRun:%t", dryRun), ReleaseLog(rel)...)
 	} else {
-		logger.Info("find last release", ReleaseLog(rel)...)
+		logger.Info("helm find last release", ReleaseLog(rel)...)
 		rel, err = h.upgrade(ctx, logger, cli, cpl, repo, dryRun, chartName)
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("upgrade completed", ReleaseLog(rel)...)
+		logger.Info(fmt.Sprintf("upgrade completed dryRun:%t", dryRun), ReleaseLog(rel)...)
 	}
 	return rel, nil
 }

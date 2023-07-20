@@ -24,7 +24,7 @@ fi
 export TERM=xterm-color
 
 KindName="kind"
-TimeoutSeconds=${TimeoutSeconds:-"600"}
+TimeoutSeconds=${TimeoutSeconds:-"300"}
 HelmTimeout=${HelmTimeout:-"1800s"}
 KindVersion=${KindVersion:-"v1.24.4"}
 TempFilePath=${TempFilePath:-"/tmp/kubebb-core-example-test"}
@@ -171,8 +171,9 @@ function waitPodReady() {
 	START_TIME=$(date +%s)
 	while true; do
 		readStatus=$(kubectl -n${namespace} get po -l ${podLabel} --ignore-not-found=true -o json | jq -r '.items[0].status.conditions[] | select(."type"=="Ready") | .status')
-		if [[ $readStatus -eq "True" ]]; then
+		if [[ $readStatus == "True" ]]; then
 			echo "Pod ${podLabel} ready"
+			kubectl -n${namespace} get po -l ${podLabel}
 			break
 		fi
 
@@ -193,7 +194,7 @@ function deleteComponentPlan() {
 	componentPlanName=$2
 	START_TIME=$(date +%s)
 	while true; do
-		kubectl -n${namespace} delete ComponentPlan ${componentPlanName}
+		kubectl -n${namespace} delete ComponentPlan ${componentPlanName} --wait
 		if [[ $? -eq 0 ]]; then
 			echo "delete componentPlan ${componentPlanName} done"
 			break
@@ -234,14 +235,38 @@ function getPodImage() {
 	done
 }
 
+function getHelmRevision() {
+	namespace=$1
+	releaseName=$2
+	wantRevision=$3
+	START_TIME=$(date +%s)
+	while true; do
+		get=$(helm status -n ${namespace} ${releaseName} -o json | jq '.version')
+		if [[ $get == $wantRevision ]]; then
+			echo "${releaseName} revision:${wantRevision} found."
+			break
+		fi
+		echo "${releaseName} revision:${get} found.but want:${wantRevision}"
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			helm list -A
+			exit 1
+		fi
+		sleep 5
+	done
+}
+
 function getDeployReplicas() {
-	namesapce=$1
+	namespace=$1
 	deployName=$2
 	want=$3
 	START_TIME=$(date +%s)
 	while true; do
 		images=$(kubectl -n${namespace} get deploy ${deployName} --ignore-not-found=true -o json | jq -r '.spec.replicas')
-		if [[ $images -eq $want ]]; then
+		if [[ $images == $want ]]; then
 			echo "replicas $want found."
 			break
 		fi
@@ -308,6 +333,7 @@ info "3.2 create nginx componentplan"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+getHelmRevision "kubebb-system" "my-nginx" "1"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
 info "3.3 create nginx-15.0.2 componentplan to verify imageOverride in componentPlan is valid"
@@ -315,6 +341,7 @@ kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml
 waitComponentPlanDone "kubebb-system" "nginx-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getPodImage "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2" "docker.io/bitnami/nginx:latest"
+getHelmRevision "kubebb-system" "my-nginx" "1"
 deleteComponentPlan "kubebb-system" "nginx-15.0.2"
 
 info "3.4 create nginx-replicas-example-1/2 componentplan to verify value override in componentPlan is valid"
@@ -322,11 +349,13 @@ kubectl apply -f config/samples/core_v1alpha1_nginx_replicas2_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "nginx-replicas-example-1"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-replicas-example-1,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getDeployReplicas "kubebb-system" "my-nginx-replicas-example-1" "2"
+getHelmRevision "kubebb-system" "my-nginx-replicas-example-1" "1"
 deleteComponentPlan "kubebb-system" "nginx-replicas-example-1"
 
 waitComponentPlanDone "kubebb-system" "nginx-replicas-example-2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-replicas-example-2,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getDeployReplicas "kubebb-system" "my-nginx-replicas-example-2" "2"
+getHelmRevision "kubebb-system" "my-nginx-replicas-example-2" "1"
 deleteComponentPlan "kubebb-system" "nginx-replicas-example-2"
 
 info "4 try to verify that the repository imageOverride steps are valid"
@@ -337,6 +366,7 @@ waitComponentSatus "kubebb-system" "repository-grafana-sample-image.grafana"
 info "4.2 create grafana subscription"
 kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml
 getPodImage "kubebb-system" "app.kubernetes.io/instance=grafana-sample,app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana"
+getHelmRevision "kubebb-system" "grafana-sample" "1"
 kubectl delete -f config/samples/core_v1alpha1_grafana_subscription.yaml
 
 info "5 try to verify that common use of componentPlan are valid"
@@ -344,11 +374,13 @@ info "5.1 create componentPlan do-once-nginx-sample-15.0.2"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+getHelmRevision "kubebb-system" "my-nginx" "1"
 
 info "5.2 update componentPlan do-once-nginx-sample-15.0.2 with update replicaCount to 2"
 kubectl patch componentplan -n kubebb-system do-once-nginx-sample-15.0.2 --type='json' \
 	-p='[{"op": "replace", "path": "/spec/override", "value": {"values": {"replicaCount": 2}}}]'
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+getHelmRevision "kubebb-system" "my-nginx" "2"
 getDeployReplicas "kubebb-system" "my-nginx" "2"
 
 info "5.3 create new componentPlan to update nginx version"
@@ -357,20 +389,24 @@ waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.1.0"
 validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.1.0" "true"
 validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.0.2" "false"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
+getHelmRevision "kubebb-system" "my-nginx" "3"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
 info "5.4 valid long running componentPlan install don not block others to install"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_long_ready.yaml
-kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.spec.name="my-nginx-back"' | kubectl apply -f -
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
-waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-back,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready"
-waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
+getHelmRevision "kubebb-system" "my-nginx-back" "1"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
 info "5.5 valid can install to other namespace"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.metadata.namespace="default"' | kubectl apply -f -
 waitComponentPlanDone "default" "do-once-nginx-sample-15.0.2"
 waitPodReady "default" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
+getHelmRevision "default" "my-nginx" "1"
 deleteComponentPlan "default" "do-once-nginx-sample-15.0.2"
 
 info "all finished! ✅"
