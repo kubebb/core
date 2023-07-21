@@ -133,7 +133,7 @@ var ComponentPlanDiffIgnorePaths = []string{
 }
 
 // GetResourcesAndImages get resource slices, image lists from manifests
-func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Client, data string) (resources []v1alpha1.Resource, images []string, err error) {
+func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Client, data, namespace string) (resources []v1alpha1.Resource, images []string, err error) {
 	manifests, err := SplitYAML([]byte(data))
 	if err != nil {
 		return nil, nil, err
@@ -141,6 +141,17 @@ func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Cli
 	resources = make([]v1alpha1.Resource, len(manifests))
 	for i, manifest := range manifests {
 		obj := manifest
+		if len(obj.GetNamespace()) == 0 {
+			if rs, err := c.RESTMapper().RESTMapping(obj.GroupVersionKind().GroupKind()); err != nil {
+				logger.Error(err, "get RESTMapping err, just ignore", "obj", klog.KObj(obj))
+			} else {
+				if rs.Scope.Name() == meta.RESTScopeNameNamespace {
+					obj.SetNamespace(namespace)
+				} else {
+					obj.SetNamespace("")
+				}
+			}
+		}
 		has := &unstructured.Unstructured{}
 		has.SetKind(obj.GetKind())
 		has.SetAPIVersion(obj.GetAPIVersion())
