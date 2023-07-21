@@ -137,7 +137,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Get RESTClientGetter for helm stuff
-	getter, err := r.buildRESTClientGetter()
+	getter, err := r.buildRESTClientGetter(plan.GetNamespace())
 	if err != nil {
 		logger.Error(err, "Failed to build RESTClientGetter")
 		// if we return err, reconcile will retry immediately.
@@ -449,13 +449,17 @@ func (r *ComponentPlanReconciler) needRetry(plan *corev1alpha1.ComponentPlan) bo
 	return hasRetry < plan.Spec.Config.GetMaxRetry()
 }
 
-func (r *ComponentPlanReconciler) buildRESTClientGetter() (genericclioptions.RESTClientGetter, error) {
+func (r *ComponentPlanReconciler) buildRESTClientGetter(ns string) (genericclioptions.RESTClientGetter, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config for in-cluster REST client: %w", err)
 	}
-	config := genericclioptions.NewConfigFlags(true).WithDiscoveryBurst(cfg.Burst).WithDiscoveryQPS(cfg.QPS)
-	return config, nil
+	return &genericclioptions.ConfigFlags{
+		APIServer:   &cfg.Host,
+		CAFile:      &cfg.CAFile,
+		BearerToken: &cfg.BearerToken,
+		Namespace:   &ns,
+	}, nil
 }
 
 func (r *ComponentPlanReconciler) isGenerationUpdate(plan *corev1alpha1.ComponentPlan) bool {
