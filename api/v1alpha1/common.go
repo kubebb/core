@@ -297,32 +297,47 @@ func Match(fc map[string]FilterCond, filter Filter, funcs ...FilterFunc) ([]int,
 		funcs = defaultFilterFuncs
 	}
 
-	// If the chart package name is not in the fc or filterCond.Enabled=false, we will keep all versions of the chart package.
+	// When the chart package name is not in the fc, we will keep all versions of the chart package.
 	filterCond, ok := fc[filter.Name]
-	if !ok || !filterCond.Enabled {
+	if !ok {
 		for i := range filter.Versions {
 			versions = append(versions, i)
 		}
 		return versions, true
 	}
-
-	// If filterCond.Enabled=true and filterCond.VersionedFilterCond=nil, we will not keep all versions of the chart package.
-	if filterCond.Enabled && filterCond.VersionedFilterCond == nil {
-		return versions, false
+	// If filterCond.VersionedFilterCond=nil, it means that
+	// we determine whether to keep the version of the package based on filterCond.KeepDeprecated.
+	if filterCond.VersionedFilterCond == nil {
+		if filterCond.Operation == FilterOpIgnore {
+			return versions, false
+		}
+		for i, v := range filter.Versions {
+			if filterCond.KeepDeprecated || !v.Deprecated {
+				versions = append(versions, i)
+			}
+		}
+		return versions, true
 	}
-
-	// If any filter function is satisfied, we will not keep the version.
-	// Then if filterCond.deprecated=false, we will also not keep the deprecated version.
+	// If operation=keep, a version can be kept as long as it satisfies a certain filter function
+	// If operation=ignore, a version is kept only if all filter functions are not satisfied.
+	// Then, based on filterCond.KeepDeprecated, determine whether to keep the version or not.
 	for i, v := range filter.Versions {
-		keep = true
+		keep = filterCond.Operation == FilterOpIgnore
 		for _, f := range funcs {
 			if f(filterCond, v.Version) {
-				keep = false
+				if filterCond.Operation == FilterOpKeep {
+					keep = true
+				}
+				if filterCond.Operation == FilterOpIgnore {
+					keep = false
+				}
 				break
 			}
 		}
-		if !filterCond.Deprecated && v.Deprecated {
-			keep = false
+		if keep {
+			if !filterCond.KeepDeprecated && v.Deprecated {
+				keep = false
+			}
 		}
 		if keep {
 			versions = append(versions, i)
@@ -333,7 +348,7 @@ func Match(fc map[string]FilterCond, filter Filter, funcs ...FilterFunc) ([]int,
 }
 
 func IsCondSame(c1, c2 FilterCond) bool {
-	return c1.Name == c2.Name && c1.Deprecated == c2.Deprecated && c1.Enabled == c2.Enabled &&
+	return c1.Name == c2.Name && c1.KeepDeprecated == c2.KeepDeprecated && c1.Operation == c2.Operation &&
 		((c1.VersionedFilterCond == nil && c2.VersionedFilterCond == nil) ||
 			(c1.VersionedFilterCond != nil && c2.VersionedFilterCond != nil &&
 				sets.NewString(c1.VersionedFilterCond.Versions...).Equal(sets.NewString(c2.VersionedFilterCond.Versions...)) &&
