@@ -245,7 +245,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Generate a new template Configmap", "ConfigMap", klog.KObj(manifest))
 
 		newPlan := plan.DeepCopy()
-		newPlan.Status.Resources, newPlan.Status.Images, err = utils.GetResourcesAndImages(ctx, logger, r.Client, data)
+		newPlan.Status.Resources, newPlan.Status.Images, err = utils.GetResourcesAndImages(ctx, logger, r.Client, data, plan.GetNamespace())
 		if err != nil {
 			logger.Error(err, "Failed to get resources")
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanWaitDo(err))
@@ -321,12 +321,12 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			if revision == revisionNoExist {
 				logger.Error(err, "componentplan install failed")
 				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, true, corev1alpha1.ComponentPlanInstallFailed(err))
-				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "InstallationFailure", "%s install failed", rel.Name)
+				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "InstallationFailure", "%s install failed", plan.GetReleaseName())
 
 			} else {
 				logger.Error(err, "componentplan upgrade failed")
 				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, true, corev1alpha1.ComponentPlanUpgradeFailed(err))
-				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "UpgradeFailure", "%s upgrade failed", rel.Name)
+				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "UpgradeFailure", "%s upgrade failed", plan.GetReleaseName())
 			}
 			return
 		}
