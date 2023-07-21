@@ -20,6 +20,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type FilterOp string
+
+const (
+	FilterOpKeep   FilterOp = "keep"
+	FilterOpIgnore FilterOp = "ignore"
+)
+
 // PullStategy for pulling components in repository
 type PullStategy struct {
 	// Interval for pulling
@@ -47,12 +54,13 @@ type FilterCond struct {
 	// Name of the component
 	Name string `json:"name,omitempty"`
 
-	// Enable filtering on the component,
-	// if false, no action will be taken on the component, in other worlds, all versions of the component will be retained.
-	Enabled bool `json:"enabled,omitempty"`
+	// default is keep
+	// +kubebuilder:validation:Enum=keep;ignore
+	// +kubebuilder:default:=keep
+	Operation FilterOp `json:"operation,omitempty"`
 
 	// If True, the current version will be retained even if it is deprecated.
-	Deprecated bool `json:"deprecated,omitempty"`
+	KeepDeprecated bool `json:"keepDeprecated,omitempty"`
 
 	// VersionedFilterCond filters which version in component are pulled/ignored from the repository
 	VersionedFilterCond *VersionedFilterCond `json:"versionedFilterCond,omitempty"`

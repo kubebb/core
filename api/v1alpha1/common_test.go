@@ -341,25 +341,60 @@ func TestMatch(t *testing.T) {
 			expected:    nil,
 		},
 		{
-			description: "the filter is not empty, the chart package is in the filter, but enabled=true, should retain all",
+			description: "the filter is not empty, but the chart package is not in the filter, so keep all version of it",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Enabled: false}},
-			keep:        true,
-			expected:    nil,
+			filterCond:  map[string]FilterCond{"other": {}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     true,
+			expected: []int{0, 1, 2},
 		},
 		{
 			description: "there is no version filtering information to determine if the chart package is retained or not",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Deprecated: false, Enabled: true}},
+			filterCond:  map[string]FilterCond{"test": {KeepDeprecated: false, Operation: FilterOpKeep}},
+			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}}},
+			keep:        true,
+			expected:    nil,
+		},
+		{
+			description: "there is no versionedFilterCond to determine if the chart package is retained or not",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {KeepDeprecated: true, Operation: FilterOpKeep}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+			},
+			keep:     true,
+			expected: []int{0, 1},
+		},
+		{
+			description: "there is no versionedFilterCond to determine if the chart package is retained or not",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {KeepDeprecated: false, Operation: FilterOpIgnore}},
 			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}}},
 			keep:        false,
 			expected:    nil,
 		},
-		// accurate
 		{
-			description: "accurately matches versions. enabled: true, deprecated: true",
+			description: "there is no versionedFilterCond to determine if the chart package is retained or not",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{
+			filterCond:  map[string]FilterCond{"test": {KeepDeprecated: true, Operation: FilterOpIgnore}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		// keep,accurate
+		{
+			description: "accurately matches versions. operation: keep, keepDeprecated: true",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: true, VersionedFilterCond: &VersionedFilterCond{
 				Versions: []string{"1.0.0", "2.0.0"},
 			}}},
 			versions: []*hrepo.ChartVersion{
@@ -368,12 +403,12 @@ func TestMatch(t *testing.T) {
 				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
 			},
 			keep:     true,
-			expected: []int{2},
+			expected: []int{0, 1},
 		},
 		{
-			description: "accurately matches versions. enabled: true, deprecated: true, no conditions",
+			description: "accurately matches versions. operation: keep, keepDeprecated: true, no conditions",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{}}},
+			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: true}},
 			versions: []*hrepo.ChartVersion{
 				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
 				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
@@ -383,9 +418,9 @@ func TestMatch(t *testing.T) {
 			expected: []int{0, 1, 2},
 		},
 		{
-			description: "accurately matches versions. enabled: true, deprecated: false",
+			description: "accurately matches versions. operation: keep, keepDeprecated: false",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
 				Versions: []string{"1.0.0", "2.0.0"},
 			}}},
 			versions: []*hrepo.ChartVersion{
@@ -394,27 +429,27 @@ func TestMatch(t *testing.T) {
 				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
 			},
 			keep:     true,
-			expected: []int{2},
+			expected: []int{1},
 		},
 		{
-			description: "accurately matches versions. enabled: true, deprecated: false, no conditions",
+			description: "accurately matches versions. operation: keep, keepDeprecated: false, no conditions",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
+			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
 			versions: []*hrepo.ChartVersion{
 				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
 			},
 			keep:     false,
 			expected: nil,
 		},
 
-		// regexp
+		// keep,regexp
 		{
-			description: "regexp matches versions. enabled: true, deprecated: true",
+			description: "regexp matches versions. operation: keep, keepDeprecated: true",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{
-				VersionRegexp: `^((?!\d\.*0\.0).)$`,
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: true, VersionedFilterCond: &VersionedFilterCond{
+				VersionRegexp: `^\d\.*0\.0$`,
 			}}},
 			versions: []*hrepo.ChartVersion{
 				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
@@ -425,10 +460,10 @@ func TestMatch(t *testing.T) {
 			expected: []int{0, 1, 2},
 		},
 		{
-			description: "regexp matches versions. enabled: true, deprecated: false",
+			description: "regexp matches versions. operation: keep, keepDeprecated: false",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
-				VersionRegexp: `^((?!\d\.*0\.0).)$`,
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionRegexp: `^\d\.*0\.0$`,
 			}}},
 			versions: []*hrepo.ChartVersion{
 				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
@@ -439,177 +474,9 @@ func TestMatch(t *testing.T) {
 			expected: []int{1, 2},
 		},
 		{
-			description: "regexp matches versions. enabled: true, deprecated: false, all deprecated",
+			description: "regexp matches versions. operation: keep, keepDeprecated: false, all deprecated",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
-				VersionRegexp: `^((?!\d\.*0\.0).)$`,
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-		{
-			description: "regexp matches versions. enabled: true, deprecated: false, version too big",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
-				VersionRegexp: `^((?!\d\.*0\.0).)$`,
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "11.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "21.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "31.0.0", Deprecated: true}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-
-		// semvar
-		{
-			description: "semvar matches versions. enabled: true, deprecated: true",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{
-				VersionConstraint: ">= 2.0.0",
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     true,
-			expected: []int{0},
-		},
-		{
-			description: "semvar matches versions. enabled: true, deprecated: false",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
-				VersionConstraint: ">= 2.0.0",
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-		{
-			description: "semvar matches versions. enabled: true, deprecated: false, all deprecated",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
-				VersionConstraint: ">= 1.0.0",
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-		{
-			description: "semvar matches versions. enabled: true, deprecated: false, no conditions",
-			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-
-		// accurately
-		{
-			description: "accurately matches versions. enabled: true, deprecated: true",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{
-				Versions: []string{"1.0.0", "2.0.0"},
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     true,
-			expected: []int{2},
-		},
-		{
-			description: "accurately matches versions. enabled: true, deprecated: true, no conditions",
-			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     true,
-			expected: []int{0, 1, 2},
-		},
-		{
-			description: "accurately matches versions. enabled: true, deprecated: false",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
-				Versions: []string{"1.0.0", "2.0.0"},
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     true,
-			expected: []int{2},
-		},
-		{
-			description: "accurately matches versions. enabled: true, deprecated: true, no conditions",
-			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-
-		// regexp
-		{
-			description: "regexp matches versions. enabled: true, deprecated: true",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{
-				VersionRegexp: `^\d\.*0\.0$`,
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-		{
-			description: "regexp matches versions. enabled: true, deprecated: false",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
-				VersionRegexp: `^\d\.*0\.0$`,
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     false,
-			expected: nil,
-		},
-		{
-			description: "regexp matches versions. enabled: true, deprecated: false, all deprecated",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
 				VersionRegexp: `^\d\.*0\.0$`,
 			}}},
 			versions: []*hrepo.ChartVersion{
@@ -621,9 +488,9 @@ func TestMatch(t *testing.T) {
 			expected: nil,
 		},
 		{
-			description: "regexp matches versions. enabled: true, deprecated: true, too big version",
+			description: "regexp matches versions. operation: keep, keepDeprecated: false, version too big",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
 				VersionRegexp: `^\d\.*0\.0$`,
 			}}},
 			versions: []*hrepo.ChartVersion{
@@ -635,26 +502,12 @@ func TestMatch(t *testing.T) {
 			expected: nil,
 		},
 
-		// semvar
+		// keep, semvar
 		{
-			description: "semvar matches versions. enabled: true, deprecated: true",
+			description: "semvar matches versions. operation: keep, keepDeprecated: true",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: true, VersionedFilterCond: &VersionedFilterCond{
 				VersionConstraint: ">= 2.0.0",
-			}}},
-			versions: []*hrepo.ChartVersion{
-				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
-				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
-			},
-			keep:     true,
-			expected: []int{0},
-		},
-		{
-			description: "semvar matches versions. enabled: true, deprecated: false",
-			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: true, VersionedFilterCond: &VersionedFilterCond{
-				VersionConstraint: "< 2.0.0",
 			}}},
 			versions: []*hrepo.ChartVersion{
 				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
@@ -665,9 +518,9 @@ func TestMatch(t *testing.T) {
 			expected: []int{1, 2},
 		},
 		{
-			description: "semvar matches versions. enabled: true, deprecated: false",
+			description: "semvar matches versions. operation: keep, keepDeprecated: false",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
 				VersionConstraint: ">= 2.0.0",
 			}}},
 			versions: []*hrepo.ChartVersion{
@@ -675,13 +528,13 @@ func TestMatch(t *testing.T) {
 				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
 				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
 			},
-			keep:     false,
-			expected: nil,
+			keep:     true,
+			expected: []int{2},
 		},
 		{
-			description: "semvar matches versions. enabled: true, deprecated: true, all deprecated",
+			description: "semvar matches versions. operation: keep, keepDeprecated: false, all deprecated",
 			name:        "test",
-			filterCond: map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
 				VersionConstraint: ">= 1.0.0",
 			}}},
 			versions: []*hrepo.ChartVersion{
@@ -693,9 +546,177 @@ func TestMatch(t *testing.T) {
 			expected: nil,
 		},
 		{
-			description: "semvar matches versions. enabled: true, deprecated: true, no conditions",
+			description: "semvar matches versions. operation: keep, keepDeprecated: false, no conditions",
 			name:        "test",
-			filterCond:  map[string]FilterCond{"test": {Enabled: true, Deprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
+			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpKeep, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+
+		// ignore, accurately
+		{
+			description: "accurately matches versions. operation: ignore, keepDeprecated: true",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: true, VersionedFilterCond: &VersionedFilterCond{
+				Versions: []string{"1.0.0", "2.0.0"},
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     true,
+			expected: []int{2},
+		},
+		{
+			description: "accurately matches versions. operation: ignore, keepDeprecated: true, no conditions",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: true}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
+			description: "accurately matches versions. operation: ignore, keepDeprecated: false",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				Versions: []string{"1.0.0", "2.0.0"},
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     true,
+			expected: []int{2},
+		},
+		{
+			description: "accurately matches versions. operation: ignore, keepDeprecated: true, no conditions",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+
+		// ignore, regexp
+		{
+			description: "regexp matches versions. operation: ignore, keepDeprecated: true",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: true, VersionedFilterCond: &VersionedFilterCond{
+				VersionRegexp: `^\d\.*0\.0$`,
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
+			description: "regexp matches versions. operation: ignore, keepDeprecated: false",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionRegexp: `^\d\.*0\.0$`,
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: false}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
+			description: "regexp matches versions. operation: ignore, keepDeprecated: false, all deprecated",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionRegexp: `^\d\.*0\.0$`,
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
+			description: "regexp matches versions. operation: ignore, keepDeprecated: true, too big version",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionRegexp: `^\d\.*0\.0$`,
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "11.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "21.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "31.0.0", Deprecated: true}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+
+		// ignore, semvar
+		{
+			description: "semvar matches versions. operation: ignore, keepDeprecated: true",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: true, VersionedFilterCond: &VersionedFilterCond{
+				VersionConstraint: ">= 2.0.0",
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     true,
+			expected: []int{0},
+		},
+		{
+			description: "semvar matches versions. operation: ignore, keepDeprecated: false",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionConstraint: ">= 2.0.0",
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: false}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
+			description: "semvar matches versions. operation: ignore, keepDeprecated: true, all deprecated",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionConstraint: ">= 1.0.0",
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
+			description: "semvar matches versions. operation: ignore, keepDeprecated: true, no conditions",
+			name:        "test",
+			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
 			versions: []*hrepo.ChartVersion{
 				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
 				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
@@ -724,8 +745,8 @@ func TestIsCondSame(t *testing.T) {
 			exp: true,
 		},
 		{
-			c1:  FilterCond{Deprecated: true},
-			c2:  FilterCond{Deprecated: false},
+			c1:  FilterCond{KeepDeprecated: true},
+			c2:  FilterCond{KeepDeprecated: false},
 			exp: false,
 		},
 		{
