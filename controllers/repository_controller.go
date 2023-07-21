@@ -117,7 +117,7 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 
 	instanceDeepCopy.Finalizers = utils.AddString(instanceDeepCopy.Finalizers, corev1alpha1.Finalizer)
 	if l != len(instanceDeepCopy.Finalizers) {
-		logger.V(4).Info("Add Finalizer for repository", "Finalizer", corev1alpha1.Finalizer)
+		logger.V(1).Info("Add Finalizer for repository", "Finalizer", corev1alpha1.Finalizer)
 		err := r.Client.Update(ctx, instanceDeepCopy)
 		if err != nil {
 			logger.Error(err, "")
@@ -134,7 +134,7 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 	}
 
 	if changed, history := utils.AddOrSwapString(instanceDeepCopy.Status.URLHistory, instanceDeepCopy.Spec.URL); changed {
-		logger.V(4).Info("Add URL for repository", "URL", instance.Spec.URL)
+		logger.V(1).Info("Add URL for repository", "URL", instance.Spec.URL)
 		instanceDeepCopy.Status.URLHistory = history
 		instanceDeepCopy.Status.ConditionedStatus = v1alpha1.ConditionedStatus{
 			Conditions: []v1alpha1.Condition{cond},

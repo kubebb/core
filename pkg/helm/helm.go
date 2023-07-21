@@ -56,7 +56,7 @@ type HelmWrapper struct {
 func NewHelmWarpper(getter genericclioptions.RESTClientGetter, namespace string, logger logr.Logger) (*HelmWrapper, error) {
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
-		logger.V(4).Info(fmt.Sprintf(format, v...))
+		logger.V(1).Info(fmt.Sprintf(format, v...))
 	}); err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	i.InsecureSkipTLSverify = repo.Spec.Insecure
 	i.PassCredentialsAll = false // TODO do we need add this args to override?
 	i.PostRenderer = newPostRenderer(repo.Spec.ImageOverride, cpl.Spec.Override.Images)
-	log.V(4).Info(fmt.Sprintf("Original chart version: %q", i.Version))
+	log.V(1).Info(fmt.Sprintf("Original chart version: %q", i.Version))
 
 	i.ReleaseName = cpl.GetReleaseName()
 	chartRequested, vals, err := h.prepare(ctx, cli, log, i.ChartPathOptions, cpl, chartName)
@@ -199,7 +199,7 @@ func (h *HelmWrapper) chartDownload(chartName string, logger logr.Logger, i acti
 	buf := new(strings.Builder)
 	defer func() {
 		for _, l := range strings.Split(buf.String(), "\n") {
-			logger.V(4).Info(l, "chartName", chartName)
+			logger.V(1).Info(l, "chartName", chartName)
 		}
 	}()
 	dl := downloader.ChartDownloader{
@@ -268,7 +268,7 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 	if err != nil {
 		return nil, nil, err
 	}
-	logger.V(4).Info(fmt.Sprintf("CHART PATH: %s", cp))
+	logger.V(1).Info(fmt.Sprintf("CHART PATH: %s", cp))
 
 	p := getter.All(settings)
 	valueOpts := &values.Options{}
@@ -278,7 +278,7 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 			return nil, nil, err
 		}
 		valueOpts.ValueFiles = append(valueOpts.ValueFiles, fileName)
-		logger.V(4).Info(fmt.Sprintf("Add Override.ValuesFrom From: %s", fileName))
+		logger.V(1).Info(fmt.Sprintf("Add Override.ValuesFrom From: %s", fileName))
 	}
 	if o := cpl.Spec.Override; o.Values != nil {
 		fileName, err := utils.ParseValues(o.GetValueFileDir(helmpath.CachePath(""), cpl.Namespace, cpl.Name), o.Values)
@@ -286,7 +286,7 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 			return nil, nil, err
 		}
 		valueOpts.ValueFiles = append(valueOpts.ValueFiles, fileName)
-		logger.V(4).Info(fmt.Sprintf("Add Override.Values From: %s", fileName))
+		logger.V(1).Info(fmt.Sprintf("Add Override.Values From: %s", fileName))
 	}
 	if set := cpl.Spec.Override.Set; len(set) != 0 {
 		valueOpts.Values = cpl.Spec.Override.Set
@@ -310,7 +310,7 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 	}
 
 	if chartRequested.Metadata.Deprecated {
-		logger.V(4).Info("This chart is deprecated")
+		logger.V(1).Info("This chart is deprecated")
 	}
 
 	if req := chartRequested.Metadata.Dependencies; req != nil {
@@ -328,7 +328,7 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 			}
 			printLog := func() {
 				for _, l := range strings.Split(buf.String(), "\n") {
-					logger.V(4).Info(l)
+					logger.V(1).Info(l)
 				}
 			}
 			if err := man.Update(); err != nil {
