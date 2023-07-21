@@ -75,7 +75,7 @@ type ComponentPlanReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.V(4).Info("Reconciling ComponentPlan")
+	logger.V(1).Info("Reconciling ComponentPlan")
 
 	// Fetch the ComponentPlan instance
 	plan := &corev1alpha1.ComponentPlan{}
@@ -83,11 +83,11 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		// There's no need to requeue if the resource no longer exists.
 		// Otherwise, we'll be requeued implicitly because we return an error.
-		logger.V(4).Info("Failed to get ComponentPlan")
+		logger.V(1).Info("Failed to get ComponentPlan")
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
 	}
 	logger = logger.WithValues("Generation", plan.GetGeneration(), "ObservedGeneration", plan.Status.ObservedGeneration)
-	logger.V(4).Info("Get ComponentPlan instance")
+	logger.V(1).Info("Get ComponentPlan instance")
 
 	// Get watched component
 	component := &corev1alpha1.Component{}
@@ -104,7 +104,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Failed to get Component.Status.RepositoryRef, wait 1 minute to retry", "obj", klog.KObj(component))
 		return reconcile.Result{RequeueAfter: time.Minute}, nil
 	}
-	logger.V(4).Info("Get Component instance", "Component", klog.KObj(component))
+	logger.V(1).Info("Get Component instance", "Component", klog.KObj(component))
 
 	if plan.Labels[corev1alpha1.ComponentPlanReleaseNameLabel] != plan.Spec.Name {
 		if plan.GetLabels() == nil {

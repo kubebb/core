@@ -120,7 +120,7 @@ func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.L
 	if v, ok := instance.Labels[corev1alpha1.ComponentRepositoryLabel]; !ok || v != repoName {
 		// add component.repository=<repository-name> to labels
 		instance.Labels[corev1alpha1.ComponentRepositoryLabel] = repoName
-		logger.V(4).Info("Component repository label added", "Label", corev1alpha1.ComponentRepositoryLabel)
+		logger.V(1).Info("Component repository label added", "Label", corev1alpha1.ComponentRepositoryLabel)
 		err := r.Client.Update(ctx, instance)
 		if err != nil {
 			logger.Error(err, "Failed to add component repository label")

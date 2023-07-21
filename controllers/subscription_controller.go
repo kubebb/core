@@ -71,7 +71,7 @@ type SubscriptionReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.V(4).Info("Reconciling Subscription")
+	logger.V(1).Info("Reconciling Subscription")
 
 	// Fetch the Subscription instance
 	sub := &corev1alpha1.Subscription{}
@@ -82,7 +82,7 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Error(err, "Failed to get Subscription")
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
 	}
-	logger.V(4).Info("Get Subscription instance")
+	logger.V(1).Info("Get Subscription instance")
 
 	// Get watched component
 	component := &corev1alpha1.Component{}
@@ -91,7 +91,7 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Error(err, "Failed to get Component", "Component.Namespace", sub.Spec.ComponentRef.Namespace, "Component.Name", sub.Spec.ComponentRef.Name)
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
 	}
-	logger.V(4).Info("Get Component instance", "Component.Namespace", component.Namespace, "Component.Name", component.Name)
+	logger.V(1).Info("Get Component instance", "Component.Namespace", component.Namespace, "Component.Name", component.Name)
 
 	// Update spec.repositoryRef
 	if sub.Spec.RepositoryRef == nil || sub.Spec.RepositoryRef.Name == "" {
@@ -109,7 +109,7 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			logger.Error(err, "Failed to patch subscription.spec.RepositoryRef", "Repository.Namespace", newSub.Spec.RepositoryRef.Namespace, "Repository.Name", newSub.Spec.RepositoryRef.Name)
 			return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypeReady, err))
 		}
-		logger.V(4).Info("Patch subscription.Spec.RepositoryRef")
+		logger.V(1).Info("Patch subscription.Spec.RepositoryRef")
 		return ctrl.Result{Requeue: true}, nil
 	}
 
@@ -118,7 +118,7 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Error(err, "Failed to update subscription status repositoryHealth", "RepositoryNamespace", sub.Spec.RepositoryRef.Namespace, "RepositoryName", sub.Spec.RepositoryRef.Name)
 		return ctrl.Result{Requeue: true}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypeReady, err))
 	}
-	logger.V(4).Info("patch subscription status repositoryHealth")
+	logger.V(1).Info("patch subscription status repositoryHealth")
 
 	// compare component latest version with installed
 	var latestVersionFetch, latestVersionInstalled corev1alpha1.ComponentVersion
@@ -129,11 +129,11 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		logger.Info(msg)
 		return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileSuccess(corev1alpha1.SubscriptionTypeReady).WithMessage(msg))
 	}
-	logger.V(4).Info("get component latest fetch version")
+	logger.V(1).Info("get component latest fetch version")
 	if plans := sub.Status.Installed; len(plans) > 0 {
 		latestVersionInstalled = plans[0].InstalledVersion
 	}
-	logger.V(4).Info("get component latest installed version")
+	logger.V(1).Info("get component latest installed version")
 	if latestVersionFetch.Equal(&latestVersionInstalled) {
 		msg := "component latest version is the same as installed, skip"
 		logger.Info(msg)
@@ -148,14 +148,14 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypePlanSynce, err))
 	}
 	r.Recorder.Eventf(sub, v1.EventTypeNormal, "Success", "componentPlan %s create successfully", componentPlanName)
-	logger.V(4).Info("create component plan")
+	logger.V(1).Info("create component plan")
 
 	// update status.Installed
 	if err = r.UpdateStatusInstalled(ctx, logger, sub, latestVersionFetch); err != nil {
 		logger.Error(err, "Failed to update subscription status installed")
 		return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypeReady, err))
 	}
-	logger.V(4).Info("update subscription status installed")
+	logger.V(1).Info("update subscription status installed")
 	return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionAvailable())
 }
 
