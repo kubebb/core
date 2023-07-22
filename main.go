@@ -91,9 +91,10 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 
 	if err = (&controllers.RepositoryReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		C:      make(map[string]repository.IWatcher),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		C:        make(map[string]repository.IWatcher),
+		Recorder: mgr.GetEventRecorderFor("repository-reconcile"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Repository")
 		os.Exit(1)

@@ -20,12 +20,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,7 +45,8 @@ import (
 // RepositoryReconciler reconciles a Repository object
 type RepositoryReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 
 	C map[string]repository.IWatcher
 }
@@ -164,6 +167,17 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 	oldRepo := u.ObjectOld.(*corev1alpha1.Repository)
 	newRepo := u.ObjectNew.(*corev1alpha1.Repository)
 
+	buf := strings.Builder{}
+	if oldRepo.Spec.URL != newRepo.Spec.URL {
+		buf.WriteString(fmt.Sprintf(" 'url' changes from %s to %s.", oldRepo.Spec.URL, newRepo.Spec.URL))
+	}
+	if oldRepo.Spec.AuthSecret != newRepo.Spec.AuthSecret {
+		buf.WriteString(fmt.Sprintf(" 'authSecret' changes from %s to %s.", oldRepo.Spec.AuthSecret, newRepo.Spec.AuthSecret))
+	}
+	if str := buf.String(); len(str) > 0 {
+		r.Recorder.Event(newRepo, v1.EventTypeNormal, "Update", str)
+	}
+
 	return oldRepo.Spec.URL != newRepo.Spec.URL ||
 		oldRepo.Spec.AuthSecret != newRepo.Spec.AuthSecret ||
 		!corev1alpha1.IsPullStrategySame(oldRepo.Spec.PullStategy, newRepo.Spec.PullStategy) ||
@@ -178,7 +192,17 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 func (r *RepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Repository{}, builder.WithPredicates(predicate.Funcs{
+			CreateFunc: func(ce event.CreateEvent) bool {
+				obj := ce.Object.(*v1alpha1.Repository)
+				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Created", "add new repository %s", obj.GetName())
+				return true
+			},
 			UpdateFunc: r.OnRepositryUpdate,
+			DeleteFunc: func(de event.DeleteEvent) bool {
+				obj := de.Object.(*v1alpha1.Repository)
+				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Created", "delete repository %s", obj.GetName())
+				return true
+			},
 		})).
 		Complete(r)
 }
