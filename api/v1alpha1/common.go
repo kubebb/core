@@ -316,7 +316,7 @@ func Match(fc map[string]FilterCond, filter Filter, funcs ...FilterFunc) ([]int,
 				versions = append(versions, i)
 			}
 		}
-		return versions, true
+		return versions, len(versions) !=0
 	}
 	// If operation=keep, a version can be kept as long as it satisfies a certain filter function
 	// If operation=ignore, a version is kept only if all filter functions are not satisfied.

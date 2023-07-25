@@ -357,7 +357,7 @@ func TestMatch(t *testing.T) {
 			name:        "test",
 			filterCond:  map[string]FilterCond{"test": {KeepDeprecated: false, Operation: FilterOpKeep}},
 			versions:    []*hrepo.ChartVersion{{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}}},
-			keep:        true,
+			keep:        false,
 			expected:    nil,
 		},
 		{
