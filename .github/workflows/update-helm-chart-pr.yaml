@@ -1,0 +1,24 @@
+name: Update Helm Chart
+
+on:
+  push:
+    # same with release.yaml
+    tags:
+      - 'v*'
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  do:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - run: git fetch --force --tags
+      - run: |
+          bash .github/update-helm-chart-version.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.HELM_CHART_SYNC_PAT_TOKEN }}
+          GITHUB_USERNAME: ${{ secrets.HELM_CHART_SYNC_USERNAME }}
