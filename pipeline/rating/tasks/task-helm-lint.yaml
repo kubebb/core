@@ -1,0 +1,25 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: helm-lint
+spec:
+  params:
+  - name: url
+    type: string
+  - name: component
+    type: string
+  - name: version
+    type: string
+  results:
+  - name: LINT
+    type: string
+  steps:
+    - name: helm-lint
+      image: alpine/k8s:1.27.4
+      script: |
+        #!/usr/bin/env sh
+        # Download and untar chart package
+        helm pull --untar $(params.url)
+
+        helm lint ./$(params.component)
+        echo $? | tee $(results.LINT.path)
