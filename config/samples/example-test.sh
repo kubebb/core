@@ -208,6 +208,23 @@ function deleteComponentPlan() {
 		fi
 		sleep 30
 	done
+	while true; do
+		results=$(helm status -n ${namespace} ${componentPlanName})
+		if [[ $results == "" ]]; then
+			echo "helm status also show ${componentPlanName} removed"
+			break
+		fi
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			helm list -A -a
+			helm status -n ${namespace} ${componentPlanName}
+			exit 1
+		fi
+		sleep 30
+	done
 }
 
 function getPodImage() {
@@ -252,7 +269,7 @@ function getHelmRevision() {
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
 			error "Timeout reached"
-			helm list -A
+			helm list -A -a
 			exit 1
 		fi
 		sleep 5
@@ -293,6 +310,29 @@ function validateComponentPlanStatusLatestValue() {
 		exit 1
 		break
 	fi
+}
+
+function waitComponentPlanRetryTime() {
+	namespace=$1
+	componentPlanName=$2
+	retryTimeWant=$3
+	START_TIME=$(date +%s)
+	while true; do
+		anno=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} -ojson | jq -r '.metadata.annotations["core.kubebb.k8s.com.cn/componentplan-retry"]')
+		if [[ $anno == $retryTimeWant ]]; then
+			echo "componentPlan ${componentPlanName} retry time match"
+			break
+		fi
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			kubectl -n${namespace} get ComponentPlan -o yaml
+			exit 1
+		fi
+		sleep 5
+	done
 }
 
 info "1. create kind cluster"
@@ -393,7 +433,7 @@ getHelmRevision "kubebb-system" "my-nginx" "3"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
-info "5.4 valid long running componentPlan install don not block others to install"
+info "5.4 Verify long running componentPlan install don not block others to install"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_long_ready.yaml
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.spec.name="my-nginx-back"' | kubectl apply -f -
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
@@ -402,11 +442,17 @@ deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready"
 getHelmRevision "kubebb-system" "my-nginx-back" "1"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
-info "5.5 valid can install to other namespace"
+info "5.5 Verify can install to other namespace"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.metadata.namespace="default"' | kubectl apply -f -
 waitComponentPlanDone "default" "do-once-nginx-sample-15.0.2"
 waitPodReady "default" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getHelmRevision "default" "my-nginx" "1"
 deleteComponentPlan "default" "do-once-nginx-sample-15.0.2"
+
+info "5.6 Verify can be successfully uninstalled when install failed"
+kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml --dry-run -o json | jq '.spec.wait=true' | jq '.spec.override.images[0].newTag="xxxxx"' | jq '.spec.timeoutSeconds=30' | kubectl apply -f -
+getPodImage "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2" "docker.io/bitnami/nginx:xxxx"
+waitComponentPlanRetryTime "kubebb-system" "nginx-15.0.2" "5"
+deleteComponentPlan "kubebb-system" "nginx-15.0.2"
 
 info "all finished! ✅"

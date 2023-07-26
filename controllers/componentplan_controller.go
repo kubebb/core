@@ -319,14 +319,18 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		rel, err := helm.InstallOrUpgrade(ctx, getter, r.Client, logger, plan, repo, chartName)
 		if err != nil {
 			r.removeFromPendingMap(plan)
+			installedRevision := revisionNoExist
+			if rel != nil {
+				installedRevision = rel.Version
+			}
 			if revision == revisionNoExist {
 				logger.Error(err, "componentplan install failed")
-				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, true, corev1alpha1.ComponentPlanInstallFailed(err))
+				_ = r.PatchCondition(ctx, plan, logger, installedRevision, false, true, corev1alpha1.ComponentPlanInstallFailed(err))
 				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "InstallationFailure", "%s install failed", plan.GetReleaseName())
 
 			} else {
 				logger.Error(err, "componentplan upgrade failed")
-				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, true, corev1alpha1.ComponentPlanUpgradeFailed(err))
+				_ = r.PatchCondition(ctx, plan, logger, installedRevision, false, true, corev1alpha1.ComponentPlanUpgradeFailed(err))
 				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "UpgradeFailure", "%s upgrade failed", plan.GetReleaseName())
 			}
 			return
