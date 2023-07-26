@@ -74,6 +74,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !instance.DeletionTimestamp.IsZero() {
 		// The object is being deleted.
 		logger.Info("Component is being deleted")
+		return reconcile.Result{}, nil
 	}
 
 	done, err := r.UpdateComponent(ctx, logger, instance)
