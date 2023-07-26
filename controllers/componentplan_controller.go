@@ -137,7 +137,8 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Get RESTClientGetter for helm stuff
-	getter, err := r.buildRESTClientGetter(plan.GetNamespace())
+	impersonateUserName := "" // FiXME: maybe add this field in cpl? and add webhook to avoid changed by others?
+	getter, err := r.buildRESTClientGetter(plan.GetNamespace(), impersonateUserName)
 	if err != nil {
 		logger.Error(err, "Failed to build RESTClientGetter")
 		// if we return err, reconcile will retry immediately.
@@ -449,16 +450,22 @@ func (r *ComponentPlanReconciler) needRetry(plan *corev1alpha1.ComponentPlan) bo
 	return hasRetry < plan.Spec.Config.GetMaxRetry()
 }
 
-func (r *ComponentPlanReconciler) buildRESTClientGetter(ns string) (genericclioptions.RESTClientGetter, error) {
+func (r *ComponentPlanReconciler) buildRESTClientGetter(ns, impersonateUserName string) (genericclioptions.RESTClientGetter, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config for in-cluster REST client: %w", err)
+	}
+	var impersonate string
+	if impersonateUserName != "" {
+		cfg.Impersonate.UserName = impersonateUserName
+		impersonate = impersonateUserName
 	}
 	return &genericclioptions.ConfigFlags{
 		APIServer:   &cfg.Host,
 		CAFile:      &cfg.CAFile,
 		BearerToken: &cfg.BearerToken,
 		Namespace:   &ns,
+		Impersonate: &impersonate,
 	}, nil
 }
 
