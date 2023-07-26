@@ -116,6 +116,9 @@ spec:
                 type: array
               insecure:
                 type: boolean
+              keywordLenLimit:
+                description: KeywordLenLimit the keyword array length limit
+                type: integer
               pullStategy:
                 description: PullStategy for this repository
                 properties:

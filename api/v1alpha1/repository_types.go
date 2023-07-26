@@ -87,6 +87,9 @@ type RepositorySpec struct {
 	Filter []FilterCond `json:"filter,omitempty"`
 	// ImageOverride means replaced images rules for this repository
 	ImageOverride []ImageOverride `json:"imageOverride,omitempty"`
+
+	// KeywordLenLimit the keyword array length limit
+	KeywordLenLimit int `json:"keywordLenLimit,omitempty"`
 }
 
 type PathOverride struct {
