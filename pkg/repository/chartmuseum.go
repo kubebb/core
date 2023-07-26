@@ -42,7 +42,9 @@ import (
 	"github.com/kubebb/core/pkg/helm"
 )
 
-const minIntervalSeconds = 120
+const (
+	minIntervalSeconds = 120
+)
 
 var _ IWatcher = (*chartmuseum)(nil)
 
@@ -273,10 +275,14 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 			})
 
 			if latest {
+				keywords := version.Keywords
+				if r := c.instance.Spec.KeywordLenLimit; r > 0 && len(keywords) > r {
+					keywords = keywords[:r]
+				}
 				components[index].Status.Description = version.Description
 				components[index].Status.Home = version.Home
 				components[index].Status.Icon = version.Icon
-				components[index].Status.Keywords = version.Keywords
+				components[index].Status.Keywords = keywords
 				components[index].Status.Sources = version.Sources
 				latest = false
 			}
