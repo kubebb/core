@@ -82,7 +82,11 @@ else
 	exit 0
 fi
 
-echo "6. git push and create pull request"
+echo "6. sync pipelines"
+cp -r ${GITHUB_WORKSPACE}/pipeline/* charts/kubebb-core/files/
+git add charts/kubebb-core/files
+
+echo "7. git push and create pull request"
 git commit -m "🤖 auto sync kubebb-core release:$latestTag"
 git push --force origin $BRANCH
 gh repo set-default kubebb/components
