@@ -138,8 +138,8 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 	i.WaitForJobs = cpl.Spec.WaitForJobs
 	i.Atomic = cpl.Spec.Atomic
 	i.MaxHistory = cpl.Spec.GetMaxHistory()
-	i.CleanupOnFail = false // TODO: do we need add this args to override?
-	i.SubNotes = false      // we cant see notes or subnotes
+	i.CleanupOnFail = cpl.Spec.CleanupOnFail
+	i.SubNotes = false // we cant see notes or subnotes
 	i.Description = cpl.Spec.Description
 	i.DependencyUpdate = true
 
@@ -171,7 +171,7 @@ func (h *HelmWrapper) uninstall(logger logr.Logger, cpl *corev1alpha1.ComponentP
 	i := action.NewUninstall(h.config)
 	i.DryRun = false // do not need to simulate the installation
 	i.DisableHooks = cpl.Spec.DisableHooks
-	i.KeepHistory = false // TODO: do we need add this args to override?
+	i.KeepHistory = cpl.Spec.KeepHistory
 	i.Timeout = cpl.Spec.Timeout()
 	i.Wait = cpl.Spec.Wait
 	res, err := i.Run(cpl.GetReleaseName())

@@ -43,6 +43,11 @@ spec:
                   the installation process deletes the installation on failure. The
                   --wait flag will be set automatically if --atomic is used
                 type: boolean
+              cleanupOnFail:
+                description: CleanupOnFail is pass to helm upgrade --cleanup-on-fail
+                  allow deletion of new resources created in this upgrade when upgrade
+                  fails
+                type: boolean
               component:
                 description: ComponentRef is a reference to the Component
                 properties:
@@ -115,6 +120,11 @@ spec:
                   the maximum number of revisions saved per release. Use 0 for no
                   limit
                 type: integer
+              keepHistory:
+                description: KeepHistory is paas to helm uninstall --keep-history
+                  remove all associated resources and mark the release as deleted,
+                  but retain the release history.
+                type: boolean
               maxRetry:
                 description: MaxRetry
                 type: integer
