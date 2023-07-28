@@ -15,7 +15,9 @@ Kubebb Core provides core implementations on Component Lifecycle Management.Our 
 
 ## Documentation
 
-See our documentation on [Kubebb Site](http://kubebb.k8s.com.cn) for more details.
+To learn more about KubeBB Core,[go to complete documentation](https://kubebb.github.io/website/).
+
+To get started quickly with KubeBB Core, [go to quick start](https://kubebb.github.io/website/docs/category/快速开始).
 
 ## Contribute to Kubebb-Core
 
