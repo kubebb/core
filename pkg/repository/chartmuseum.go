@@ -154,6 +154,7 @@ func (c *chartmuseum) Poll() {
 			syncCond.Message = fmt.Sprintf("failed to get component synchronization information. %s", err.Error())
 			syncCond.Reason = v1alpha1.ReasonUnavailable
 		} else {
+			syncCond.LastSuccessfulTime = now
 			for _, item := range diffAction[0] {
 				c.logger.Info("create component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
 				if err := c.Create(&item); err != nil && !errors.IsAlreadyExists(err) {

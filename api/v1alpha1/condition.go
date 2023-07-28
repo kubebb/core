@@ -69,6 +69,9 @@ type Condition struct {
 	// status to another.
 	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
 
+	// LastSuccessfulTime is repository Last Successful Update Time
+	LastSuccessfulTime metav1.Time `json:"lastSuccessfulTime,omitempty"`
+
 	// A Reason for this condition's last transition from one status to another.
 	Reason ConditionReason `json:"reason"`
 
