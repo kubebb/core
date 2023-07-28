@@ -149,6 +149,11 @@ spec:
                 items:
                   description: A Condition that may apply to a resource.
                   properties:
+                    lastSuccessfulTime:
+                      description: LastSuccessfulTime is repository Last Successful
+                        Update Time
+                      format: date-time
+                      type: string
                     lastTransitionTime:
                       description: LastTransitionTime is the last time this condition
                         transitioned from one status to another.
