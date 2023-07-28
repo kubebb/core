@@ -147,11 +147,17 @@ func (v *Override) GetValueFileDir(helmCacheHome, namespace, name string) string
 // Greatly inspired by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/install.go#L161
 // And https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/upgrade.go#L70
 // Note: we will helm INSTALL release if not exists or helm UPGRADE if exists.**
+// Note: no --create-namespace, bacause helm relase will install in componentplan's namespace.
+// Note: no --dry-run, bacause no need to config simulate.
+// Note: no --replace, because re-use the given name is not safe in production
+// Note: no --render-subchart-notes, bacause we do not show notes.
 // Note: no --devel config, because it equivalent to version '>0.0.0-0'.
 // Note: no --nameTemplate config, because we need a determined name, nameTemplate may produce different results when it is run multiple times.
 // Note: no --generateName config with the same reason above.
 // Note: no --reset-values or --reuse-values config, because we use Override config
-// TODO: add --verify config after we handle keyring config
+// Note: other args like --username or --cert-file should setted in repo CRD.
+// TODO: should we support --post-renderer and --post-renderer-args ?
+// TODO: add --verify --keyring config after we handle keyring config
 type Config struct {
 	Override Override `json:"override,omitempty"`
 
@@ -201,6 +207,14 @@ type Config struct {
 	// EnableDNS is pass to helm install/upgrade --enable-dns
 	// enable DNS lookups when rendering templates
 	EnableDNS bool `json:"enableDNS,omitempty"`
+
+	// CleanupOnFail is pass to helm upgrade --cleanup-on-fail
+	// allow deletion of new resources created in this upgrade when upgrade fails
+	CleanupOnFail bool `json:"cleanupOnFail,omitempty"`
+
+	// KeepHistory is paas to helm uninstall --keep-history
+	// remove all associated resources and mark the release as deleted, but retain the release history.
+	KeepHistory bool `json:"keepHistory,omitempty"`
 
 	// MaxHistory is pass to helm upgrade --history-max
 	// limit the maximum number of revisions saved per release. Use 0 for no limit
@@ -316,7 +330,7 @@ func Match(fc map[string]FilterCond, filter Filter, funcs ...FilterFunc) ([]int,
 				versions = append(versions, i)
 			}
 		}
-		return versions, len(versions) !=0
+		return versions, len(versions) != 0
 	}
 	// If operation=keep, a version can be kept as long as it satisfies a certain filter function
 	// If operation=ignore, a version is kept only if all filter functions are not satisfied.
