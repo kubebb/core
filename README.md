@@ -2,6 +2,8 @@
 
 [![codecov](https://codecov.io/gh/kubebb/core/branch/main/graph/badge.svg?token=TBPAVEZV2K)](https://codecov.io/gh/kubebb/core)
 
+English | [简体中文](./README_zh.md)
+
 Kubebb Core provides core implementations on Component Lifecycle Management.Our design and development follows [operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) which extends kubernetes APIs.
 
 ![arch](./assets/arch.png)
@@ -21,40 +23,17 @@ To get started quickly with KubeBB Core, [go to quick start](https://kubebb.gith
 
 ## Contribute to Kubebb-Core
 
-If you want to contribute to Kubb Core, refer to [contribute guide](CONTRIBUTING.md).
+If you want to contribute to Kubb Core, refer to [contribute guidelines](https://kubebb.github.io/website/docs/contribute).
 
 ## Roadmap
 
-You can get what we're doing and plan to do here.
-
-### v0.1.0
-
-1. Component Repository Management
-
-- Support `Repository Server` which is compatible with Helm Repository
-- `Watcher` to watch on `Component` changes
-
-2. Component Management
-
-- CRUD on `Components` by the `Watcher`
-
-3. ComponentPlan and Subscription
-
-- Enable users subscribe on latest changes on `Component`
-- Plan a component deployment with `ComponentPlan`
-
-### v0.2.0
-
-1. Enable events on `Component` changes
-2. Adapt to Kubebb building base capabilities
-3. Manage [building base](https://github.com/kubebb/building-base) as a component
-4. Component Rating(Pre-Checks on Component) with the help of [Tekton](https://tekton.dev/)
-5. Support ArgoCD in ComponentPlan
+You can get what we're doing and plan to do at [roadmap](https://kubebb.github.io/website/docs/core/overview#路线图).
 
 ## Acknowledgement
 
 This project is standing on the shoulders of giants. We would like to thank the following projects.
 
+- [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime)
 - [Helm](https://helm.sh/)
 - [OLM](https://github.com/operator-framework/operator-lifecycle-manager)
 - [Fluxcd](https://fluxcd.io/)
