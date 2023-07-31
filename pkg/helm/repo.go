@@ -181,7 +181,7 @@ func RepoUpdate(ctx context.Context, logger logr.Logger, name string, httpReques
 	logger.Info("Hang tight while we grab the latest from your chart repositories...")
 
 	if _, err := wantRepo.DownloadIndexFile(); err != nil {
-		log.Error(err, "Unable to get an update from the %q chart repository (%s)", wantRepo.Config.Name, wantRepo.Config.URL)
+		log.Error(err, fmt.Sprintf("Unable to get an update from the %q chart repository (%s)", wantRepo.Config.Name, wantRepo.Config.URL))
 		return err
 	}
 	log.Info(fmt.Sprintf("Successfully got an update from the %q chart repository", wantRepo.Config.Name))
