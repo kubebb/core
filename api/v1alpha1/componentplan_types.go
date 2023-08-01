@@ -27,6 +27,7 @@ import (
 // ComponentPlanSpec defines the desired state of ComponentPlan
 type ComponentPlanSpec struct {
 	// ComponentRef is a reference to the Component
+	// +kubebuilder:validation:Required
 	ComponentRef *corev1.ObjectReference `json:"component"`
 	// InstallVersion represents the version that is to be installed by this ComponentPlan
 	InstallVersion string `json:"version"`

@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: kubebb/core
-  newTag: latest
+  newTag: example-e2e

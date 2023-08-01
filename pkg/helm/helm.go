@@ -273,7 +273,7 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 	p := getter.All(settings)
 	valueOpts := &values.Options{}
 	for _, valuesFrom := range cpl.Spec.Override.ValuesFrom {
-		fileName, err := utils.ParseValuesReference(ctx, cli, cpl.Namespace, valuesFrom.GetValuesFileDir(helmpath.CachePath(""), cpl.Namespace), valuesFrom)
+		fileName, err := valuesFrom.Parse(ctx, cli, cpl.Namespace, valuesFrom.GetValuesFileDir(helmpath.CachePath(""), cpl.Namespace))
 		if err != nil {
 			return nil, nil, err
 		}

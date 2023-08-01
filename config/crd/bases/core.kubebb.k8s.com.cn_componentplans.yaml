@@ -89,6 +89,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              creator:
+                description: creator is the name of crd creator, filled by webhook
+                type: string
               dependencyUpdate:
                 description: DependencyUpdate is pass to helm install/upgrade --dependency-update
                   update dependencies if they are missing before installing the chart
@@ -112,7 +115,7 @@ spec:
                   enable DNS lookups when rendering templates
                 type: boolean
               force:
-                description: Force is pass to helm upgrade --force force resource
+                description: Force is passed to helm upgrade --force force resource
                   updates through a replacement strategy
                 type: boolean
               historyMax:
@@ -254,6 +257,7 @@ spec:
             required:
             - approved
             - component
+            - name
             - version
             type: object
           status:

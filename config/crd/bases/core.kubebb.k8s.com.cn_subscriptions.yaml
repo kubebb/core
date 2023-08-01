@@ -89,6 +89,9 @@ spec:
                 description: ComponentPlanInstallMethod is the method used to install
                   the component
                 type: string
+              creator:
+                description: creator is the name of crd creator, filled by webhook
+                type: string
               dependencyUpdate:
                 description: DependencyUpdate is pass to helm install/upgrade --dependency-update
                   update dependencies if they are missing before installing the chart
@@ -112,7 +115,7 @@ spec:
                   enable DNS lookups when rendering templates
                 type: boolean
               force:
-                description: Force is pass to helm upgrade --force force resource
+                description: Force is passed to helm upgrade --force force resource
                   updates through a replacement strategy
                 type: boolean
               historyMax:
@@ -286,6 +289,7 @@ spec:
                 type: boolean
             required:
             - component
+            - name
             type: object
           status:
             description: SubscriptionStatus defines the state of Subscription

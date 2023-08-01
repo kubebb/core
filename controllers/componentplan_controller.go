@@ -86,7 +86,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.V(1).Info("Failed to get ComponentPlan")
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
 	}
-	logger = logger.WithValues("Generation", plan.GetGeneration(), "ObservedGeneration", plan.Status.ObservedGeneration)
+	logger = logger.WithValues("Generation", plan.GetGeneration(), "ObservedGeneration", plan.Status.ObservedGeneration, "creator", plan.Spec.Creator)
 	logger.V(1).Info("Get ComponentPlan instance")
 
 	// Get watched component
@@ -137,7 +137,8 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Get RESTClientGetter for helm stuff
-	getter, err := r.buildRESTClientGetter(plan.GetNamespace())
+	impersonateUserName := plan.Spec.Creator
+	getter, err := r.buildRESTClientGetter(plan.GetNamespace(), impersonateUserName)
 	if err != nil {
 		logger.Error(err, "Failed to build RESTClientGetter")
 		// if we return err, reconcile will retry immediately.
@@ -245,7 +246,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Generate a new template Configmap", "ConfigMap", klog.KObj(manifest))
 
 		newPlan := plan.DeepCopy()
-		newPlan.Status.Resources, newPlan.Status.Images, err = utils.GetResourcesAndImages(ctx, logger, r.Client, data, plan.GetNamespace())
+		newPlan.Status.Resources, newPlan.Status.Images, err = corev1alpha1.GetResourcesAndImages(ctx, logger, r.Client, data, plan.GetNamespace())
 		if err != nil {
 			logger.Error(err, "Failed to get resources")
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanWaitDo(err))
@@ -453,16 +454,22 @@ func (r *ComponentPlanReconciler) needRetry(plan *corev1alpha1.ComponentPlan) bo
 	return hasRetry < plan.Spec.Config.GetMaxRetry()
 }
 
-func (r *ComponentPlanReconciler) buildRESTClientGetter(ns string) (genericclioptions.RESTClientGetter, error) {
+func (r *ComponentPlanReconciler) buildRESTClientGetter(ns, impersonateUserName string) (genericclioptions.RESTClientGetter, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config for in-cluster REST client: %w", err)
+	}
+	var impersonate string
+	if impersonateUserName != "" {
+		cfg.Impersonate.UserName = impersonateUserName
+		impersonate = impersonateUserName
 	}
 	return &genericclioptions.ConfigFlags{
 		APIServer:   &cfg.Host,
 		CAFile:      &cfg.CAFile,
 		BearerToken: &cfg.BearerToken,
 		Namespace:   &ns,
+		Impersonate: &impersonate,
 	}, nil
 }
 

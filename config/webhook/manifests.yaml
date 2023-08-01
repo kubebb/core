@@ -1,0 +1,96 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-core-kubebb-k8s-com-cn-v1alpha1-componentplan
+  failurePolicy: Fail
+  name: mcomponentplan.kb.io
+  rules:
+  - apiGroups:
+    - core.kubebb.k8s.com.cn
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - componentplans
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-core-kubebb-k8s-com-cn-v1alpha1-subscription
+  failurePolicy: Fail
+  name: msubscription.kb.io
+  rules:
+  - apiGroups:
+    - core.kubebb.k8s.com.cn
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - subscriptions
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-core-kubebb-k8s-com-cn-v1alpha1-componentplan
+  failurePolicy: Fail
+  name: vcomponentplan.kb.io
+  rules:
+  - apiGroups:
+    - core.kubebb.k8s.com.cn
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - componentplans
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-core-kubebb-k8s-com-cn-v1alpha1-subscription
+  failurePolicy: Fail
+  name: vsubscription.kb.io
+  rules:
+  - apiGroups:
+    - core.kubebb.k8s.com.cn
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - subscriptions
+  sideEffects: None

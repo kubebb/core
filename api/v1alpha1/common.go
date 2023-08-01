@@ -17,6 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -24,9 +27,12 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	hrepo "helm.sh/helm/v3/pkg/repo"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	kustomize "sigs.k8s.io/kustomize/api/types"
 )
 
@@ -143,6 +149,58 @@ func (v *Override) GetValueFileDir(helmCacheHome, namespace, name string) string
 	return filepath.Join(helmCacheHome, "embed."+namespace+"."+name)
 }
 
+// Parse parses ValuesReference
+func (r *ValuesReference) Parse(ctx context.Context, cli client.Client, ns, dir string) (fileName string, err error) {
+	if dir == "" {
+		return "", nil
+	}
+	n := types.NamespacedName{Namespace: ns, Name: r.Name}
+	var data string
+	ok := false
+	switch r.Kind {
+	case "ConfigMap":
+		cm := corev1.ConfigMap{}
+		if err := cli.Get(ctx, n, &cm); err != nil {
+			return "", err
+		}
+		data, ok = cm.Data[r.GetValuesKey()]
+		if !ok || len(data) == 0 {
+			binaryData, ok := cm.BinaryData[r.GetValuesKey()]
+			if !ok || len(binaryData) == 0 {
+				return "", errors.New("no data found in this configmap")
+			}
+			data = string(binaryData)
+		}
+	case "Secret":
+		secret := corev1.Secret{}
+		if err := cli.Get(ctx, n, &secret); err != nil {
+			return "", err
+		}
+		data, ok = secret.StringData[r.GetValuesKey()]
+		if !ok || len(data) == 0 {
+			binaryData, ok := secret.Data[r.GetValuesKey()]
+			if !ok || len(binaryData) == 0 {
+				return "", errors.New("no data found in this secret")
+			}
+			data = string(binaryData)
+		}
+	default:
+		return "", errors.New("no Kind setting found")
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	f, err := os.Create(filepath.Join(dir, r.GetValuesKey()))
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if _, err := f.WriteString(data); err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, r.GetValuesKey()), nil
+}
+
 // Config defines the configuration of the ComponentPlan
 // Greatly inspired by https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/install.go#L161
 // And https://github.com/helm/helm/blob/2398830f183b6d569224ae693ae9215fed5d1372/cmd/helm/upgrade.go#L70
@@ -159,12 +217,16 @@ func (v *Override) GetValueFileDir(helmCacheHome, namespace, name string) string
 // TODO: should we support --post-renderer and --post-renderer-args ?
 // TODO: add --verify --keyring config after we handle keyring config
 type Config struct {
+	// creator is the name of crd creator, filled by webhook
+	Creator string `json:"creator,omitempty"`
+
 	Override Override `json:"override,omitempty"`
 
 	// Name is pass to helm install <chart> <name>, name arg
-	Name string `json:"name,omitempty"`
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
 
-	// Force is pass to helm upgrade --force
+	// Force is passed to helm upgrade --force
 	// force resource updates through a replacement strategy
 	Force bool `json:"force,omitempty"`
 
