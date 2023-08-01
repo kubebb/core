@@ -22,10 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
+	"os"
 
-	"github.com/go-logr/logr"
-	"github.com/kubebb/core/api/v1alpha1"
 	"istio.io/istio/operator/pkg/compare"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -35,7 +33,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeyaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/klog/v2"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
+	"k8s.io/utils/env"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
@@ -122,103 +121,6 @@ func OmitManagedFields(o runtime.Object) runtime.Object {
 	return o
 }
 
-// ComponentPlanDiffIgnorePaths is the list of paths to ignore when comparing
-// These fields will almost certainly change when componentplan is updated, and displaying these
-// changes will only result in more invalid information, so they need to be ignored
-var ComponentPlanDiffIgnorePaths = []string{
-	"metadata.generation",
-	"metadata.resourceVersion",
-	"metadata.labels.helm.sh/chart",
-	"spec.template.metadata.labels.helm.sh/chart",
-}
-
-// GetResourcesAndImages get resource slices, image lists from manifests
-func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Client, data, namespace string) (resources []v1alpha1.Resource, images []string, err error) {
-	manifests, err := SplitYAML([]byte(data))
-	if err != nil {
-		return nil, nil, err
-	}
-	resources = make([]v1alpha1.Resource, len(manifests))
-	for i, manifest := range manifests {
-		obj := manifest
-		if len(obj.GetNamespace()) == 0 {
-			if rs, err := c.RESTMapper().RESTMapping(obj.GroupVersionKind().GroupKind()); err != nil {
-				logger.Error(err, "get RESTMapping err, just ignore", "obj", klog.KObj(obj))
-			} else {
-				if rs.Scope.Name() == meta.RESTScopeNameNamespace {
-					obj.SetNamespace(namespace)
-				} else {
-					obj.SetNamespace("")
-				}
-			}
-		}
-		has := &unstructured.Unstructured{}
-		has.SetKind(obj.GetKind())
-		has.SetAPIVersion(obj.GetAPIVersion())
-		err = c.Get(ctx, client.ObjectKeyFromObject(obj), has)
-		var isNew bool
-		if err != nil && apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
-			isNew = true
-		} else if err != nil {
-			logger.Error(err, "Resource get error, no notFound", "manifest", manifest, "obj", klog.KObj(obj))
-			return nil, nil, err
-		}
-		r := v1alpha1.Resource{
-			Kind:       obj.GetKind(),
-			Name:       obj.GetName(),
-			APIVersion: obj.GetAPIVersion(),
-		}
-		if isNew {
-			r.NewCreated = &isNew
-		} else {
-			diff, err := ResourceDiffStr(ctx, obj, has, ComponentPlanDiffIgnorePaths, c)
-			if err != nil {
-				logger.Error(err, "failed to get diff", "obj", klog.KObj(obj))
-				diffMsg := "diff with exist"
-				r.SpecDiffwithExist = &diffMsg
-			} else if diff == "" {
-				ignore := "no spec diff, but some field like resourceVersion will update"
-				r.SpecDiffwithExist = &ignore
-			} else {
-				r.SpecDiffwithExist = &diff
-			}
-		}
-		resources[i] = r
-		gvk := obj.GroupVersionKind()
-		switch gvk.Group {
-		case "":
-			switch gvk.Kind {
-			case "Pod":
-				images = append(images, GetPodImage(obj)...)
-			}
-		case "apps":
-			switch gvk.Kind {
-			case "Deployment":
-				images = append(images, GetDeploymentImage(obj)...)
-			case "StatefulSet":
-				images = append(images, GetStatefulSetImage(obj)...)
-			}
-		case "batch":
-			switch gvk.Kind {
-			case "Job":
-				images = append(images, GetJobImage(obj)...)
-			case "CronJob":
-				images = append(images, GetCronJobImage(obj)...)
-			}
-		}
-	}
-	imageMap := make(map[string]bool)
-	for _, i := range images {
-		imageMap[i] = true
-	}
-	images = make([]string, 0, len(imageMap))
-	for k := range imageMap {
-		images = append(images, k)
-	}
-	sort.Strings(images)
-	return resources, images, nil
-}
-
 func GetCronJobImage(obj *unstructured.Unstructured) (image []string) {
 	cj := batchv1.CronJob{}
 	_ = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &cj)
@@ -264,4 +166,58 @@ func ParseContainerImage(containers []corev1.Container) (image []string) {
 		image = append(image, container.Image)
 	}
 	return image
+}
+
+const InClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
+func GetNamespace() (string, error) {
+	// Check whether the namespace file exists.
+	// If not, we are not running in cluster so can't guess the namespace.
+	if _, err := os.Stat(InClusterNamespacePath); os.IsNotExist(err) {
+		operatorNamespace := os.Getenv("POD_NAMESPACE")
+		if operatorNamespace == "" {
+			return "", fmt.Errorf("not in cluster and env POD_NAMESPACE not found")
+		}
+		return operatorNamespace, nil
+	} else if err != nil {
+		return "", fmt.Errorf("error checking namespace file: %w", err)
+	}
+
+	// Load the namespace file and return its content
+	namespace, err := os.ReadFile(InClusterNamespacePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading namespace file: %w", err)
+	}
+	return string(namespace), nil
+}
+
+var (
+	operatorUser string
+)
+
+func GetOperatorUser() string {
+	return operatorUser
+}
+
+func SetOperatorUser(ctx context.Context, c client.Client) (string, error) {
+	name := env.GetString("POD_NAME", "")
+	if name == "" {
+		return "", fmt.Errorf("env POD_NAME not set")
+	}
+	ns, err := GetNamespace()
+	if err != nil {
+		return "", err
+	}
+	pod := &corev1.Pod{}
+	pod.Name = name
+	pod.Namespace = ns
+	if err := c.Get(ctx, client.ObjectKeyFromObject(pod), pod); err != nil {
+		return "", err
+	}
+	sa := pod.Spec.ServiceAccountName
+	if sa == "" {
+		sa = pod.Spec.DeprecatedServiceAccount
+	}
+	operatorUser = serviceaccount.MakeUsername(ns, sa)
+	return operatorUser, nil
 }

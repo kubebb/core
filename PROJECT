@@ -24,6 +24,10 @@ resources:
   kind: Subscription
   path: github.com/kubebb/core/api/v1alpha1
   version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
 - api:
     crdVersion: v1
   controller: true
@@ -32,6 +36,10 @@ resources:
   kind: ComponentPlan
   path: github.com/kubebb/core/api/v1alpha1
   version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
 - api:
     crdVersion: v1
   controller: true

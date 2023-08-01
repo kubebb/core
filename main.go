@@ -22,6 +22,7 @@ import (
 	"net/http/pprof"
 	"os"
 
+	"github.com/kubebb/core/pkg/utils"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -89,7 +90,6 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-
 	if err = (&controllers.RepositoryReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -123,6 +123,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Component")
 		os.Exit(1)
 	}
+	if err = (&corev1alpha1.ComponentPlan{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "ComponentPlan")
+		os.Exit(1)
+	}
+	if err = (&corev1alpha1.Subscription{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Subscription")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -133,6 +141,13 @@ func main() {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
+	go func() {
+		if mgr.GetCache().WaitForCacheSync(ctx) {
+			if _, err := utils.SetOperatorUser(ctx, mgr.GetClient()); err != nil {
+				setupLog.Error(err, "unable to set OperatorUser")
+			}
+		}
+	}()
 
 	if enableProfiling {
 		_ = mgr.AddMetricsExtraHandler("/debug/pprof/", http.HandlerFunc(pprof.Index))

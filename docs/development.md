@@ -14,6 +14,13 @@ operator-sdk init --domain kubebb.k8s.com.cn --component-config true --owner kub
 operator-sdk create api --resource --controller --namespaced=false --group core --version v1alpha1 --kind Repository
 ```
 
+## Create a WebHook
+
+```bash
+operator-sdk create webhook --group core --version v1alpha1 --kind ComponentPlan --defaulting --programmatic-validation --verbose
+```
+And change to `CustomDefaulter` and `CustomValidator` in `webhook.go` file.
+
 ### Regenerate after changes on CRD
 
 ```bash
