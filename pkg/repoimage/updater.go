@@ -62,6 +62,9 @@ func (u updater) SetImageValue(rn *yaml.RNode) error {
 		}
 		if o.PathOverride.Path == path {
 			newPath = o.PathOverride.NewPath
+			if o.PathOverride.NewPath == "" {
+				newPath = " "
+			}
 		}
 	}
 	if newRegistry != "" || newPath != "" {
@@ -70,7 +73,9 @@ func (u updater) SetImageValue(rn *yaml.RNode) error {
 			v[0] = newRegistry
 		}
 		if newPath != "" {
-			v = append(v, newPath)
+			if strings.TrimSpace(newPath) != "" {
+				v = append(v, newPath)
+			}
 		} else if path != "" {
 			v = append(v, path)
 		}

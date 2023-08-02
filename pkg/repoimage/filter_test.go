@@ -239,7 +239,41 @@ spec:
 				},
 			},
 		},
-
+		"update with path, newPath is empty": {
+			input: `
+apiVersion: example.com/v1
+kind: Foo
+metadata:
+  name: instance
+spec:
+  image: docker.io/kubebb/nginx:1.2.1
+`,
+			expectedOutput: `
+apiVersion: example.com/v1
+kind: Foo
+metadata:
+  name: instance
+spec:
+  image: docker.cc/nginx:1.2.1
+`,
+			filter: Filter{
+				ImageOverride: []corev1alpha1.ImageOverride{
+					{
+						Registry:    "docker.io",
+						NewRegistry: "docker.cc",
+						PathOverride: &corev1alpha1.PathOverride{
+							Path:    "kubebb",
+							NewPath: "",
+						},
+					},
+				},
+			},
+			fsSlice: []types.FieldSpec{
+				{
+					Path: "spec/image",
+				},
+			},
+		},
 		"update multiple paths and registry": {
 			input: `
 apiVersion: example.com/v1
