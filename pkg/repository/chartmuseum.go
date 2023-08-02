@@ -180,6 +180,16 @@ func (c *chartmuseum) Poll() {
 		c.logger.Error(err, "try to update repository, but failed to get the latest version.", "readyCond", readyCond, "syncCond", syncCond)
 	} else {
 		iDeepCopy := i.DeepCopy()
+		// If the LastSuccessfultime is empty, it means that this synchronization failed,
+		// find the time when the latest synchronization was successful.
+		if syncCond.LastSuccessfulTime.IsZero() {
+			for _, cond := range iDeepCopy.Status.Conditions {
+				if cond.Type == v1alpha1.TypeSynced && !cond.LastSuccessfulTime.IsZero() {
+					syncCond.LastSuccessfulTime = cond.LastSuccessfulTime
+					break
+				}
+			}
+		}
 		iDeepCopy.Status.SetConditions(readyCond, syncCond)
 		if err := c.c.Status().Patch(c.ctx, iDeepCopy, client.MergeFrom(&i)); err != nil {
 			c.logger.Error(err, "failed to patch repository status")
