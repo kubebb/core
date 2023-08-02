@@ -87,7 +87,9 @@ func (c Condition) Equal(other Condition) bool {
 	return c.Type == other.Type &&
 		c.Status == other.Status &&
 		c.Reason == other.Reason &&
-		c.Message == other.Message
+		c.Message == other.Message &&
+		c.LastSuccessfulTime.Equal(&other.LastSuccessfulTime) &&
+		c.LastTransitionTime.Equal(&other.LastTransitionTime)
 }
 
 // WithMessage returns a condition by adding the provided message to existing
