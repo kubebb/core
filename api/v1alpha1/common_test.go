@@ -776,3 +776,85 @@ func TestIsCondSame(t *testing.T) {
 		}
 	}
 }
+
+func TestEqual(t *testing.T) {
+	testCases := []struct {
+		name   string
+		a, b   ComponentVersion
+		expect bool
+	}{
+		{
+			name: "digest is different",
+			a: ComponentVersion{
+				Digest: "123",
+			},
+			b: ComponentVersion{
+				Digest: "456",
+			},
+			expect: false,
+		},
+		{
+			name: "appVersion is different",
+			a: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v1",
+			},
+			b: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v2",
+			},
+			expect: false,
+		},
+		{
+			name: "version is different",
+			a: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v1",
+				Version:    "v1",
+			},
+			b: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v1",
+				Version:    "v2",
+			},
+			expect: false,
+		},
+		{
+			name: "deprecated is different",
+			a: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v1",
+				Version:    "v1",
+				Deprecated: false,
+			},
+			b: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v1",
+				Version:    "v1",
+				Deprecated: true,
+			},
+			expect: false,
+		},
+		{
+			name: "deprecated is different",
+			a: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v1",
+				Version:    "v1",
+				Deprecated: false,
+			},
+			b: ComponentVersion{
+				Digest:     "123",
+				AppVersion: "app-v1",
+				Version:    "v1",
+				Deprecated: false,
+			},
+			expect: true,
+		},
+	}
+	for _, tc := range testCases {
+		if r := tc.a.Equal(&tc.b); r != tc.expect {
+			t.Fatalf("Test Failed: %s, expected: %v, got: %v", tc.name, tc.expect, r)
+		}
+	}
+}
