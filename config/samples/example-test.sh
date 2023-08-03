@@ -123,7 +123,7 @@ function info() {
 	cecho -c 'blue' "$@"
 }
 
-function waitComponentSatus() {
+function waitComponentStatus() {
 	namespace=$1
 	componentName=$2
 	START_TIME=$(date +%s)
@@ -367,7 +367,7 @@ kubectl kustomize config/crd | kubectl apply -f -
 info "3 try to verify that the common steps are valid"
 info "3.1 create bitnami repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_bitnami.yaml
-waitComponentSatus "kubebb-system" "repository-bitnami-sample.nginx"
+waitComponentStatus "kubebb-system" "repository-bitnami-sample.nginx"
 
 info "3.2 create nginx componentplan"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
@@ -401,7 +401,7 @@ deleteComponentPlan "kubebb-system" "nginx-replicas-example-2"
 info "4 try to verify that the repository imageOverride steps are valid"
 info "4.1 create repository-grafana-sample-image repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_grafana_image_repo_override.yaml
-waitComponentSatus "kubebb-system" "repository-grafana-sample-image.grafana"
+waitComponentStatus "kubebb-system" "repository-grafana-sample-image.grafana"
 
 info "4.2 create grafana subscription"
 kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml

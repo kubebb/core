@@ -96,6 +96,7 @@ type chartmuseum struct {
 	filterMap map[string]v1alpha1.FilterCond
 }
 
+// Start the chartmuseum
 func (c *chartmuseum) Start() {
 	c.logger.Info("Start to fetch")
 	_ = helm.RepoRemove(c.ctx, c.logger, c.repoName)
@@ -110,6 +111,7 @@ func (c *chartmuseum) Start() {
 	go wait.Until(c.Poll, c.duration, c.ctx.Done())
 }
 
+// Stop the chartmuseum
 func (c *chartmuseum) Stop() {
 	c.logger.Info("Delete Or Update Repository, stop watcher")
 	if err := helm.RepoRemove(c.ctx, c.logger, c.repoName); err != nil {
@@ -118,6 +120,7 @@ func (c *chartmuseum) Stop() {
 	c.cancel()
 }
 
+// Poll the components
 func (c *chartmuseum) Poll() {
 	now := metav1.Now()
 	readyCond := v1alpha1.Condition{
@@ -129,7 +132,7 @@ func (c *chartmuseum) Poll() {
 	syncCond := v1alpha1.Condition{
 		Status:             v1.ConditionTrue,
 		LastTransitionTime: now,
-		Message:            "index yaml synced successfully, createing components",
+		Message:            "index yaml synced successfully, creating components",
 		Type:               v1alpha1.TypeSynced,
 	}
 
@@ -197,6 +200,7 @@ func (c *chartmuseum) Poll() {
 	}
 }
 
+// Create the component and update it in the k8s client
 func (c *chartmuseum) Create(component *v1alpha1.Component) error {
 	status := component.Status
 	if err := c.c.Create(c.ctx, component); err != nil {
@@ -206,14 +210,17 @@ func (c *chartmuseum) Create(component *v1alpha1.Component) error {
 	return c.Update(component)
 }
 
+// Update the component in the k8s clientt
 func (c *chartmuseum) Update(component *v1alpha1.Component) error {
 	return c.c.Status().Update(c.ctx, component)
 }
 
+// Delete the component in the k8s client
 func (c *chartmuseum) Delete(component *v1alpha1.Component) error {
 	return c.Update(component)
 }
 
+// fetchIndexYaml get the index.yaml file
 func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
 	var settings = cli.New()
 	repoCache := settings.RepositoryCache
@@ -230,6 +237,7 @@ func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
 	return &repositories, nil
 }
 
+// indexFileToComponent gets the component from the index file
 func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha1.Component {
 	components := make([]v1alpha1.Component, len(indexFile.Entries))
 	index := 0

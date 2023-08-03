@@ -34,7 +34,7 @@ func InstallOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGe
 
 // Uninstall installs a helm chart to the cluster
 func Uninstall(ctx context.Context, getter genericclioptions.RESTClientGetter, logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (err error) {
-	h, err := NewHelmWarpper(getter, cpl.Namespace, logger)
+	h, err := NewHelmWrapper(getter, cpl.Namespace, logger)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func Uninstall(ctx context.Context, getter genericclioptions.RESTClientGetter, l
 
 // GetLastRelease get last release revision
 func GetLastRelease(getter genericclioptions.RESTClientGetter, logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (rel *release.Release, err error) {
-	h, err := NewHelmWarpper(getter, cpl.Namespace, logger)
+	h, err := NewHelmWrapper(getter, cpl.Namespace, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func GetManifests(ctx context.Context, getter genericclioptions.RESTClientGetter
 
 // installOrUpgrade installs / ungrade a helm chart to the cluster
 func installOrUpgrade(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, dryRun bool, chartName string) (rel *release.Release, err error) {
-	h, err := NewHelmWarpper(getter, cpl.Namespace, logger)
+	h, err := NewHelmWrapper(getter, cpl.Namespace, logger)
 	if err != nil {
 		return nil, err
 	}
