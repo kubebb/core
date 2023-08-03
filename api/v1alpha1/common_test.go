@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"helm.sh/helm/v3/pkg/chart"
 	hrepo "helm.sh/helm/v3/pkg/repo"
@@ -902,6 +903,56 @@ func TestGetValuesFileDir(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		if r := tc.obj.GetValuesFileDir(tc.helmCacheHome, tc.namespace); r != tc.expect {
+			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+		}
+	}
+}
+
+// TestTimeout for Config.Timeout
+func TestTimeout(t *testing.T) {
+	testCases := []struct {
+		obj    Config
+		expect time.Duration
+	}{
+		{obj: Config{TimeOutSeconds: 30}, expect: time.Duration(30 * time.Second)},
+		{obj: Config{}, expect: time.Duration(300 * time.Second)},
+	}
+	for _, tc := range testCases {
+		if r := tc.obj.Timeout(); r.Seconds() != tc.expect.Seconds() {
+			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect.Seconds(), r.Seconds())
+		}
+	}
+}
+
+// TestGetMaxHisotry for Config.GetMaxHisotry
+func TestGetMaxHisotry(t *testing.T) {
+	maxHistory := 60
+	testCases := []struct {
+		obj    Config
+		expect int
+	}{
+		{obj: Config{}, expect: 10},
+		{obj: Config{MaxHistory: &maxHistory}, expect: 60},
+	}
+	for _, tc := range testCases {
+		if r := tc.obj.GetMaxHistory(); r != tc.expect {
+			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+		}
+	}
+}
+
+// TestGetMaxHisotry for Config.GetMaxRetry
+func TestGetMaxRetry(t *testing.T) {
+	maxRetry := 60
+	testCases := []struct {
+		obj    Config
+		expect int
+	}{
+		{obj: Config{}, expect: 5},
+		{obj: Config{MaxRetry: &maxRetry}, expect: 60},
+	}
+	for _, tc := range testCases {
+		if r := tc.obj.GetMaxRetry(); r != tc.expect {
 			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
 		}
 	}
