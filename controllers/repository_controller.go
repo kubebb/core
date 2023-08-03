@@ -200,7 +200,7 @@ func (r *RepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			UpdateFunc: r.OnRepositryUpdate,
 			DeleteFunc: func(de event.DeleteEvent) bool {
 				obj := de.Object.(*v1alpha1.Repository)
-				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Created", "delete repository %s", obj.GetName())
+				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Deleted", "delete repository %s", obj.GetName())
 				return true
 			},
 		})).

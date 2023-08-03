@@ -52,8 +52,8 @@ type HelmWrapper struct {
 	config *action.Configuration
 }
 
-// newHelmWarpper returns a new helmWrapper instance
-func NewHelmWarpper(getter genericclioptions.RESTClientGetter, namespace string, logger logr.Logger) (*HelmWrapper, error) {
+// NewHelmWrapper returns a new helmWrapper instance
+func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string, logger logr.Logger) (*HelmWrapper, error) {
 	cfg := new(action.Configuration)
 	if err := cfg.Init(getter, namespace, os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
 		logger.V(1).Info(fmt.Sprintf(format, v...))
@@ -194,7 +194,8 @@ func (h *HelmWrapper) getLastRelease(releaseName string) (*release.Release, erro
 	return rel, err
 }
 
-// chartDownload
+// chartDownload uses the chartName to download the chart
+// The Repo url is stored in the ChartPathOptions
 func (h *HelmWrapper) chartDownload(chartName string, logger logr.Logger, i action.ChartPathOptions) (string, error) {
 	buf := new(strings.Builder)
 	defer func() {
