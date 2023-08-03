@@ -858,3 +858,51 @@ func TestEqual(t *testing.T) {
 		}
 	}
 }
+
+// TestGetValuesKey for ValuesReference.GetValuesKey
+func TestGetValuesKey(t *testing.T) {
+	testCases := []struct {
+		obj    ValuesReference
+		expect string
+	}{
+		{obj: ValuesReference{}, expect: "values.yaml"},
+		{obj: ValuesReference{ValuesKey: "new-values.yaml"}, expect: "new-values.yaml"},
+	}
+	for _, tc := range testCases {
+		if r := tc.obj.GetValuesKey(); r != tc.expect {
+			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+		}
+	}
+}
+
+// TestGetValuesFileDir for ValuesReference.GetValuesFileDir
+func TestGetValuesFileDir(t *testing.T) {
+	testCases := []struct {
+		obj                              ValuesReference
+		helmCacheHome, namespace, expect string
+	}{
+		{
+			obj: ValuesReference{
+				Name: "abc",
+				Kind: "Secret",
+			},
+			helmCacheHome: "./home",
+			namespace:     "abc",
+			expect:        "home/secret.abc.abc",
+		},
+		{
+			obj: ValuesReference{
+				Name: "def",
+				Kind: "ConfigMap",
+			},
+			helmCacheHome: "/opt/helm",
+			namespace:     "kube-system",
+			expect:        "/opt/helm/configmap.kube-system.def",
+		},
+	}
+	for _, tc := range testCases {
+		if r := tc.obj.GetValuesFileDir(tc.helmCacheHome, tc.namespace); r != tc.expect {
+			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+		}
+	}
+}
