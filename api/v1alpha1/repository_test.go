@@ -18,10 +18,12 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
 	"reflect"
 	"testing"
 )
 
+// TestNamespacedName tests repository.NamespacedName
 func TestNamespacedName(t *testing.T) {
 	testCases := []struct {
 		description string
@@ -78,6 +80,144 @@ func TestNamespacedName(t *testing.T) {
 	for _, testCase := range testCases {
 		if !reflect.DeepEqual(testCase.repo.NamespacedName(), testCase.expected) {
 			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.repo.NamespacedName())
+		}
+	}
+}
+
+// TestIsPullStrategySame tests repository.IsPullStrategySame
+func TestIsPullStrategySame(t *testing.T) {
+	testCases := []struct {
+		description string
+		name        string
+		pullA       *PullStategy
+		pullB       *PullStategy
+
+		expected bool
+	}{
+		{
+			description: "two equivalent pull strategies",
+			name:        "test",
+			pullA: &PullStategy{
+				IntervalSeconds: 120,
+				Retry:           5,
+			},
+			pullB: &PullStategy{
+				IntervalSeconds: 120,
+				Retry:           5,
+			},
+
+			expected: true,
+		},
+		{
+			description: "two pull strategies with different retries",
+			name:        "test",
+			pullA: &PullStategy{
+				IntervalSeconds: 120,
+				Retry:           5,
+			},
+			pullB: &PullStategy{
+				IntervalSeconds: 120,
+				Retry:           7,
+			},
+
+			expected: false,
+		},
+		{
+			description: "two pull strategies with different interval seconds",
+			name:        "test",
+			pullA: &PullStategy{
+				IntervalSeconds: 120,
+				Retry:           5,
+			},
+			pullB: &PullStategy{
+				IntervalSeconds: 240,
+				Retry:           5,
+			},
+
+			expected: false,
+		},
+		{
+			description: "two pull strategies with different values",
+			name:        "test",
+			pullA: &PullStategy{
+				IntervalSeconds: 120,
+				Retry:           5,
+			},
+			pullB: &PullStategy{
+				IntervalSeconds: 240,
+				Retry:           7,
+			},
+
+			expected: false,
+		},
+		{
+			description: "one pull strategy is nil",
+			name:        "test",
+			pullA: &PullStategy{
+				IntervalSeconds: 120,
+				TimeoutSeconds:  600,
+			},
+			pullB: nil,
+
+			expected: false,
+		},
+		{
+			description: "both pull strategies are nil",
+			name:        "test",
+			pullA:       nil,
+			pullB:       nil,
+
+			expected: true,
+		},
+	}
+	for _, testCase := range testCases {
+		result := IsPullStrategySame(testCase.pullA, testCase.pullB)
+		if !reflect.DeepEqual(result, testCase.expected) {
+			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, result)
+		}
+	}
+}
+
+// TestGetImageOverridePath tests repository.GetImageOverridePath
+func TestGetImageOverridePath(t *testing.T) {
+	testCases := []struct {
+		description string
+		name        string
+		env         string
+
+		expected []string
+	}{
+		{
+			description: "Test with an empty environment",
+			name:        "test",
+			env:         "",
+
+			expected: []string{"spec/containers/image",
+				"spec/initContainers/image",
+				"spec/template/spec/containers/image",
+				"spec/template/spec/initContainers/image"},
+		},
+		{
+			description: "Test with a nonempty environment",
+			name:        "test",
+			env:         "spec/initContainers/images:spec/notExisting/path:spec/andAnother/one",
+
+			expected: []string{"spec/initContainers/images",
+				"spec/notExisting/path",
+				"spec/andAnother/one",
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		env := os.Getenv("IMAGEOVERRIDE_PATH")
+		if len(testCase.env) != 0 {
+			os.Setenv("IMAGEOVERRIDE_PATH", testCase.env)
+		}
+		if !reflect.DeepEqual(GetImageOverridePath(), testCase.expected) {
+			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, GetImageOverridePath())
+		}
+		if len(testCase.env) != 0 {
+			os.Setenv("IMAGEOVERRIDE_PATH", env)
 		}
 	}
 }
