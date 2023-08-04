@@ -27,7 +27,7 @@ If you want to contribute to Kubb Core, refer to [contribute guidelines](https:/
 
 ## Roadmap
 
-You can get what we're doing and plan to do at [roadmap](https://kubebb.github.io/website/docs/core/overview#路线图).
+You can get what we're doing and plan to do at [roadmap](https://kubebb.github.io/website/docs/core/roadmap).
 
 ## Acknowledgement
 

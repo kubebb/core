@@ -27,7 +27,7 @@ Kubebb Core 提供了组件生命周期管理的核心实现。我们的设计�
 
 ## 路线图
 
-您可以在[路线图](https://kubebb.github.io/website/docs/core/overview#路线图)中了解我们正在做什么和计划做什么。
+您可以在[路线图](https://kubebb.github.io/website/docs/core/roadmap)中了解我们正在做什么和计划做什么。
 
 ## 致谢
 
