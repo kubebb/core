@@ -90,6 +90,8 @@ type chartmuseum struct {
 	duration time.Duration
 	repoName string
 
+	username  string
+	password  string
 	c         client.Client
 	logger    logr.Logger
 	scheme    *runtime.Scheme
@@ -100,7 +102,17 @@ type chartmuseum struct {
 func (c *chartmuseum) Start() {
 	c.logger.Info("Start to fetch")
 	_ = helm.RepoRemove(c.ctx, c.logger, c.repoName)
-	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL, c.duration/2); err != nil {
+	if c.instance.Spec.AuthSecret != "" {
+		i := v1.Secret{}
+		if err := c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.Spec.AuthSecret, Namespace: c.instance.GetNamespace()}, &i); err != nil {
+			c.logger.Error(err, "Failed to get secret")
+			return
+		}
+		c.username = string(i.Data[v1alpha1.Username])
+		c.password = string(i.Data[v1alpha1.Password])
+	}
+
+	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL, c.username, c.password, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to add repository")
 		return
 	}

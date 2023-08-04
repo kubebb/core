@@ -81,8 +81,8 @@ func allProviders(settings *cli.EnvSettings, httpRequestTimeout time.Duration) g
 
 // RepoAdd
 // inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_add.go
-func RepoAdd(ctx context.Context, logger logr.Logger, name, url string, httpRequestTimeout time.Duration) (err error) {
-	entry := repo.Entry{Name: name, URL: url} // TODO add auth args
+func RepoAdd(ctx context.Context, logger logr.Logger, name, url, username, password string, httpRequestTimeout time.Duration) (err error) {
+	entry := repo.Entry{Name: name, URL: url, Username: username, Password: password}
 	repoFile := settings.RepositoryConfig
 	repoCache := settings.RepositoryCache
 
