@@ -837,7 +837,7 @@ func TestEqual(t *testing.T) {
 			expect: false,
 		},
 		{
-			name: "deprecated is different",
+			name: "deprecated are both false",
 			a: ComponentVersion{
 				Digest:     "123",
 				AppVersion: "app-v1",

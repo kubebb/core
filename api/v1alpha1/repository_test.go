@@ -23,7 +23,7 @@ import (
 	"testing"
 )
 
-// TestNamespacedName tests repository.NamespacedName
+// TestNamespacedName tests Repository.NamespacedName
 func TestNamespacedName(t *testing.T) {
 	testCases := []struct {
 		description string
@@ -84,11 +84,10 @@ func TestNamespacedName(t *testing.T) {
 	}
 }
 
-// TestIsPullStrategySame tests repository.IsPullStrategySame
+// TestIsPullStrategySame tests IsPullStrategySame
 func TestIsPullStrategySame(t *testing.T) {
 	testCases := []struct {
 		description string
-		name        string
 		pullA       *PullStategy
 		pullB       *PullStategy
 
@@ -96,7 +95,6 @@ func TestIsPullStrategySame(t *testing.T) {
 	}{
 		{
 			description: "two equivalent pull strategies",
-			name:        "test",
 			pullA: &PullStategy{
 				IntervalSeconds: 120,
 				Retry:           5,
@@ -110,7 +108,6 @@ func TestIsPullStrategySame(t *testing.T) {
 		},
 		{
 			description: "two pull strategies with different retries",
-			name:        "test",
 			pullA: &PullStategy{
 				IntervalSeconds: 120,
 				Retry:           5,
@@ -124,7 +121,6 @@ func TestIsPullStrategySame(t *testing.T) {
 		},
 		{
 			description: "two pull strategies with different interval seconds",
-			name:        "test",
 			pullA: &PullStategy{
 				IntervalSeconds: 120,
 				Retry:           5,
@@ -138,7 +134,6 @@ func TestIsPullStrategySame(t *testing.T) {
 		},
 		{
 			description: "two pull strategies with different values",
-			name:        "test",
 			pullA: &PullStategy{
 				IntervalSeconds: 120,
 				Retry:           5,
@@ -152,7 +147,6 @@ func TestIsPullStrategySame(t *testing.T) {
 		},
 		{
 			description: "one pull strategy is nil",
-			name:        "test",
 			pullA: &PullStategy{
 				IntervalSeconds: 120,
 				TimeoutSeconds:  600,
@@ -163,7 +157,6 @@ func TestIsPullStrategySame(t *testing.T) {
 		},
 		{
 			description: "both pull strategies are nil",
-			name:        "test",
 			pullA:       nil,
 			pullB:       nil,
 
@@ -178,18 +171,16 @@ func TestIsPullStrategySame(t *testing.T) {
 	}
 }
 
-// TestGetImageOverridePath tests repository.GetImageOverridePath
+// TestGetImageOverridePath tests GetImageOverridePath
 func TestGetImageOverridePath(t *testing.T) {
 	testCases := []struct {
 		description string
-		name        string
 		env         string
 
 		expected []string
 	}{
 		{
 			description: "Test with an empty environment",
-			name:        "test",
 			env:         "",
 
 			expected: []string{"spec/containers/image",
@@ -199,7 +190,6 @@ func TestGetImageOverridePath(t *testing.T) {
 		},
 		{
 			description: "Test with a nonempty environment",
-			name:        "test",
 			env:         "spec/initContainers/images:spec/notExisting/path:spec/andAnother/one",
 
 			expected: []string{"spec/initContainers/images",

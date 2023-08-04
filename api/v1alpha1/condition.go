@@ -81,8 +81,7 @@ type Condition struct {
 	Message string `json:"message,omitempty"`
 }
 
-// Equal returns true if the condition is identical to the supplied condition,
-// ignoring the LastTransitionTime.
+// Equal returns true if the condition is identical to the supplied condition
 func (c Condition) Equal(other Condition) bool {
 	return c.Type == other.Type &&
 		c.Status == other.Status &&
