@@ -86,6 +86,9 @@ type MenuSpec struct {
 	// 父菜单 ID
 	// +optional
 	Parent string `json:"parent,omitempty"`
+	// +optional
+	// FIXME: deprecate this when `AutoMenus` supported
+	ParentOwnerReferences metav1.OwnerReference `json:"parentOwnerReferences,omitempty"`
 	// menu 显示控制
 	// +optional
 	Disabled bool `json:"disabled,omitempty"`
