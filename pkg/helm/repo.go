@@ -79,8 +79,11 @@ func allProviders(settings *cli.EnvSettings, httpRequestTimeout time.Duration) g
 	return result
 }
 
-// RepoAdd
+// RepoAdd adds a chart repository
 // inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_add.go
+// some difference with `helm repo add` command
+// 1. when the same repo name is added, it will overwrite
+// 2. many options we do not need now are not supported yet.
 func RepoAdd(ctx context.Context, logger logr.Logger, name, url, username, password string, httpRequestTimeout time.Duration) (err error) {
 	entry := repo.Entry{Name: name, URL: url, Username: username, Password: password}
 	repoFile := settings.RepositoryConfig
@@ -148,6 +151,9 @@ func RepoAdd(ctx context.Context, logger logr.Logger, name, url, username, passw
 
 // RepoUpdate
 // inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_update.go#L117
+// some difference with `helm repo update` command
+// 1. only support update one repo
+// 2. many options we do not need now are not supported yet.
 func RepoUpdate(ctx context.Context, logger logr.Logger, name string, httpRequestTimeout time.Duration) (err error) {
 	log := logger.WithValues("name", name)
 	repoFile := settings.RepositoryConfig
@@ -164,10 +170,12 @@ func RepoUpdate(ctx context.Context, logger logr.Logger, name string, httpReques
 	}
 
 	var wantRepo *repo.ChartRepository
+	var found bool
 	for _, cfg := range f.Repositories {
 		if cfg.Name != name {
 			continue
 		}
+		found = true
 		wantRepo, err = repo.NewChartRepository(cfg, allProviders(settings, httpRequestTimeout))
 
 		if err != nil {
@@ -176,6 +184,9 @@ func RepoUpdate(ctx context.Context, logger logr.Logger, name string, httpReques
 		if repoCache != "" {
 			wantRepo.CachePath = repoCache
 		}
+	}
+	if !found {
+		return errors.Errorf("no repositories found matching '%s'.  Nothing will be updated", name)
 	}
 
 	logger.Info("Hang tight while we grab the latest from your chart repositories...")
@@ -190,6 +201,9 @@ func RepoUpdate(ctx context.Context, logger logr.Logger, name string, httpReques
 
 // RepoRemove
 // inspire by https://github.com/helm/helm/blob/dbc6d8e20fe1d58d50e6ed30f09a04a77e4c68db/cmd/helm/repo_remove.go#L117
+// some difference with `helm repo remove` command
+// 1. only support remove one repo
+// 2. many options we do not need now are not supported yet.
 func RepoRemove(ctx context.Context, logger logr.Logger, name string) (err error) {
 	log := logger.WithValues("name", name)
 	repoFile := settings.RepositoryConfig
