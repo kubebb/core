@@ -1,5 +1,0 @@
-- [minio](../minio): https://github.com/minio/minio/tree/2f9e2147f501d290b3363064fa347afb36cb0c93/helm/minio Complete unmodified quotation, copyright of the original author, for testing purposes only
-- [api-versions](../api-versions): test helm `--api-versions strings Kubernetes api versions used for Capabilities.APIVersions`
-- [crds](../crds): test helm `--skip-crds if set, no CRDs will be installed. By default, CRDs are installed if not already present`
-- [dependency](../dependency): test helm dependency chart
-- [hooks](../hooks): test helm hooks
