@@ -23,7 +23,7 @@ if [[ $RUNNER_DEBUG -eq 1 ]] || [[ $GITHUB_RUN_ATTEMPT -gt 1 ]]; then
 fi
 export TERM=xterm-color
 
-KindName="kind"
+KindName="kubebb-core"
 TimeoutSeconds=${TimeoutSeconds:-"300"}
 HelmTimeout=${HelmTimeout:-"1800s"}
 KindVersion=${KindVersion:-"v1.24.4"}
@@ -336,33 +336,22 @@ function waitComponentPlanRetryTime() {
 }
 
 info "1. create kind cluster"
-git clone https://github.com/kubebb/building-base.git ${InstallDirPath} || true
-cd ${InstallDirPath}
-export IGNORE_FIXED_IMAGE_LOAD=YES
-. ./scripts/kind.sh
+make kind
 
 info "2. install kubebb core"
-info "2.1 Add kubebb chart repository"
-helm repo add kubebb https://kubebb.github.io/components
-helm repo update kubebb
+info "2.1 install cert-manager for kubebb core webhook"
+helm repo add --force-update jetstack https://charts.jetstack.io
+helm repo update jetstack
+helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace \
+	--version v1.12.0 \
+	--set prometheus.enabled=false \
+	--set installCRDs=true
 
-info "2.2 search kubebb"
-search_result=$(helm search repo kubebb/kubebb)
-if [[ $search_result == "No results found" ]]; then
-	error "not found chart kubebb/kubebb"
-	exit 1
-fi
-
-info "2.3 intall kubebb release kubebb in namesapce kubebb-system"
-info "2.3.1 create namespace kubebb-system"
-kubectl create ns kubebb-system
-
-info "2.3.2 create kubebb release"
+info "2.2 deploy kubebb/core"
 docker tag kubebb/core:latest kubebb/core:example-e2e
-kind load docker-image kubebb/core:example-e2e
-helm -nkubebb-system install kubebb kubebb/kubebb --set deployment.image=kubebb/core:example-e2e --wait
-cd ${RootPath}
-kubectl kustomize config/crd | kubectl apply -f -
+kind load docker-image kubebb/core:example-e2e --name=$KindName
+make deploy IMG="kubebb/core:example-e2e"
+kubectl wait deploy -n kubebb-system kubebb-controller-manager --for condition=Available=True
 
 info "3 try to verify that the common steps are valid"
 info "3.1 create bitnami repository"
@@ -454,5 +443,46 @@ kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml 
 getPodImage "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2" "docker.io/bitnami/nginx:xxxx"
 waitComponentPlanRetryTime "kubebb-system" "nginx-15.0.2" "5"
 deleteComponentPlan "kubebb-system" "nginx-15.0.2"
+
+info "5.7 verify common user can create componentplan, but they must have permissions."
+info "5.7.1 create a sa with deploy and svc permissions, but no ingress"
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  creationTimestamp: null
+  name: usera
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: usera
+  namespace: default
+rules:
+- apiGroups: ["", "extensions", "apps", "core.kubebb.k8s.com.cn"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: usera
+  namespace: default
+subjects:
+- kind: User
+  name: usera
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: usera
+EOF
+info "5.7.2 Verify that this user can't create ingress"
+kubectl create ingress simple --rule="foo.com/bar=svc1:8080" --as=usera || true
+info "5.7.3 Use this user to create componentplan"
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.metadata.namespace="default"' | jq '.spec.override.set[0]="ingress.enabled=true"' | kubectl apply --as=usera -f -
+waitComponentPlanRetryTime "default" "do-once-nginx-sample-15.0.2" "5"
+info "5.7.4 verify this componentplan will failed, show error log"
+kubectl get cpl do-once-nginx-sample-15.0.2 --output='jsonpath={.status.conditions[?(@.type=="Actioned")]}'
 
 info "all finished! ✅"

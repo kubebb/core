@@ -37,6 +37,15 @@ spec:
       - command:
         - /manager
         image: controller:latest
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         imagePullPolicy: IfNotPresent
         name: manager
         securityContext:

@@ -17,8 +17,18 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
+	"sort"
+
+	"github.com/go-logr/logr"
+	"github.com/kubebb/core/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -146,4 +156,101 @@ func (c *ComponentPlan) InActionedReason(cr ConditionReason) bool {
 
 func (c *ComponentPlan) GetReleaseName() string {
 	return c.Spec.Name
+}
+
+// ComponentPlanDiffIgnorePaths is the list of paths to ignore when comparing
+// These fields will almost certainly change when componentplan is updated, and displaying these
+// changes will only result in more invalid information, so they need to be ignored
+var ComponentPlanDiffIgnorePaths = []string{
+	"metadata.generation",
+	"metadata.resourceVersion",
+	"metadata.labels.helm.sh/chart",
+	"spec.template.metadata.labels.helm.sh/chart",
+}
+
+// GetResourcesAndImages get resource slices, image lists from manifests
+func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Client, data, namespace string) (resources []Resource, images []string, err error) {
+	manifests, err := utils.SplitYAML([]byte(data))
+	if err != nil {
+		return nil, nil, err
+	}
+	resources = make([]Resource, len(manifests))
+	for i, manifest := range manifests {
+		obj := manifest
+		if len(obj.GetNamespace()) == 0 {
+			if rs, err := c.RESTMapper().RESTMapping(obj.GroupVersionKind().GroupKind()); err != nil {
+				logger.Error(err, "get RESTMapping err, just ignore", "obj", klog.KObj(obj))
+			} else {
+				if rs.Scope.Name() == meta.RESTScopeNameNamespace {
+					obj.SetNamespace(namespace)
+				} else {
+					obj.SetNamespace("")
+				}
+			}
+		}
+		has := &unstructured.Unstructured{}
+		has.SetKind(obj.GetKind())
+		has.SetAPIVersion(obj.GetAPIVersion())
+		err = c.Get(ctx, client.ObjectKeyFromObject(obj), has)
+		var isNew bool
+		if err != nil && apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+			isNew = true
+		} else if err != nil {
+			logger.Error(err, "Resource get error, no notFound", "manifest", manifest, "obj", klog.KObj(obj))
+			return nil, nil, err
+		}
+		r := Resource{
+			Kind:       obj.GetKind(),
+			Name:       obj.GetName(),
+			APIVersion: obj.GetAPIVersion(),
+		}
+		if isNew {
+			r.NewCreated = &isNew
+		} else {
+			diff, err := utils.ResourceDiffStr(ctx, obj, has, ComponentPlanDiffIgnorePaths, c)
+			if err != nil {
+				logger.Error(err, "failed to get diff", "obj", klog.KObj(obj))
+				diffMsg := "diff with exist"
+				r.SpecDiffwithExist = &diffMsg
+			} else if diff == "" {
+				ignore := "no spec diff, but some fields like resourceVersion will update"
+				r.SpecDiffwithExist = &ignore
+			} else {
+				r.SpecDiffwithExist = &diff
+			}
+		}
+		resources[i] = r
+		gvk := obj.GroupVersionKind()
+		switch gvk.Group {
+		case "":
+			switch gvk.Kind {
+			case "Pod":
+				images = append(images, utils.GetPodImage(obj)...)
+			}
+		case "apps":
+			switch gvk.Kind {
+			case "Deployment":
+				images = append(images, utils.GetDeploymentImage(obj)...)
+			case "StatefulSet":
+				images = append(images, utils.GetStatefulSetImage(obj)...)
+			}
+		case "batch":
+			switch gvk.Kind {
+			case "Job":
+				images = append(images, utils.GetJobImage(obj)...)
+			case "CronJob":
+				images = append(images, utils.GetCronJobImage(obj)...)
+			}
+		}
+	}
+	imageMap := make(map[string]bool)
+	for _, i := range images {
+		imageMap[i] = true
+	}
+	images = make([]string, 0, len(imageMap))
+	for k := range imageMap {
+		images = append(images, k)
+	}
+	sort.Strings(images)
+	return resources, images, nil
 }
