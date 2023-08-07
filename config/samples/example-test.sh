@@ -347,9 +347,9 @@ helm repo add kubebb https://kubebb.github.io/components
 helm repo update kubebb
 
 info "2.2 search kubebb"
-search_result=$(helm search repo kubebb/kubebb)
+search_result=$(helm search repo kubebb/kubebb-core)
 if [[ $search_result == "No results found" ]]; then
-	error "not found chart kubebb/kubebb"
+	error "not found chart kubebb/kubebb-core"
 	exit 1
 fi
 
@@ -360,7 +360,7 @@ kubectl create ns kubebb-system
 info "2.3.2 create kubebb release"
 docker tag kubebb/core:latest kubebb/core:example-e2e
 kind load docker-image kubebb/core:example-e2e
-helm -nkubebb-system install kubebb kubebb/kubebb --set deployment.image=kubebb/core:example-e2e --wait
+helm -nkubebb-system install kubebb kubebb/kubebb-core --set deployment.image=kubebb/core:example-e2e --wait
 cd ${RootPath}
 kubectl kustomize config/crd | kubectl apply -f -
 
