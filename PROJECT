@@ -48,4 +48,14 @@ resources:
   kind: Component
   path: github.com/kubebb/core/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+  domain: kubebb.k8s.com.cn
+  group: core
+  kind: Portal
+  path: github.com/kubebb/core/api/v1alpha1
+  version: v1alpha1
+  webhooks:
+    validation: true
+    webhookVersion: v1
 version: "3"

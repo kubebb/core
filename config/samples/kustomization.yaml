@@ -4,4 +4,5 @@ resources:
 - core_v1alpha1_subscription.yaml
 - core_v1alpha1_componentplan.yaml
 - core_v1alpha1_component.yaml
+- core_v1alpha1_portal.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples
