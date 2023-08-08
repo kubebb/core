@@ -46,7 +46,7 @@ import (
 )
 
 var (
-	maxRetryErr = errors.New("max retry reached, will not retry")
+	errMaxRetry = errors.New("max retry reached, will not retry")
 )
 
 const (
@@ -292,8 +292,8 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 	if !r.needRetry(plan) {
-		logger.Info(maxRetryErr.Error())
-		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanUnSucceeded(maxRetryErr))
+		logger.Info(errMaxRetry.Error())
+		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanUnSucceeded(errMaxRetry))
 	}
 
 	revision := revisionNoExist
@@ -480,7 +480,7 @@ func (r *ComponentPlanReconciler) isGenerationUpdate(plan *corev1alpha1.Componen
 func (r *ComponentPlanReconciler) statusShowDone(plan *corev1alpha1.ComponentPlan) bool {
 	installedCondition := plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeActioned)
 	// if successed or max retry times reached, no need to update retry times
-	if installedCondition.Status == corev1.ConditionTrue || installedCondition.Message == maxRetryErr.Error() {
+	if installedCondition.Status == corev1.ConditionTrue || installedCondition.Message == errMaxRetry.Error() {
 		return true
 	}
 	return false
