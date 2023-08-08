@@ -41,6 +41,9 @@ spec:
               path:
                 description: the path for request acccessing
                 type: string
+            required:
+            - entry
+            - path
             type: object
           status:
             description: PortalStatus defines the observed state of Portal

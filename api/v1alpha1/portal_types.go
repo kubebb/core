@@ -26,9 +26,9 @@ import (
 // PortalSpec defines the desired state of Portal
 type PortalSpec struct {
 	// the path for request acccessing
-	Path string `json:"path,omitempty"`
+	Path string `json:"path"`
 	// the path of the static file
-	Entry string `json:"entry,omitempty"`
+	Entry string `json:"entry"`
 }
 
 // PortalStatus defines the observed state of Portal
