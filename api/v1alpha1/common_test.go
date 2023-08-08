@@ -715,6 +715,34 @@ func TestMatch(t *testing.T) {
 			expected: nil,
 		},
 		{
+			description: "the version constraint is incorrect",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionConstraint: "~~ 1.0.0",
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
+			description: "Invalid semantic version",
+			name:        "test",
+			filterCond: map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{
+				VersionConstraint: ">= 1.0.0",
+			}}},
+			versions: []*hrepo.ChartVersion{
+				{Metadata: &chart.Metadata{Version: "1:0:0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "2.0.0", Deprecated: true}},
+				{Metadata: &chart.Metadata{Version: "3.0.0", Deprecated: true}},
+			},
+			keep:     false,
+			expected: nil,
+		},
+		{
 			description: "semvar matches versions. operation: ignore, keepDeprecated: true, no conditions",
 			name:        "test",
 			filterCond:  map[string]FilterCond{"test": {Operation: FilterOpIgnore, KeepDeprecated: false, VersionedFilterCond: &VersionedFilterCond{}}},
@@ -735,6 +763,7 @@ func TestMatch(t *testing.T) {
 	}
 }
 
+// TestIsCondSame for IsCondSame
 func TestIsCondSame(t *testing.T) {
 	testCases := []struct {
 		c1, c2 FilterCond
@@ -778,7 +807,8 @@ func TestIsCondSame(t *testing.T) {
 	}
 }
 
-func TestEqual(t *testing.T) {
+// TestComponentVersionEqual for ComponentVersion.Equal
+func TestComponentVersionEqual(t *testing.T) {
 	testCases := []struct {
 		name   string
 		a, b   ComponentVersion
@@ -876,8 +906,8 @@ func TestGetValuesKey(t *testing.T) {
 	}
 }
 
-// TestGetValuesFileDir for ValuesReference.GetValuesFileDir
-func TestGetValuesFileDir(t *testing.T) {
+// TestValuesReferenceGetValuesFileDir for ValuesReference.GetValuesFileDir
+func TestValuesReferenceGetValuesFileDir(t *testing.T) {
 	testCases := []struct {
 		obj                              ValuesReference
 		helmCacheHome, namespace, expect string
@@ -908,6 +938,34 @@ func TestGetValuesFileDir(t *testing.T) {
 	}
 }
 
+// TestOverrideGetValueFileDir for Override.GetValueFileDir
+func TestOverrideGetValueFileDir(t *testing.T) {
+	testCases := []struct {
+		description   string
+		override      *Override
+		helmCacheHome string
+		namespace     string
+		name          string
+
+		expected string
+	}{
+		{
+			description:   "Get the value file dir",
+			override:      &Override{},
+			helmCacheHome: "$HOME/.cache/helm/",
+			namespace:     "default",
+			name:          "test",
+
+			expected: "$HOME/.cache/helm/embed.default.test",
+		},
+	}
+	for _, testCase := range testCases {
+		if !reflect.DeepEqual(testCase.override.GetValueFileDir(testCase.helmCacheHome, testCase.namespace, testCase.name), testCase.expected) {
+			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.override.GetValueFileDir(testCase.helmCacheHome, testCase.namespace, testCase.name))
+		}
+	}
+}
+
 // TestTimeout for Config.Timeout
 func TestTimeout(t *testing.T) {
 	testCases := []struct {
@@ -924,8 +982,8 @@ func TestTimeout(t *testing.T) {
 	}
 }
 
-// TestGetMaxHisotry for Config.GetMaxHisotry
-func TestGetMaxHisotry(t *testing.T) {
+// TestGetMaxHistory for Config.GetMaxHistory
+func TestGetMaxHistory(t *testing.T) {
 	maxHistory := 60
 	testCases := []struct {
 		obj    Config
@@ -941,7 +999,7 @@ func TestGetMaxHisotry(t *testing.T) {
 	}
 }
 
-// TestGetMaxHisotry for Config.GetMaxRetry
+// TestGetMaxHistory for Config.GetMaxRetry
 func TestGetMaxRetry(t *testing.T) {
 	maxRetry := 60
 	testCases := []struct {
@@ -954,6 +1012,78 @@ func TestGetMaxRetry(t *testing.T) {
 	for _, tc := range testCases {
 		if r := tc.obj.GetMaxRetry(); r != tc.expect {
 			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+		}
+	}
+}
+
+// TestIsFilterSame for IsFilterSame
+func TestIsFilterSame(t *testing.T) {
+	testCases := []struct {
+		description string
+		cond1       map[string]FilterCond
+		cond2       map[string]FilterCond
+
+		expected bool
+	}{
+		{
+			description: "Two equivalent filters",
+			cond1: map[string]FilterCond{
+				"A": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+				"B": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1"}}},
+			},
+			cond2: map[string]FilterCond{
+				"A": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+				"B": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1"}}},
+			},
+
+			expected: true,
+		},
+		{
+			description: "Two filters with different number of conditions",
+			cond1: map[string]FilterCond{
+				"A": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+				"B": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1"}}},
+			},
+			cond2: map[string]FilterCond{
+				"A": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+			},
+
+			expected: false,
+		},
+		{
+			description: "Two filters with different conditions",
+			cond1: map[string]FilterCond{
+				"A": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+				"B": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1"}}},
+			},
+			cond2: map[string]FilterCond{
+				"A": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+				"B": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v2"}}},
+			},
+
+			expected: false,
+		},
+		{
+			description: "One filter has no conditions",
+			cond1: map[string]FilterCond{
+				"A": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1", "v2"}}},
+				"B": FilterCond{VersionedFilterCond: &VersionedFilterCond{Versions: []string{"v1", "v1"}}},
+			},
+			cond2: map[string]FilterCond{},
+
+			expected: false,
+		},
+		{
+			description: "Both filter have no conditions",
+			cond1:       map[string]FilterCond{},
+			cond2:       map[string]FilterCond{},
+
+			expected: true,
+		},
+	}
+	for _, testCase := range testCases {
+		if !reflect.DeepEqual(IsFilterSame(testCase.cond1, testCase.cond2), testCase.expected) {
+			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, IsFilterSame(testCase.cond1, testCase.cond2))
 		}
 	}
 }
