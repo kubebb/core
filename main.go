@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"path/filepath"
+	"strconv"
 
 	"github.com/kubebb/core/pkg/utils"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -83,6 +85,34 @@ func main() {
 		}
 	}
 
+	var enableWebhooks bool
+	// 1. Environment variable has the highest priority
+	v, ok := os.LookupEnv("ENABLE_WEBHOOKS")
+	if !ok {
+		// 2. options.CertDir can be configured through the config file, priority 2
+		if options.CertDir != "" {
+			enableWebhooks = true
+		} else {
+			// 3. The default directory has a value of priority 3
+			defaultPath := filepath.Join(os.TempDir(), "k8s-webhook-server", "serving-certs")
+			_, err := os.Stat(defaultPath)
+			if err == nil {
+				enableWebhooks = true
+			}
+			if err != nil {
+				if os.IsNotExist(err) {
+					enableWebhooks = false
+				}
+			}
+		}
+	} else {
+		// 4. If the environment variable is configured, but there is a configuration error, exit directly.
+		enableWebhooks, err = strconv.ParseBool(v)
+		if err != nil {
+			setupLog.Error(err, "unable to parse ENABLE_WEBHOOKS")
+			os.Exit(1)
+		}
+	}
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -123,17 +153,19 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Component")
 		os.Exit(1)
 	}
-	if err = (&corev1alpha1.ComponentPlan{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "ComponentPlan")
-		os.Exit(1)
-	}
-	if err = (&corev1alpha1.Subscription{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Subscription")
-		os.Exit(1)
-	}
-	if err = (&corev1alpha1.Portal{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Portal")
-		os.Exit(1)
+	if enableWebhooks {
+		if err = (&corev1alpha1.ComponentPlan{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "ComponentPlan")
+			os.Exit(1)
+		}
+		if err = (&corev1alpha1.Subscription{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Subscription")
+			os.Exit(1)
+		}
+		if err = (&corev1alpha1.Portal{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Portal")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 
@@ -145,13 +177,15 @@ func main() {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
-	go func() {
-		if mgr.GetCache().WaitForCacheSync(ctx) {
-			if _, err := utils.SetOperatorUser(ctx, mgr.GetClient()); err != nil {
-				setupLog.Error(err, "unable to set OperatorUser")
+	if enableWebhooks {
+		go func() {
+			if mgr.GetCache().WaitForCacheSync(ctx) {
+				if _, err := utils.SetOperatorUser(ctx, mgr.GetClient()); err != nil {
+					setupLog.Error(err, "unable to set OperatorUser")
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	if enableProfiling {
 		_ = mgr.AddMetricsExtraHandler("/debug/pprof/", http.HandlerFunc(pprof.Index))
