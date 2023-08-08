@@ -36,7 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/kubebb/core/api/v1alpha1"
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/pkg/repository"
 	"github.com/kubebb/core/pkg/utils"
@@ -139,8 +138,8 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 	if changed, history := utils.AddOrSwapString(instanceDeepCopy.Status.URLHistory, instanceDeepCopy.Spec.URL); changed {
 		logger.V(1).Info("Add URL for repository", "URL", instance.Spec.URL)
 		instanceDeepCopy.Status.URLHistory = history
-		instanceDeepCopy.Status.ConditionedStatus = v1alpha1.ConditionedStatus{
-			Conditions: []v1alpha1.Condition{cond},
+		instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
+			Conditions: []corev1alpha1.Condition{cond},
 		}
 		err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance))
 		if err != nil {
@@ -151,8 +150,8 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 	if instanceDeepCopy.Labels == nil {
 		instanceDeepCopy.Labels = make(map[string]string)
 	}
-	if v, ok := instanceDeepCopy.Labels[v1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
-		instanceDeepCopy.Labels[v1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
+	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
+		instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
 		err := r.Client.Update(ctx, instanceDeepCopy)
 		if err != nil {
 			logger.Error(err, "")
@@ -193,13 +192,13 @@ func (r *RepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Repository{}, builder.WithPredicates(predicate.Funcs{
 			CreateFunc: func(ce event.CreateEvent) bool {
-				obj := ce.Object.(*v1alpha1.Repository)
+				obj := ce.Object.(*corev1alpha1.Repository)
 				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Created", "add new repository %s", obj.GetName())
 				return true
 			},
 			UpdateFunc: r.OnRepositryUpdate,
 			DeleteFunc: func(de event.DeleteEvent) bool {
-				obj := de.Object.(*v1alpha1.Repository)
+				obj := de.Object.(*corev1alpha1.Repository)
 				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Deleted", "delete repository %s", obj.GetName())
 				return true
 			},

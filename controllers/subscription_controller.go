@@ -26,7 +26,6 @@ import (
 	"github.com/kubebb/core/pkg/utils"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -144,10 +143,10 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	componentPlanName := corev1alpha1.GenerateComponentPlanName(sub, latestVersionFetch.Version)
 	if err = r.CreateComponentPlan(ctx, sub, latestVersionFetch); err != nil {
 		logger.Error(err, "Failed to create component plan")
-		r.Recorder.Eventf(sub, v1.EventTypeWarning, "Fail", "failed to create componentPlan %s with error: %s", componentPlanName, err)
+		r.Recorder.Eventf(sub, corev1.EventTypeWarning, "Fail", "failed to create componentPlan %s with error: %s", componentPlanName, err)
 		return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypePlanSynce, err))
 	}
-	r.Recorder.Eventf(sub, v1.EventTypeNormal, "Success", "componentPlan %s create successfully", componentPlanName)
+	r.Recorder.Eventf(sub, corev1.EventTypeNormal, "Success", "componentPlan %s create successfully", componentPlanName)
 	logger.V(1).Info("create component plan")
 
 	// update status.Installed
