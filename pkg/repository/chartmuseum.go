@@ -99,14 +99,14 @@ type chartmuseum struct {
 }
 
 // Start the chartmuseum
-func (c *chartmuseum) Start() {
+func (c *chartmuseum) Start() error {
 	c.logger.Info("Start to fetch")
 	_ = helm.RepoRemove(c.ctx, c.logger, c.repoName)
 	if c.instance.Spec.AuthSecret != "" {
 		i := v1.Secret{}
 		if err := c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.Spec.AuthSecret, Namespace: c.instance.GetNamespace()}, &i); err != nil {
 			c.logger.Error(err, "Failed to get secret")
-			return
+			return err
 		}
 		c.username = string(i.Data[v1alpha1.Username])
 		c.password = string(i.Data[v1alpha1.Password])
@@ -114,13 +114,14 @@ func (c *chartmuseum) Start() {
 
 	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL, c.username, c.password, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to add repository")
-		return
+		return err
 	}
 	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to update repository")
-		return
+		return err
 	}
 	go wait.Until(c.Poll, c.duration, c.ctx.Done())
+	return nil
 }
 
 // Stop the chartmuseum
