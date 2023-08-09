@@ -21,7 +21,7 @@ import (
 )
 
 type IWatcher interface {
-	Start()
+	Start() error
 	Stop()
 	Poll()
 	Create(*v1alpha1.Component) error

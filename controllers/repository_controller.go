@@ -108,10 +108,13 @@ func (r *RepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	_ctx, _cancel := context.WithCancel(ctx)
 	r.C[key] = repository.NewChartmuseum(_ctx, logger, r.Client, r.Scheme, repo, _cancel)
-	r.C[key].Start()
+	if err := r.C[key].Start(); err != nil {
+		r.Recorder.Event(repo, v1.EventTypeWarning, "StartFail", fmt.Sprintf("start %s fail", key))
+		return reconcile.Result{}, err
+	}
 
 	logger.Info("Synchronized repository successfully")
-	return ctrl.Result{}, nil
+	return reconcile.Result{}, nil
 }
 
 func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Repository) (bool, error) {
