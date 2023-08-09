@@ -39,6 +39,8 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -94,8 +96,15 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	i.Verify = false // TODO enable these args after we can config keyring
 	i.RepoURL = repo.Spec.URL
 	i.Keyring = "" // TODO enable these args after we can config keyring
-	// i.Username // FIXME
-	// i.Password // FIXME
+	if repo.Spec.AuthSecret != "" {
+		s := corev1.Secret{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
+			return nil, err
+		}
+		i.Username = string(s.Data[corev1alpha1.Username])
+		i.Password = string(s.Data[corev1alpha1.Password])
+	}
+
 	// i.CertFile // FIXME
 	// i.KeyFile // FIXME
 	// i.CaFile // FIXME
@@ -147,8 +156,15 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 	i.Verify = false // TODO enable these args after we can config keyring
 	i.RepoURL = repo.Spec.URL
 	i.Keyring = "" // TODO enable these args after we can config keyring
-	// i.Username // FIXME
-	// i.Password // FIXME
+	if repo.Spec.AuthSecret != "" {
+		s := corev1.Secret{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
+			return nil, err
+		}
+		i.Username = string(s.Data[corev1alpha1.Username])
+		i.Password = string(s.Data[corev1alpha1.Password])
+	}
+
 	// i.CertFile // FIXME
 	// i.KeyFile // FIXME
 	// i.CaFile // FIXME
