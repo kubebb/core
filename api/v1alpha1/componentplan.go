@@ -48,11 +48,11 @@ const (
 	ComponentPlanReasonWaitDo           ConditionReason = "WaitDo"
 	ComponentPlanReasonInstalling       ConditionReason = "Installing"
 	ComponentPlanReasonUpgrading        ConditionReason = "Upgrading"
-	ComponentPlanReasonUnInstalling     ConditionReason = "UnInstalling"
+	ComponentPlanReasonUninstalling     ConditionReason = "Uninstalling"
 	ComponentPlanReasonInstallSuccess   ConditionReason = "InstallSuccess"
 	ComponentPlanReasonInstallFailed    ConditionReason = "InstallFailed"
-	ComponentPlanReasonUnInstallSuccess ConditionReason = "UnInstallSuccess"
-	ComponentPlanReasonUnInstallFailed  ConditionReason = "UnInstallFailed"
+	ComponentPlanReasonUninstallSuccess ConditionReason = "UninstallSuccess"
+	ComponentPlanReasonUninstallFailed  ConditionReason = "UninstallFailed"
 	ComponentPlanReasonUpgradeSuccess   ConditionReason = "UpgradeSuccess"
 	ComponentPlanReasonUpgradeFailed    ConditionReason = "UpgradeFailed"
 )
@@ -71,11 +71,11 @@ func ComponentPlanSucceeded() Condition {
 	return componentPlanCondition(ComponentPlanTypeSucceeded, "", corev1.ConditionTrue, nil)
 }
 
-func ComponentPlanInitSucceded() Condition {
+func ComponentPlanInitSucceeded() Condition {
 	return componentPlanCondition(ComponentPlanTypeSucceeded, "", corev1.ConditionFalse, nil)
 }
 
-func ComponentPlanUnSucceeded(err error) Condition {
+func ComponentPlanFailed(err error) Condition {
 	return componentPlanCondition(ComponentPlanTypeSucceeded, "", corev1.ConditionFalse, err)
 }
 
@@ -83,7 +83,7 @@ func ComponentPlanApproved() Condition {
 	return componentPlanCondition(ComponentPlanTypeApproved, "", corev1.ConditionTrue, nil)
 }
 
-func ComponentPlanUnAppreoved() Condition {
+func ComponentPlanUnapproved() Condition {
 	return componentPlanCondition(ComponentPlanTypeApproved, "", corev1.ConditionFalse, nil)
 }
 
@@ -99,16 +99,16 @@ func ComponentPlanInstalling() Condition {
 	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonInstalling, corev1.ConditionFalse, nil)
 }
 
-func ComponentPlanUnInstallSuccess() Condition {
-	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUnInstallSuccess, corev1.ConditionTrue, nil)
+func ComponentPlanUninstallSuccess() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUninstallSuccess, corev1.ConditionTrue, nil)
 }
 
-func ComponentPlanUnInstallFailed(err error) Condition {
-	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUnInstallFailed, corev1.ConditionFalse, err)
+func ComponentPlanUninstallFailed(err error) Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUninstallFailed, corev1.ConditionFalse, err)
 }
 
-func ComponentPlanUnInstalling() Condition {
-	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUnInstalling, corev1.ConditionFalse, nil)
+func ComponentPlanUninstalling() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonUninstalling, corev1.ConditionFalse, nil)
 }
 
 func ComponentPlanUpgradeSuccess() Condition {
@@ -144,13 +144,13 @@ func componentPlanCondition(ct ConditionType, reason ConditionReason, status cor
 
 func (c *ComponentPlan) InitCondition() []Condition {
 	if c.Spec.Approved {
-		return []Condition{ComponentPlanApproved(), ComponentPlanWaitDo(nil), ComponentPlanInitSucceded()}
+		return []Condition{ComponentPlanApproved(), ComponentPlanWaitDo(nil), ComponentPlanInitSucceeded()}
 	} else {
-		return []Condition{ComponentPlanUnAppreoved(), ComponentPlanWaitDo(nil), ComponentPlanInitSucceded()}
+		return []Condition{ComponentPlanUnapproved(), ComponentPlanWaitDo(nil), ComponentPlanInitSucceeded()}
 	}
 }
 
-func (c *ComponentPlan) InActionedReason(cr ConditionReason) bool {
+func (c *ComponentPlan) IsActionedReason(cr ConditionReason) bool {
 	return c.Status.GetCondition(ComponentPlanTypeActioned).Reason == cr
 }
 

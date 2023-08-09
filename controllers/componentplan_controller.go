@@ -156,16 +156,16 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// Note: In the original Helm source code, when helm is uninstalling, there is no check to
 		// see if the current helm release is in installing or any other state, just do uninstall.
 		// We add this check here just for the controller doesn't duplicate the uninstallation logic to cause fail
-		if plan.InActionedReason(corev1alpha1.ComponentPlanReasonUnInstalling) || r.inUninstallingMap(plan) {
+		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstalling) || r.inUninstallingMap(plan) {
 			logger.Info("another operation (uninstall) is in progress... skip for 1 minute")
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
-		if plan.InActionedReason(corev1alpha1.ComponentPlanReasonUnInstallFailed) {
+		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstallFailed) {
 			// TODO do we need uninstall retry like install or upgrade done?
 			logger.Info("the last one is uninstallfailed, just skip this one")
 			return ctrl.Result{}, nil
 		}
-		if plan.InActionedReason(corev1alpha1.ComponentPlanReasonUnInstallSuccess) {
+		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstallSuccess) {
 			logger.Info("Removing Finalizer for ComponentPlan after successfully performing the operations")
 			if ok := controllerutil.RemoveFinalizer(plan, corev1alpha1.Finalizer); !ok {
 				return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
@@ -179,7 +179,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, nil
 		}
 
-		_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanUnInstalling())
+		_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanUninstalling())
 		// Perform all operations required before remove the finalizer and allow
 		// the Kubernetes API to remove ComponentPlan
 		go func() {
@@ -196,10 +196,10 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			r.removeFromPendingMap(plan)
 			if err != nil {
 				logger.Error(err, "Failed to uninstall ComponentPlan")
-				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, true, true, corev1alpha1.ComponentPlanUnInstallFailed(err))
+				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, true, true, corev1alpha1.ComponentPlanUninstallFailed(err))
 			} else {
 				logger.Info("Uninstall ComponentPlan succeeded")
-				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanUnInstallSuccess())
+				_ = r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanUninstallSuccess())
 			}
 		}()
 		return ctrl.Result{}, nil
@@ -293,7 +293,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	if !r.needRetry(plan) {
 		logger.Info(errMaxRetry.Error())
-		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanUnSucceeded(errMaxRetry))
+		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanFailed(errMaxRetry))
 	}
 
 	revision := revisionNoExist
@@ -414,7 +414,7 @@ func (r *ComponentPlanReconciler) setCondition(plan *corev1alpha1.ComponentPlan,
 	if ready {
 		newPlan.Status.SetConditions(corev1alpha1.ComponentPlanSucceeded())
 	} else {
-		newPlan.Status.SetConditions(corev1alpha1.ComponentPlanUnSucceeded(nil))
+		newPlan.Status.SetConditions(corev1alpha1.ComponentPlanFailed(nil))
 	}
 	return newPlan
 }
@@ -487,7 +487,7 @@ func (r *ComponentPlanReconciler) statusShowDone(plan *corev1alpha1.ComponentPla
 }
 
 func (r *ComponentPlanReconciler) isHelmDoing(logger logr.Logger, getter genericclioptions.RESTClientGetter, plan *corev1alpha1.ComponentPlan) (doing bool, rel *release.Release, err error) {
-	if plan.InActionedReason(corev1alpha1.ComponentPlanReasonInstalling) || plan.InActionedReason(corev1alpha1.ComponentPlanReasonUpgrading) || plan.InActionedReason(corev1alpha1.ComponentPlanReasonUnInstalling) {
+	if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonInstalling) || plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUpgrading) || plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstalling) {
 		logger.Info("plan status in pending")
 		doing = true
 		return
