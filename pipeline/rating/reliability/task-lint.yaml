@@ -1,18 +1,22 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: helm-lint
+  name: reliability-lint
+  namespace: kubebb-system
+  annotations:
+    rating.core.kubebb.k8s.com.cn/type: reliability
+    rating.core.kubebb.k8s.com.cn/weight: "1"
 spec:
   params:
-  - name: url
-    type: string
-  - name: component
-    type: string
-  - name: version
-    type: string
+    - name: url
+      type: string
+    - name: component
+      type: string
+    - name: version
+      type: string
   results:
-  - name: LINT
-    type: string
+    - name: LINT
+      type: string
   steps:
     - name: helm-lint
       image: alpine/k8s:1.27.4

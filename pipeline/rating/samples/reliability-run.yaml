@@ -1,0 +1,32 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: component-reliability-run
+  namespace: kubebb-system
+  labels:
+    description: "A_PipelineRun_For_Component_Reliability"
+    pipelinerun.for: "kubebb.rating"
+    rating.core.kubebb.k8s.com.cn/type: "reliability"
+    rating.core.kubebb.k8s.com.cn/repository: "kubebb"
+    rating.core.kubebb.k8s.com.cn/component: "kubebb-core"
+    rating.core.kubebb.k8s.com.cn/component-version: "v0.0.1"
+spec:
+  serviceAccountName: rating-service-account
+  pipelineRef:
+    resolver: cluster
+    params:
+      - name: kind
+        value: pipeline
+      - name: name
+        value: component-reliability
+      - name: namespace
+        value: kubebb-system
+  params:
+    - name: URL
+      value: https://github.com/kubebb/components/releases/download/kubebb-v0.0.1/kubebb-v0.0.1.tgz
+    - name: COMPONENT_NAME
+      value: kubebb
+    - name: VERSION
+      value: v0.0.1
+    - name: REPOSITORY_NAME
+      value: kubebb

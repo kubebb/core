@@ -1,15 +1,16 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: component-rbac-gen
+  name: component-security
+  namespace: kubebb-system
   annotations:
-    tekton.dev/tags: component-rbac-gen
-    tekton.dev/displayName: "component-rbac-gen"
-    tekton.dev/platforms: "linux/amd64"
-  namespace: default
+    tekton.dev/tags: component-security
+    tekton.dev/displayName: component-security
+    tekton.dev/platforms: linux/amd64
+    rating.core.kubebb.k8s.com.cn/type: security
 spec:
   description: >-
-    convert image to base64
+    security checks on component
   params:
     - name: COMPONENT_NAME
       description: >-
@@ -22,17 +23,20 @@ spec:
     - name: URL
       description: the full URL of the component tgz file.
   results:
-  - name: HELM_LINT
-    value: $(tasks.helm-lint.results.LINT)
-  - name: RBACCM
-    value: $(tasks.rback.results.RBACCM)
+    - name: RBACCM
+      value: $(tasks.security-rbac.results.RBACCM)
   tasks:
-    - name: rback
+    - name: security-rbac
       retries: 2
       taskRef:
-        name: rback
-      runAfter:
-      - helm-lint
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: security-rbac
+          - name: namespace
+            value: kubebb-system
       params:
         - name: url
           value: $(params.URL)
@@ -42,14 +46,3 @@ spec:
           value: $(params.VERSION)
         - name: repository
           value: $(params.REPOSITORY_NAME)
-    - name: helm-lint
-      retries: 2
-      taskRef:
-        name: helm-lint
-      params:
-        - name: url
-          value: $(params.URL)
-        - name: component
-          value: $(params.COMPONENT_NAME)
-        - name: version
-          value: $(params.VERSION)
