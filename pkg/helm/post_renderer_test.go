@@ -22,9 +22,10 @@ import (
 	"sync"
 	"testing"
 
-	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"istio.io/istio/operator/pkg/compare"
 	kustomize "sigs.k8s.io/kustomize/api/types"
+
+	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 )
 
 const (
@@ -104,8 +105,7 @@ spec:
 )
 
 func Test_postRenderer_Run(t *testing.T) {
-	testBuf := bytes.NewBuffer([]byte(nginxPod + "\n---\n" + controllerDeploy))
-	//controllerDeployBuf := bytes.NewBuffer([]byte(controllerDeploy))
+	testBuf := bytes.NewBufferString(nginxPod + "\n---\n" + controllerDeploy)
 	type fields struct {
 		repoOverride []corev1alpha1.ImageOverride
 		images       []kustomize.Image
@@ -141,7 +141,7 @@ func Test_postRenderer_Run(t *testing.T) {
 			args: args{
 				renderedManifests: testBuf,
 			},
-			wantModifiedManifests: bytes.NewBuffer([]byte(nginxPod + "---\n" + controllerDeploy)),
+			wantModifiedManifests: bytes.NewBufferString(nginxPod + "---\n" + controllerDeploy),
 			wantErr:               false,
 		},
 		{
@@ -153,7 +153,7 @@ func Test_postRenderer_Run(t *testing.T) {
 			args: args{
 				renderedManifests: testBuf,
 			},
-			wantModifiedManifests: bytes.NewBuffer([]byte(strings.ReplaceAll(nginxPod, `image: nginx`, `image: nginx:v2`) + "---\n" + controllerDeploy)),
+			wantModifiedManifests: bytes.NewBufferString(strings.ReplaceAll(nginxPod, `image: nginx`, `image: nginx:v2`) + "---\n" + controllerDeploy),
 			wantErr:               false,
 		},
 		{
@@ -165,7 +165,7 @@ func Test_postRenderer_Run(t *testing.T) {
 			args: args{
 				renderedManifests: testBuf,
 			},
-			wantModifiedManifests: bytes.NewBuffer([]byte(strings.ReplaceAll(nginxPod, `image: nginx`, `image: docker.cc/library/nginx:latest`) + "---\n" + controllerDeploy)),
+			wantModifiedManifests: bytes.NewBufferString(strings.ReplaceAll(nginxPod, `image: nginx`, `image: docker.cc/library/nginx:latest`) + "---\n" + controllerDeploy),
 			wantErr:               false,
 		},
 		{
@@ -177,7 +177,7 @@ func Test_postRenderer_Run(t *testing.T) {
 			args: args{
 				renderedManifests: testBuf,
 			},
-			wantModifiedManifests: bytes.NewBuffer([]byte(strings.ReplaceAll(nginxPod, `image: nginx`, `image: docker.cc/library/nginx:v2`) + "---\n" + controllerDeploy)),
+			wantModifiedManifests: bytes.NewBufferString(strings.ReplaceAll(nginxPod, `image: nginx`, `image: docker.cc/library/nginx:v2`) + "---\n" + controllerDeploy),
 			wantErr:               false,
 		},
 		{
@@ -189,7 +189,7 @@ func Test_postRenderer_Run(t *testing.T) {
 			args: args{
 				renderedManifests: testBuf,
 			},
-			wantModifiedManifests: bytes.NewBuffer([]byte(finalGotImage)),
+			wantModifiedManifests: bytes.NewBufferString(finalGotImage),
 			wantErr:               false,
 		},
 	}

@@ -20,13 +20,13 @@ import (
 	"bytes"
 	"sync"
 
-	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
-	"github.com/kubebb/core/pkg/repoimage"
 	"sigs.k8s.io/kustomize/api/krusty"
 	kustomize "sigs.k8s.io/kustomize/api/types"
-	kustypes "sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/yaml"
+
+	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
+	"github.com/kubebb/core/pkg/repoimage"
 )
 
 const inputFile = "input.yaml"
@@ -44,9 +44,9 @@ func newPostRenderer(repoOverride []corev1alpha1.ImageOverride, images []kustomi
 
 func (c *postRenderer) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
 	fs := filesys.MakeFsInMemory()
-	cfg := kustypes.Kustomization{}
-	cfg.APIVersion = kustypes.KustomizationVersion
-	cfg.Kind = kustypes.KustomizationKind
+	cfg := kustomize.Kustomization{}
+	cfg.APIVersion = kustomize.KustomizationVersion
+	cfg.Kind = kustomize.KustomizationKind
 	cfg.Images = c.images
 
 	cfg.Resources = append(cfg.Resources, inputFile)
@@ -76,8 +76,8 @@ func (c *postRenderer) Run(renderedManifests *bytes.Buffer) (modifiedManifests *
 	defer c.kustomizeRenderMutex.Unlock()
 
 	buildOptions := &krusty.Options{
-		LoadRestrictions: kustypes.LoadRestrictionsNone,
-		PluginConfig:     kustypes.DisabledPluginConfig(),
+		LoadRestrictions: kustomize.LoadRestrictionsNone,
+		PluginConfig:     kustomize.DisabledPluginConfig(),
 	}
 
 	k := krusty.MakeKustomizer(buildOptions)
@@ -87,9 +87,9 @@ func (c *postRenderer) Run(renderedManifests *bytes.Buffer) (modifiedManifests *
 	}
 	path := corev1alpha1.GetImageOverridePath()
 	if len(path) != 0 && len(c.repoOverride) != 0 {
-		fsslice := make([]kustypes.FieldSpec, len(path))
+		fsslice := make([]kustomize.FieldSpec, len(path))
 		for i, p := range path {
-			fsslice[i] = kustypes.FieldSpec{Path: p}
+			fsslice[i] = kustomize.FieldSpec{Path: p}
 		}
 		if err = resMap.ApplyFilter(repoimage.Filter{ImageOverride: c.repoOverride, FsSlice: fsslice}); err != nil {
 			return nil, err

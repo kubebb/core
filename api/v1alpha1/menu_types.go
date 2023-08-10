@@ -26,7 +26,7 @@ import (
 // MenuSpec defines the desired state of Menu
 type MenuSpec struct {
 	// 菜单组中文名称
-	Id string `json:"id,omitempty"`
+	ID string `json:"id,omitempty"`
 
 	// 菜单中文名称
 	// +kubebuilder:validation:MaxLength:=64
@@ -53,7 +53,7 @@ type MenuSpec struct {
 	// 菜单路由
 	// +optional
 	Pathname string `json:"pathname,omitempty"`
-	//跳转菜单路由，优先级高于 pathname，指定后点击菜单会跳转到 redirect 相应路由
+	// 跳转菜单路由，优先级高于 pathname，指定后点击菜单会跳转到 redirect 相应路由
 	// +optional
 	Redirect string `json:"redirect,omitempty"`
 	// 同 a 标签的 target 属性
@@ -62,16 +62,16 @@ type MenuSpec struct {
 	// 菜单可见需要的角色
 	// +optional
 	RequiredRoles []string `json:"requiredRoles,omitempty"`
-	//菜单可对应的 module 二进制位 (有一个满足即可见)
+	// 菜单可对应的 module 二进制位 (有一个满足即可见)
 	// +optional
 	RequiredModuleBits []int32 `json:"requiredModuleBits,omitempty"`
-	//菜单对应路由是否可以切换租户
+	// 菜单对应路由是否可以切换租户
 	// +optional
 	Tenant bool `json:"tenant,omitempty"`
 	// 菜单对应路由是否可以切换项目
 	// +optional
 	Project bool `json:"project,omitempty"`
-	//菜单对应路由是否可以切换集群
+	// 菜单对应路由是否可以切换集群
 	// +optional
 	Cluster bool `json:"cluster,omitempty"`
 	// 是否渲染选择项目、集群

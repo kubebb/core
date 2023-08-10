@@ -101,7 +101,6 @@ func (r *ComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // UpdateComponent updates new component, add finalizer if necessary.
 func (r *ComponentReconciler) UpdateComponent(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Component) (bool, error) {
-
 	var repoName string
 	// check if ownerReferences exist, report done (nothing to do) if it doesn't.
 	for _, owner := range instance.OwnerReferences {

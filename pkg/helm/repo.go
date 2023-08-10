@@ -33,7 +33,6 @@ import (
 	"helm.sh/helm/v3/pkg/plugin"
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
-
 	"sigs.k8s.io/yaml"
 )
 
@@ -65,7 +64,7 @@ func allProviders(settings *cli.EnvSettings, httpRequestTimeout time.Duration) g
 	result := getter.Providers{
 		{
 			Schemes: []string{"http", "https"},
-			New: func(options ...getter.Option) (getter.Getter, error) {
+			New: func(options ...getter.Option) (getter.Getter, error) { // nolint
 				return getter.NewHTTPGetter(append(options, getter.WithTimeout(httpRequestTimeout))...)
 			},
 		},

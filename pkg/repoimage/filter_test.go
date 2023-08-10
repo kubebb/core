@@ -20,11 +20,12 @@ import (
 	"strings"
 	"testing"
 
-	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	filtertest "sigs.k8s.io/kustomize/api/testutils/filtertest"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
+
+	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 )
 
 func TestFilter(t *testing.T) {

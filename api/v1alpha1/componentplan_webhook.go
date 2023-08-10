@@ -28,11 +28,11 @@ import (
 // log is for logging in this package.
 var componentplanlog = logf.Log.WithName("componentplan-webhook")
 
-func (r *ComponentPlan) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (c *ComponentPlan) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
-		WithDefaulter(r).
-		WithValidator(r).
+		For(c).
+		WithDefaulter(c).
+		WithValidator(c).
 		Complete()
 }
 
@@ -41,8 +41,8 @@ func (r *ComponentPlan) SetupWebhookWithManager(mgr ctrl.Manager) error {
 var _ webhook.CustomDefaulter = &ComponentPlan{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *ComponentPlan) Default(ctx context.Context, obj runtime.Object) error {
-	log := componentplanlog.WithValues("name", r.Name, "method", "Default")
+func (c *ComponentPlan) Default(ctx context.Context, obj runtime.Object) error {
+	log := componentplanlog.WithValues("name", c.Name, "method", "Default")
 	p, ok := obj.(*ComponentPlan)
 	if !ok {
 		log.Error(ErrDecode, ErrDecode.Error())
@@ -66,8 +66,8 @@ func (r *ComponentPlan) Default(ctx context.Context, obj runtime.Object) error {
 var _ webhook.CustomValidator = &ComponentPlan{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *ComponentPlan) ValidateCreate(ctx context.Context, obj runtime.Object) error {
-	log := componentplanlog.WithValues("name", r.Name, "method", "ValidateCreate")
+func (c *ComponentPlan) ValidateCreate(ctx context.Context, obj runtime.Object) error {
+	log := componentplanlog.WithValues("name", c.Name, "method", "ValidateCreate")
 	user, err := getReqUserInfo(ctx)
 	if err != nil {
 		log.Error(err, "get ReqUser err")
@@ -79,8 +79,8 @@ func (r *ComponentPlan) ValidateCreate(ctx context.Context, obj runtime.Object) 
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *ComponentPlan) ValidateUpdate(ctx context.Context, oldObj runtime.Object, newObj runtime.Object) error {
-	log := componentplanlog.WithValues("name", r.Name, "method", "ValidateUpdate")
+func (c *ComponentPlan) ValidateUpdate(ctx context.Context, oldObj runtime.Object, newObj runtime.Object) error {
+	log := componentplanlog.WithValues("name", c.Name, "method", "ValidateUpdate")
 	user, err := getReqUserInfo(ctx)
 	if err != nil {
 		log.Error(err, "get ReqUser err")
@@ -114,8 +114,8 @@ func (r *ComponentPlan) ValidateUpdate(ctx context.Context, oldObj runtime.Objec
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *ComponentPlan) ValidateDelete(ctx context.Context, obj runtime.Object) error {
-	log := componentplanlog.WithValues("name", r.Name, "method", "ValidateDelete")
+func (c *ComponentPlan) ValidateDelete(ctx context.Context, obj runtime.Object) error {
+	log := componentplanlog.WithValues("name", c.Name, "method", "ValidateDelete")
 	user, err := getReqUserInfo(ctx)
 	if err != nil {
 		log.Error(err, "get ReqUser err")
