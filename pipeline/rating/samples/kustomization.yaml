@@ -1,0 +1,5 @@
+namespace: kubebb-system
+
+resources:
+  - reliability-run.yaml
+  - security-run.yaml

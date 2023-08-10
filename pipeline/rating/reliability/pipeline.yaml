@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: component-reliability
+  namespace: kubebb-system
+  annotations:
+    tekton.dev/tags: component-secreliabilityurity
+    tekton.dev/displayName: component-reliability
+    tekton.dev/platforms: linux/amd64
+    rating.core.kubebb.k8s.com.cn/type: reliability
+spec:
+  description: >-
+    reliability checks on component
+  params:
+    - name: COMPONENT_NAME
+      description: >-
+        component name
+    - name: REPOSITORY_NAME
+      description: repository name
+      default: "kubebb"
+    - name: VERSION
+      description: component version
+    - name: URL
+      description: the full URL of the component tgz file.
+  results:
+    - name: HELM_LINT
+      value: $(tasks.reliability-lint.results.LINT)
+  tasks:
+    - name: reliability-lint
+      retries: 2
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: reliability-lint
+          - name: namespace
+            value: kubebb-system
+      params:
+        - name: url
+          value: $(params.URL)
+        - name: component
+          value: $(params.COMPONENT_NAME)
+        - name: version
+          value: $(params.VERSION)

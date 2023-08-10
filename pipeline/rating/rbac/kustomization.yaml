@@ -1,0 +1,5 @@
+namespace: kubebb-system
+
+resources:
+  - rolebinding.yaml
+  - serviceaccount.yaml

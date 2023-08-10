@@ -1,19 +1,23 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: rback
+  name: security-rbac
+  namespace: kubebb-system
+  annotations:
+    rating.core.kubebb.k8s.com.cn/type: security
+    rating.core.kubebb.k8s.com.cn/weight: "1"
 spec:
   params:
-  - name: url
-    type: string
-  - name: component
-    type: string
-  - name: version
-    type: string
-  - name: repository
+    - name: url
+      type: string
+    - name: component
+      type: string
+    - name: version
+      type: string
+    - name: repository
   results:
-  - name: RBACCM
-    type: string
+    - name: RBACCM
+      type: string
   steps:
     - name: rback
       image: alpine/k8s:1.27.4
@@ -25,7 +29,7 @@ spec:
         cat <<EOF | jq --argjson json "$(helm template $(params.component)|yq -o=json|jq --slurp)" '.items |= $json' | rback > r.dot
         {"kind": "List","apiVersion": "v1","metadata": {},"items": []}
         EOF
-        
+
         # Path to ServiceAccount token
         SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
         # Read this Pod's namespace
@@ -36,4 +40,3 @@ spec:
         {"kind": "ConfigMap","apiVersion": "v1","metadata": {"name": "configmap","namespace": "default"},"binaryData": {"r": ""}}
         EOF
         echo ${NAME} | tee $(results.RBACCM.path)
-
