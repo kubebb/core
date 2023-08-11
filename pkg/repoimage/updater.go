@@ -19,11 +19,11 @@ package repoimage
 import (
 	"strings"
 
-	"github.com/kubebb/core/api/v1alpha1"
 	"sigs.k8s.io/kustomize/api/filters/filtersutil"
-
 	"sigs.k8s.io/kustomize/api/image"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
+
+	"github.com/kubebb/core/api/v1alpha1"
 )
 
 // imageTagUpdater is an implementation of the kio.Filter interface

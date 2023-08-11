@@ -150,22 +150,22 @@ func (v *Override) GetValueFileDir(helmCacheHome, namespace, name string) string
 }
 
 // Parse parses ValuesReference
-func (r *ValuesReference) Parse(ctx context.Context, cli client.Client, ns, dir string) (fileName string, err error) {
+func (v *ValuesReference) Parse(ctx context.Context, cli client.Client, ns, dir string) (fileName string, err error) {
 	if dir == "" {
 		return "", nil
 	}
-	n := types.NamespacedName{Namespace: ns, Name: r.Name}
+	n := types.NamespacedName{Namespace: ns, Name: v.Name}
 	var data string
 	ok := false
-	switch r.Kind {
+	switch v.Kind {
 	case "ConfigMap":
 		cm := corev1.ConfigMap{}
-		if err := cli.Get(ctx, n, &cm); err != nil {
+		if err = cli.Get(ctx, n, &cm); err != nil {
 			return "", err
 		}
-		data, ok = cm.Data[r.GetValuesKey()]
+		data, ok = cm.Data[v.GetValuesKey()]
 		if !ok || len(data) == 0 {
-			binaryData, ok := cm.BinaryData[r.GetValuesKey()]
+			binaryData, ok := cm.BinaryData[v.GetValuesKey()]
 			if !ok || len(binaryData) == 0 {
 				return "", errors.New("no data found in this configmap")
 			}
@@ -176,9 +176,9 @@ func (r *ValuesReference) Parse(ctx context.Context, cli client.Client, ns, dir 
 		if err := cli.Get(ctx, n, &secret); err != nil {
 			return "", err
 		}
-		data, ok = secret.StringData[r.GetValuesKey()]
+		data, ok = secret.StringData[v.GetValuesKey()]
 		if !ok || len(data) == 0 {
-			binaryData, ok := secret.Data[r.GetValuesKey()]
+			binaryData, ok := secret.Data[v.GetValuesKey()]
 			if !ok || len(binaryData) == 0 {
 				return "", errors.New("no data found in this secret")
 			}
@@ -190,7 +190,7 @@ func (r *ValuesReference) Parse(ctx context.Context, cli client.Client, ns, dir 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
-	f, err := os.Create(filepath.Join(dir, r.GetValuesKey()))
+	f, err := os.Create(filepath.Join(dir, v.GetValuesKey()))
 	if err != nil {
 		return "", err
 	}
@@ -198,7 +198,7 @@ func (r *ValuesReference) Parse(ctx context.Context, cli client.Client, ns, dir 
 	if _, err := f.WriteString(data); err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, r.GetValuesKey()), nil
+	return filepath.Join(dir, v.GetValuesKey()), nil
 }
 
 // Config defines the configuration of the ComponentPlan

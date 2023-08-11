@@ -21,7 +21,6 @@ import (
 	"sort"
 
 	"github.com/go-logr/logr"
-	"github.com/kubebb/core/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -29,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/kubebb/core/pkg/utils"
 )
 
 const (
@@ -208,14 +209,15 @@ func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Cli
 			r.NewCreated = &isNew
 		} else {
 			diff, err := utils.ResourceDiffStr(ctx, obj, has, ComponentPlanDiffIgnorePaths, c)
-			if err != nil {
+			switch {
+			case err != nil:
 				logger.Error(err, "failed to get diff", "obj", klog.KObj(obj))
 				diffMsg := "diff with exist"
 				r.SpecDiffwithExist = &diffMsg
-			} else if diff == "" {
+			case diff == "":
 				ignore := "no spec diff, but some fields like resourceVersion will update"
 				r.SpecDiffwithExist = &ignore
-			} else {
+			default:
 				r.SpecDiffwithExist = &diff
 			}
 		}
@@ -223,7 +225,7 @@ func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Cli
 		gvk := obj.GroupVersionKind()
 		switch gvk.Group {
 		case "":
-			switch gvk.Kind {
+			switch gvk.Kind { // nolint
 			case "Pod":
 				images = append(images, utils.GetPodImage(obj)...)
 			}

@@ -21,9 +21,10 @@ import (
 	"log"
 	"os"
 
-	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/kio"
+
+	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 )
 
 func ExampleFilter() {

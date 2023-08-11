@@ -327,7 +327,6 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				logger.Error(err, "componentplan install failed")
 				_ = r.PatchCondition(ctx, plan, logger, installedRevision, false, true, corev1alpha1.ComponentPlanInstallFailed(err))
 				r.Recorder.Eventf(plan, corev1.EventTypeWarning, "InstallationFailure", "%s install failed", plan.GetReleaseName())
-
 			} else {
 				logger.Error(err, "componentplan upgrade failed")
 				_ = r.PatchCondition(ctx, plan, logger, installedRevision, false, true, corev1alpha1.ComponentPlanUpgradeFailed(err))
@@ -340,7 +339,6 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Info("componentplan install successfully", helm.ReleaseLog(rel)...)
 			_ = r.PatchCondition(ctx, plan, logger, rel.Version, true, false, corev1alpha1.ComponentPlanInstallSuccess())
 			r.Recorder.Eventf(plan, corev1.EventTypeNormal, "InstallationSuccess", "%s install successfully", rel.Name)
-
 		} else {
 			logger.Info("componentplan upgrade successfully", helm.ReleaseLog(rel)...)
 			_ = r.PatchCondition(ctx, plan, logger, rel.Version, true, false, corev1alpha1.ComponentPlanUpgradeSuccess())

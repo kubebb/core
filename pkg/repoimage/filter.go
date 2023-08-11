@@ -17,12 +17,13 @@ limitations under the License.
 package repoimage
 
 import (
-	"github.com/kubebb/core/api/v1alpha1"
 	"sigs.k8s.io/kustomize/api/filters/filtersutil"
 	"sigs.k8s.io/kustomize/api/filters/fsslice"
 	"sigs.k8s.io/kustomize/api/types"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
+
+	"github.com/kubebb/core/api/v1alpha1"
 )
 
 // inspire by sigs.k8s.io/kustomize/api/filters/imagetag
