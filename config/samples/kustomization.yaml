@@ -5,4 +5,5 @@ resources:
 - core_v1alpha1_componentplan.yaml
 - core_v1alpha1_component.yaml
 - core_v1alpha1_portal.yaml
+- core_v1alpha1_rating.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

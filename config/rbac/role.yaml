@@ -84,6 +84,32 @@ rules:
 - apiGroups:
   - core.kubebb.k8s.com.cn
   resources:
+  - ratings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - ratings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - ratings/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
   - repositories
   verbs:
   - create
