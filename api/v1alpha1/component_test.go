@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -262,15 +263,17 @@ func TestComponentVersionDiff(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		added, deleted, deprecated := ComponentVersionDiff(tc.o, tc.n)
-		if !reflect.DeepEqual(added, tc.expAdded) {
-			t.Fatalf("%s expect %v get %v\n", tc.name, tc.expAdded, added)
-		}
-		if !reflect.DeepEqual(deleted, tc.expDeleted) {
-			t.Fatalf("%s expect %v get %v\n", tc.name, tc.expDeleted, deleted)
-		}
-		if !reflect.DeepEqual(deprecated, tc.expDeprecated) {
-			t.Fatalf("%s expect %v get %v\n", tc.name, tc.expDeprecated, deprecated)
-		}
+		t.Run(fmt.Sprintf("test: %s", tc.name), func(t *testing.T) {
+			added, deleted, deprecated := ComponentVersionDiff(tc.o, tc.n)
+			if !reflect.DeepEqual(added, tc.expAdded) {
+				t.Fatalf("%s expect %v get %v\n", tc.name, tc.expAdded, added)
+			}
+			if !reflect.DeepEqual(deleted, tc.expDeleted) {
+				t.Fatalf("%s expect %v get %v\n", tc.name, tc.expDeleted, deleted)
+			}
+			if !reflect.DeepEqual(deprecated, tc.expDeprecated) {
+				t.Fatalf("%s expect %v get %v\n", tc.name, tc.expDeprecated, deprecated)
+			}
+		})
 	}
 }
