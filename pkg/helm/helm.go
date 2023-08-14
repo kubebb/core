@@ -34,6 +34,7 @@ import (
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/helmpath"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage/driver"
@@ -63,9 +64,63 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 	}); err != nil {
 		return nil, err
 	}
+
+	registryClient, err := registry.NewClient(
+		registry.ClientOptDebug(settings.Debug),
+		registry.ClientOptEnableCache(true),
+		registry.ClientOptCredentialsFile(settings.RegistryConfig),
+	)
+	if err != nil {
+		return nil, err
+	}
+	cfg.RegistryClient = registryClient
+
 	return &HelmWrapper{
 		config: cfg,
 	}, nil
+}
+
+// Pull
+// inspire by https://github.com/helm/helm/blob/main/cmd/helm/pull.go
+func (h *HelmWrapper) Pull(logger logr.Logger, url string) (chartRequested *chart.Chart, err error) {
+	combinedName := strings.Split(url, "/")
+	entryName := combinedName[len(combinedName)-1]
+
+	i := action.NewPullWithOpts(action.WithConfig(h.config))
+	h.config.RegistryClient, err = registry.NewClient()
+	if err != nil {
+		logger.Error(err, "cannot create new registry")
+		return nil, err
+	}
+
+	i.Settings = settings
+	i.Devel = false
+	i.VerifyLater = false
+	i.Untar = true
+	i.UntarDir, err = os.MkdirTemp(i.UntarDir, "kubebb-*")
+	if err != nil {
+		logger.Error(err, "Failed to create a new dir")
+		return nil, err
+	}
+	defer os.RemoveAll(i.UntarDir)
+
+	_, err = i.Run(url) // chartref - the chart name
+	if err != nil {
+		logger.Error(err, "cannot download chart")
+		return nil, err
+	}
+
+	chartRequested, err = loader.Load(i.UntarDir + "/" + entryName)
+	if err != nil {
+		logger.Error(err, "Cannot load chart")
+		return nil, err
+	}
+
+	if chartRequested.Metadata.Deprecated {
+		logger.V(1).Info("This chart is deprecated")
+	}
+
+	return chartRequested, nil
 }
 
 // install
@@ -115,9 +170,25 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	log.V(1).Info(fmt.Sprintf("Original chart version: %q", i.Version))
 
 	i.ReleaseName = cpl.GetReleaseName()
-	chartRequested, vals, err := h.prepare(ctx, cli, log, i.ChartPathOptions, cpl, chartName)
-	if err != nil {
-		return nil, err
+
+	var chartRequested *chart.Chart
+	var vals map[string]interface{}
+	if registry.IsOCI(repo.Spec.URL) {
+		logger.Info("Installing OCI component")
+		chartRequested, err = h.Pull(logger, repo.Spec.URL)
+		if err != nil {
+			return nil, err
+		}
+		_, vals, err = getVals(ctx, cli, logger, cpl)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		logger.Info("Installing non-OCI component")
+		chartRequested, vals, err = h.prepare(ctx, cli, log, i.ChartPathOptions, cpl, chartName)
+		if err != nil {
+			return nil, err
+		}
 	}
 	i.Namespace = cpl.Namespace
 	if dryRun {
@@ -288,31 +359,7 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 	}
 	logger.V(1).Info(fmt.Sprintf("CHART PATH: %s", cp))
 
-	p := getter.All(settings)
-	valueOpts := &values.Options{}
-	for _, valuesFrom := range cpl.Spec.Override.ValuesFrom {
-		fileName, err := valuesFrom.Parse(ctx, cli, cpl.Namespace, valuesFrom.GetValuesFileDir(helmpath.CachePath(""), cpl.Namespace))
-		if err != nil {
-			return nil, nil, err
-		}
-		valueOpts.ValueFiles = append(valueOpts.ValueFiles, fileName)
-		logger.V(1).Info(fmt.Sprintf("Add Override.ValuesFrom From: %s", fileName))
-	}
-	if o := cpl.Spec.Override; o.Values != nil {
-		fileName, err := utils.ParseValues(o.GetValueFileDir(helmpath.CachePath(""), cpl.Namespace, cpl.Name), o.Values)
-		if err != nil {
-			return nil, nil, err
-		}
-		valueOpts.ValueFiles = append(valueOpts.ValueFiles, fileName)
-		logger.V(1).Info(fmt.Sprintf("Add Override.Values From: %s", fileName))
-	}
-	if set := cpl.Spec.Override.Set; len(set) != 0 {
-		valueOpts.Values = cpl.Spec.Override.Set
-	}
-	if set := cpl.Spec.Override.SetString; len(set) != 0 {
-		valueOpts.StringValues = cpl.Spec.Override.SetString
-	}
-	vals, err = valueOpts.MergeValues(p)
+	p, vals, err := getVals(ctx, cli, logger, cpl)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -361,4 +408,44 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 		}
 	}
 	return chartRequested, vals, nil
+}
+
+func getVals(ctx context.Context, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (p getter.Providers, vals map[string]interface{}, err error) {
+	p = getter.All(settings)
+	valueOpts := &values.Options{}
+	for _, valuesFrom := range cpl.Spec.Override.ValuesFrom {
+		fileName, err := valuesFrom.Parse(ctx, cli, cpl.Namespace, valuesFrom.GetValuesFileDir(helmpath.CachePath(""), cpl.Namespace))
+		if err != nil {
+			return nil, nil, err
+		}
+		valueOpts.ValueFiles = append(valueOpts.ValueFiles, fileName)
+		logger.V(1).Info(fmt.Sprintf("Add Override.ValuesFrom From: %s", fileName))
+	}
+	if o := cpl.Spec.Override; o.Values != nil {
+		fileName, err := utils.ParseValues(o.GetValueFileDir(helmpath.CachePath(""), cpl.Namespace, cpl.Name), o.Values)
+		if err != nil {
+			return nil, nil, err
+		}
+		valueOpts.ValueFiles = append(valueOpts.ValueFiles, fileName)
+		logger.V(1).Info(fmt.Sprintf("Add Override.Values From: %s", fileName))
+	}
+	if set := cpl.Spec.Override.Set; len(set) != 0 {
+		valueOpts.Values = cpl.Spec.Override.Set
+	}
+	if set := cpl.Spec.Override.SetString; len(set) != 0 {
+		valueOpts.StringValues = cpl.Spec.Override.SetString
+	}
+	vals, err = valueOpts.MergeValues(p)
+	if err != nil {
+		return nil, nil, err
+	}
+	return p, vals, err
+}
+
+func (h *HelmWrapper) GetDigest(ref string) (string, error) {
+	result, err := h.config.RegistryClient.Pull(ref)
+	if err != nil {
+		return "", err
+	}
+	return result.Manifest.Digest, nil
 }

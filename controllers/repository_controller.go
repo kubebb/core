@@ -106,7 +106,7 @@ func (r *RepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		w.Stop()
 	}
 	_ctx, _cancel := context.WithCancel(ctx)
-	r.C[key] = repository.NewChartmuseum(_ctx, logger, r.Client, r.Scheme, repo, _cancel)
+	r.C[key] = repository.NewWatcher(_ctx, logger, r.Client, r.Scheme, repo, _cancel)
 	if err := r.C[key].Start(); err != nil {
 		r.Recorder.Event(repo, v1.EventTypeWarning, "StartFail", fmt.Sprintf("start %s fail", key))
 		return reconcile.Result{}, err

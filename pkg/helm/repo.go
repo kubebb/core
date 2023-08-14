@@ -135,8 +135,10 @@ func RepoAdd(ctx context.Context, logger logr.Logger, name, url, username, passw
 	if repoCache != "" {
 		r.CachePath = repoCache
 	}
-	if _, err := r.DownloadIndexFile(); err != nil {
-		return errors.Wrapf(err, "looks like %q is not a valid chart repository or cannot be reached", entry.URL)
+	if !registry.IsOCI(url) {
+		if _, err := r.DownloadIndexFile(); err != nil {
+			return errors.Wrapf(err, "looks like %q is not a valid chart repository or cannot be reached", entry.URL)
+		}
 	}
 
 	f.Update(&entry)
@@ -190,9 +192,11 @@ func RepoUpdate(ctx context.Context, logger logr.Logger, name string, httpReques
 
 	logger.Info("Hang tight while we grab the latest from your chart repositories...")
 
-	if _, err := wantRepo.DownloadIndexFile(); err != nil {
-		log.Error(err, fmt.Sprintf("Unable to get an update from the %q chart repository (%s)", wantRepo.Config.Name, wantRepo.Config.URL))
-		return err
+	if !registry.IsOCI(wantRepo.Config.URL) {
+		if _, err := wantRepo.DownloadIndexFile(); err != nil {
+			log.Error(err, fmt.Sprintf("Unable to get an update from the %q chart repository (%s)", wantRepo.Config.Name, wantRepo.Config.URL))
+			return err
+		}
 	}
 	log.Info(fmt.Sprintf("Successfully got an update from the %q chart repository", wantRepo.Config.Name))
 	return nil
