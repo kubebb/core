@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -114,9 +115,11 @@ func TestConditionEqual(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(testCase.conditionA.Equal(testCase.conditionB), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.conditionA.Equal(testCase.conditionB))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(testCase.conditionA.Equal(testCase.conditionB), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.conditionA.Equal(testCase.conditionB))
+			}
+		})
 	}
 }
 
@@ -181,9 +184,11 @@ func TestWithMessage(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(testCase.condition.WithMessage(testCase.msg), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.condition.WithMessage(testCase.msg))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(testCase.condition.WithMessage(testCase.msg), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.condition.WithMessage(testCase.msg))
+			}
+		})
 	}
 }
 
@@ -281,9 +286,11 @@ func TestNewConditionedStatus(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(NewConditionedStatus(testCase.conditions...), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, NewConditionedStatus(testCase.conditions...))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(NewConditionedStatus(testCase.conditions...), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, NewConditionedStatus(testCase.conditions...))
+			}
+		})
 	}
 }
 
@@ -368,9 +375,11 @@ func TestGetCondition(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(testCase.conditionedStatus.GetCondition(testCase.conditionType), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.conditionedStatus.GetCondition(testCase.conditionType))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(testCase.conditionedStatus.GetCondition(testCase.conditionType), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.conditionedStatus.GetCondition(testCase.conditionType))
+			}
+		})
 	}
 }
 
@@ -556,10 +565,12 @@ func TestSetConditions(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase.conditionedStatus.SetConditions(testCase.conditions...)
-		if !reflect.DeepEqual(testCase.conditionedStatus, testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.conditionedStatus)
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			testCase.conditionedStatus.SetConditions(testCase.conditions...)
+			if !reflect.DeepEqual(testCase.conditionedStatus, testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.conditionedStatus)
+			}
+		})
 	}
 }
 
@@ -768,8 +779,10 @@ func TestConditionedStatusEqual(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(testCase.csA.Equal(testCase.csB), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.csA.Equal(testCase.csB))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(testCase.csA.Equal(testCase.csB), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.csA.Equal(testCase.csB))
+			}
+		})
 	}
 }
