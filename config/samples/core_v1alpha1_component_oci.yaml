@@ -1,0 +1,48 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Component
+metadata:
+  creationTimestamp: "2023-08-08T07:41:49Z"
+  generation: 1
+  labels:
+    kubebb.component.repository: repository-oci-sample
+  name: repository-oci-sample.nginx
+  namespace: kubebb-system
+  ownerReferences:
+    - apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+      kind: Repository
+      name: repository-oci-sample
+      uid: a840ef79-2e0b-40fb-9193-8e96d1516845
+  resourceVersion: "3818"
+  uid: dc3deb30-9cc6-4bd2-a792-95c42e29d1dd
+spec: {}
+status:
+  description: NGINX Open Source is a web server that can be also used as a reverse
+    proxy, load balancer, and HTTP cache. Recommended for high-demanding sites due
+    to its ability to provide faster content.
+  home: https://bitnami.com
+  icon: https://bitnami.com/assets/stacks/nginx/img/nginx-stack-220x234.png
+  keywords:
+    - nginx
+    - http
+    - web
+    - www
+    - reverse proxy
+  maintainers:
+    - name: VMware, Inc.
+      url: https://github.com/bitnami/charts
+  name: nginx
+  repository:
+    apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+    kind: Repository
+    name: repository-oci-sample
+    namespace: kubebb-system
+    uid: a840ef79-2e0b-40fb-9193-8e96d1516845
+  sources:
+    - https://github.com/bitnami/charts/tree/main/bitnami/nginx
+  versions:
+    - appVersion: 1.25.1
+      createdAt: "2023-08-14T05:58:47Z"
+      deprecated: false
+      digest: ""
+      updatedAt: "2023-08-14T05:58:47Z"
+      version: 15.1.0

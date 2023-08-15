@@ -1,0 +1,13 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: ComponentPlan
+metadata:
+  name: do-once-oci-sample-15.1.0
+  namespace: kubebb-system
+spec:
+  approved: true
+  component:
+    name: repository-oci-sample.nginx
+    namespace: kubebb-system
+  name: oci-nginx
+  override: {}
+  version: 15.1.0

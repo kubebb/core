@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"sigs.k8s.io/yaml"
@@ -48,4 +49,10 @@ func ParseValues(dir string, reference *apiextensionsv1.JSON) (fileName string, 
 		return "", err
 	}
 	return filepath.Join(dir, fileName), nil
+}
+
+func GetOCIEntryName(url string) string {
+	nameSegments := strings.Split(url, "/")
+	entryName := nameSegments[len(nameSegments)-1]
+	return entryName
 }

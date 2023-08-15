@@ -131,6 +131,8 @@ function waitComponentStatus() {
 		versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions|length')
 		if [[ $versions -ne 0 ]]; then
 			echo "component ${componentName} already have version information and can be installed"
+#			digest=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions.digest')
+#			echo "digest: ${digest}"
 			break
 		fi
 		CURRENT_TIME=$(date +%s)
@@ -308,7 +310,7 @@ function validateComponentPlanStatusLatestValue() {
 		echo "componentPlan ${componentPlanName} status.latest is $latestValue, not $want"
 		kubectl -n${namespace} get ComponentPlan ${componentPlanName} -o yaml
 		exit 1
-		break
+		return
 	fi
 }
 
@@ -484,5 +486,17 @@ kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run
 waitComponentPlanRetryTime "default" "do-once-nginx-sample-15.0.2" "5"
 info "5.7.4 verify this componentplan will failed, show error log"
 kubectl get cpl do-once-nginx-sample-15.0.2 --output='jsonpath={.status.conditions[?(@.type=="Actioned")]}'
+
+info "6 try to verify that the common steps are valid to oci types"
+info "6.1 create oci repository"
+kubectl apply -f config/samples/core_v1alpha1_repository_oci.yaml
+waitComponentStatus "kubebb-system" "repository-oci-sample.nginx"
+
+info "6.2 create oci componentplan"
+kubectl apply -f config/samples/core_v1alpha1_oci_componentplan.yaml
+waitComponentPlanDone "kubebb-system" "do-once-oci-sample-15.1.0"
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=oci-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
+getHelmRevision "kubebb-system" "oci-nginx" "1"
+deleteComponentPlan "kubebb-system" "do-once-oci-sample-15.1.0"
 
 info "all finished! ✅"

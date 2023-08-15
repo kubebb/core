@@ -33,7 +33,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -46,45 +45,36 @@ const (
 	minIntervalSeconds = 120
 )
 
-var _ IWatcher = (*chartmuseum)(nil)
+var _ IWatcher = (*HTTPWatcher)(nil)
 
-func NewChartmuseum(
+func NewHTTPWatcher(
+	instance *v1alpha1.Repository,
+	c client.Client,
 	ctx context.Context,
 	logger logr.Logger,
-	c client.Client,
-	scheme *runtime.Scheme,
-	instance *v1alpha1.Repository,
+	duration time.Duration,
 	cancel context.CancelFunc,
+	scheme *runtime.Scheme,
+	fm map[string]v1alpha1.FilterCond,
 ) IWatcher {
-	duration := time.Duration(minIntervalSeconds) * time.Second
-	if instance.Spec.PullStategy != nil && instance.Spec.PullStategy.IntervalSeconds > minIntervalSeconds {
-		duration = time.Duration(instance.Spec.PullStategy.IntervalSeconds) * time.Second
-	}
-
-	if r := time.Second * minIntervalSeconds; r.Milliseconds() > duration.Milliseconds() {
-		logger.Info("the minimum cycle period is 120 seconds, but it is actually less, so the default 120 seconds is used as the period.")
-		duration = r
-	}
-	fm := make(map[string]v1alpha1.FilterCond)
-	for _, f := range instance.Spec.Filter {
-		fm[f.Name] = f
-	}
-	return &chartmuseum{
-		instance: instance,
-		c:        c,
-		ctx:      ctx,
-		logger:   logger,
-		duration: duration,
-		cancel:   cancel,
-		scheme:   scheme,
-		// Note: repoName should be in namepsaced to avoid confilicts when same repo name in different namespaces are used
+	result := &HTTPWatcher{
+		instance:  instance,
+		logger:    logger,
+		duration:  duration,
+		cancel:    cancel,
+		scheme:    scheme,
 		repoName:  instance.NamespacedName(),
 		filterMap: fm,
 	}
+
+	// Common Action in the watcher needs client and context to function
+	result.c = c
+	result.ctx = ctx
+	return result
 }
 
-type chartmuseum struct {
-	ctx      context.Context
+type HTTPWatcher struct {
+	CommonAction
 	cancel   context.CancelFunc
 	instance *v1alpha1.Repository
 	duration time.Duration
@@ -92,40 +82,29 @@ type chartmuseum struct {
 
 	username  string
 	password  string
-	c         client.Client
 	logger    logr.Logger
 	scheme    *runtime.Scheme
 	filterMap map[string]v1alpha1.FilterCond
 }
 
-// Start the chartmuseum
-func (c *chartmuseum) Start() error {
-	c.logger.Info("Start to fetch")
-	_ = helm.RepoRemove(c.ctx, c.logger, c.repoName)
-	if c.instance.Spec.AuthSecret != "" {
-		i := v1.Secret{}
-		if err := c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.Spec.AuthSecret, Namespace: c.instance.GetNamespace()}, &i); err != nil {
-			c.logger.Error(err, "Failed to get secret")
-			return err
-		}
-		c.username = string(i.Data[v1alpha1.Username])
-		c.password = string(i.Data[v1alpha1.Password])
+func (c *HTTPWatcher) Start() error {
+	username, password, err := Start(c.ctx, c.instance, c.duration, c.repoName, c.c, c.logger)
+	if err != nil {
+		return err
 	}
+	c.username = username
+	c.password = password
 
 	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL, c.username, c.password, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to add repository")
 		return err
 	}
-	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
-		c.logger.Error(err, "Failed to update repository")
-		return err
-	}
+
 	go wait.Until(c.Poll, c.duration, c.ctx.Done())
 	return nil
 }
 
-// Stop the chartmuseum
-func (c *chartmuseum) Stop() {
+func (c *HTTPWatcher) Stop() {
 	c.logger.Info("Delete Or Update Repository, stop watcher")
 	if err := helm.RepoRemove(c.ctx, c.logger, c.repoName); err != nil {
 		c.logger.Error(err, "Failed to remove repository")
@@ -134,20 +113,11 @@ func (c *chartmuseum) Stop() {
 }
 
 // Poll the components
-func (c *chartmuseum) Poll() {
+func (c *HTTPWatcher) Poll() {
+	c.logger.Info("HTTP poll")
 	now := metav1.Now()
-	readyCond := v1alpha1.Condition{
-		Status:             v1.ConditionTrue,
-		LastTransitionTime: now,
-		Message:            "",
-		Type:               v1alpha1.TypeReady,
-	}
-	syncCond := v1alpha1.Condition{
-		Status:             v1.ConditionTrue,
-		LastTransitionTime: now,
-		Message:            "index yaml synced successfully, creating components",
-		Type:               v1alpha1.TypeSynced,
-	}
+	readyCond := getReadyCond(now)
+	syncCond := getSyncCond(now)
 
 	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to update repository")
@@ -174,7 +144,9 @@ func (c *chartmuseum) Poll() {
 			for _, item := range diffAction[0] {
 				c.logger.Info("create component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
 				if err := c.Create(&item); err != nil && !errors.IsAlreadyExists(err) {
-					c.logger.Error(err, "failed to create")
+					c.logger.Error(err, "failed to create component")
+				} else {
+					c.logger.Info("Successfully created component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
 				}
 			}
 			for _, item := range diffAction[1] {
@@ -191,50 +163,12 @@ func (c *chartmuseum) Poll() {
 			}
 		}
 	}
-	i := v1alpha1.Repository{}
-	if err = c.c.Get(c.ctx, types.NamespacedName{Name: c.instance.GetName(), Namespace: c.instance.GetNamespace()}, &i); err != nil {
-		c.logger.Error(err, "try to update repository, but failed to get the latest version.", "readyCond", readyCond, "syncCond", syncCond)
-	} else {
-		iDeepCopy := i.DeepCopy()
-		// If the LastSuccessfultime is empty, it means that this synchronization failed,
-		// find the time when the latest synchronization was successful.
-		if syncCond.LastSuccessfulTime.IsZero() {
-			for _, cond := range iDeepCopy.Status.Conditions {
-				if cond.Type == v1alpha1.TypeSynced && !cond.LastSuccessfulTime.IsZero() {
-					syncCond.LastSuccessfulTime = cond.LastSuccessfulTime
-					break
-				}
-			}
-		}
-		iDeepCopy.Status.SetConditions(readyCond, syncCond)
-		if err := c.c.Status().Patch(c.ctx, iDeepCopy, client.MergeFrom(&i)); err != nil {
-			c.logger.Error(err, "failed to patch repository status")
-		}
-	}
-}
 
-// Create the component and update it in the k8s client
-func (c *chartmuseum) Create(component *v1alpha1.Component) error {
-	status := component.Status
-	if err := c.c.Create(c.ctx, component); err != nil {
-		return err
-	}
-	component.Status = status
-	return c.Update(component)
-}
-
-// Update the component in the k8s clientt
-func (c *chartmuseum) Update(component *v1alpha1.Component) error {
-	return c.c.Status().Update(c.ctx, component)
-}
-
-// Delete the component in the k8s client
-func (c *chartmuseum) Delete(component *v1alpha1.Component) error {
-	return c.Update(component)
+	updateRepository(c.ctx, c.instance, c.c, c.logger, readyCond, syncCond)
 }
 
 // fetchIndexYaml get the index.yaml file
-func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
+func (c *HTTPWatcher) fetchIndexYaml() (*hrepo.IndexFile, error) {
 	var settings = cli.New()
 	repoCache := settings.RepositoryCache
 	fname := filepath.Join(repoCache, helmpath.CacheIndexFile(c.repoName))
@@ -251,7 +185,7 @@ func (c *chartmuseum) fetchIndexYaml() (*hrepo.IndexFile, error) {
 }
 
 // indexFileToComponent gets the component from the index file
-func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha1.Component {
+func (c *HTTPWatcher) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha1.Component {
 	components := make([]v1alpha1.Component, len(indexFile.Entries))
 	index := 0
 
@@ -332,7 +266,7 @@ func (c *chartmuseum) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 // diff This function gets the new Component, the updated Component,
 // and the Component that needs to be marked for deletion based on the list of charts obtained from the given link
 // compared to the already existing Components in the cluster
-func (c *chartmuseum) diff(indexFile *hrepo.IndexFile) ([3][]v1alpha1.Component, error) {
+func (c *HTTPWatcher) diff(indexFile *hrepo.IndexFile) ([3][]v1alpha1.Component, error) {
 	targetComponents := c.indexFileToComponent(indexFile)
 	exitComponents := v1alpha1.ComponentList{}
 	if err := c.c.List(c.ctx, &exitComponents, &client.ListOptions{
