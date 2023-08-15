@@ -28,25 +28,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type condStatusTestCase struct {
-	status, exp ConditionedStatus
-	l           int
-	cond        Condition
-}
-
 func TestUpdateCondwithFixedLen(t *testing.T) {
+	type condStatusTestCase struct {
+		name        string
+		status, exp ConditionedStatus
+		l           int
+		cond        Condition
+	}
 	now := metav1.Now()
 	testCases := []condStatusTestCase{
-		// l = 0
 		{
+			name:   "l = 0",
 			status: ConditionedStatus{},
 			l:      0,
 			exp: ConditionedStatus{
 				Conditions: []Condition{{}},
 			},
 		},
-		// l = 1 && conditions = 0
 		{
+			name:   "l = 1 && conditions = 0",
 			status: ConditionedStatus{},
 			l:      1,
 			cond: Condition{
@@ -68,8 +68,8 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 				},
 			},
 		},
-		// l = 1 && conditions = 1
 		{
+			name: "l = 1 && conditions = 1",
 			status: ConditionedStatus{
 				Conditions: []Condition{
 					{
@@ -101,8 +101,8 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 				},
 			},
 		},
-		// l = 1, conditions = 2
 		{
+			name: "l = 1, conditions = 2",
 			status: ConditionedStatus{
 				Conditions: []Condition{
 					{
@@ -141,9 +141,8 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 				},
 			},
 		},
-
-		// l = 2 && conditions = 0
 		{
+			name:   "l = 2 && conditions = 0",
 			status: ConditionedStatus{},
 			l:      2,
 			cond: Condition{
@@ -165,10 +164,8 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 				},
 			},
 		},
-
-		// l = 2 && conditions = 1
-		// 6
 		{
+			name: "l = 2 && conditions = 1",
 			status: ConditionedStatus{
 				Conditions: []Condition{
 					{
@@ -207,8 +204,8 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 				},
 			},
 		},
-		// l = 2, conditions = 2
 		{
+			name: "l = 2, conditions = 2",
 			status: ConditionedStatus{
 				Conditions: []Condition{
 					{
@@ -254,8 +251,8 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 				},
 			},
 		},
-		// l =2 && conditions = 3
 		{
+			name: "l = 2, conditions = 3",
 			status: ConditionedStatus{
 				Conditions: []Condition{
 					{
@@ -310,7 +307,7 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 		},
 	}
 	for i, tc := range testCases {
-		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			UpdateCondWithFixedLen(tc.l, &tc.status, tc.cond)
 			if !reflect.DeepEqual(tc.exp, tc.status) {
 				t.Fatalf("[%d] expect %v get %v", i, tc.exp, tc.status)
