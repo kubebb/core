@@ -74,6 +74,15 @@ func (c *ComponentPlan) ValidateCreate(ctx context.Context, obj runtime.Object) 
 		return err
 	}
 	log = log.WithValues("user", user)
+	p, ok := obj.(*ComponentPlan)
+	if !ok {
+		log.Error(ErrDecode, "obj "+ErrDecode.Error())
+		return ErrDecode
+	}
+	if err = p.validateSpec(); err != nil {
+		log.Info(err.Error())
+		return err
+	}
 	log.Info("validate create done")
 	return nil
 }
@@ -96,6 +105,10 @@ func (c *ComponentPlan) ValidateUpdate(ctx context.Context, oldObj runtime.Objec
 	if !ok {
 		log.Error(ErrDecode, "newObj "+ErrDecode.Error())
 		return ErrDecode
+	}
+	if err = np.validateSpec(); err != nil {
+		log.Info(err.Error())
+		return err
 	}
 	if p.Spec.Name != np.Spec.Name {
 		log.Info(ErrReleaseNameChange.Error(), "old", p.Spec.Name, "new", np.Spec.Name)
@@ -123,5 +136,12 @@ func (c *ComponentPlan) ValidateDelete(ctx context.Context, obj runtime.Object) 
 	}
 	log = log.WithValues("user", user)
 	log.Info("validate delete done")
+	return nil
+}
+
+func (c *ComponentPlan) validateSpec() error {
+	if c.Spec.ComponentRef == nil || c.Spec.ComponentRef.Namespace == "" || c.Spec.ComponentRef.Name == "" {
+		return ErrComponentMissing
+	}
 	return nil
 }
