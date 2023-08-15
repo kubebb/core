@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -79,9 +80,11 @@ func TestNamespacedName(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(testCase.repo.NamespacedName(), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.repo.NamespacedName())
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(testCase.repo.NamespacedName(), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.repo.NamespacedName())
+			}
+		})
 	}
 }
 
@@ -165,10 +168,12 @@ func TestIsPullStrategySame(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		result := IsPullStrategySame(testCase.pullA, testCase.pullB)
-		if !reflect.DeepEqual(result, testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, result)
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			result := IsPullStrategySame(testCase.pullA, testCase.pullB)
+			if !reflect.DeepEqual(result, testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, result)
+			}
+		})
 	}
 }
 
@@ -200,15 +205,17 @@ func TestGetImageOverridePath(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		env := os.Getenv("IMAGEOVERRIDE_PATH")
-		if len(testCase.env) != 0 {
-			os.Setenv("IMAGEOVERRIDE_PATH", testCase.env)
-		}
-		if !reflect.DeepEqual(GetImageOverridePath(), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, GetImageOverridePath())
-		}
-		if len(testCase.env) != 0 {
-			os.Setenv("IMAGEOVERRIDE_PATH", env)
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			env := os.Getenv("IMAGEOVERRIDE_PATH")
+			if len(testCase.env) != 0 {
+				os.Setenv("IMAGEOVERRIDE_PATH", testCase.env)
+			}
+			if !reflect.DeepEqual(GetImageOverridePath(), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, GetImageOverridePath())
+			}
+			if len(testCase.env) != 0 {
+				os.Setenv("IMAGEOVERRIDE_PATH", env)
+			}
+		})
 	}
 }

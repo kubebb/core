@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -309,10 +310,12 @@ func TestUpdateCondwithFixedLen(t *testing.T) {
 		},
 	}
 	for i, tc := range testCases {
-		UpdateCondWithFixedLen(tc.l, &tc.status, tc.cond)
-		if !reflect.DeepEqual(tc.exp, tc.status) {
-			t.Fatalf("[%d] expect %v get %v", i, tc.exp, tc.status)
-		}
+		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			UpdateCondWithFixedLen(tc.l, &tc.status, tc.cond)
+			if !reflect.DeepEqual(tc.exp, tc.status) {
+				t.Fatalf("[%d] expect %v get %v", i, tc.exp, tc.status)
+			}
+		})
 	}
 }
 
@@ -756,10 +759,12 @@ func TestMatch(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		indices, keep := Match(testCase.filterCond, Filter{Name: testCase.name, Versions: testCase.versions})
-		if !reflect.DeepEqual(indices, testCase.expected) || keep != testCase.keep {
-			t.Errorf("Test Failed: %s, expected: %v %v, actual: %v %v", testCase.description, testCase.expected, testCase.keep, indices, keep)
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			indices, keep := Match(testCase.filterCond, Filter{Name: testCase.name, Versions: testCase.versions})
+			if !reflect.DeepEqual(indices, testCase.expected) || keep != testCase.keep {
+				t.Errorf("Test Failed: %s, expected: %v %v, actual: %v %v", testCase.description, testCase.expected, testCase.keep, indices, keep)
+			}
+		})
 	}
 }
 
@@ -801,9 +806,11 @@ func TestIsCondSame(t *testing.T) {
 		},
 	}
 	for i, tc := range testCases {
-		if r := IsCondSame(tc.c1, tc.c2); r != tc.exp {
-			t.Fatalf("expect %v get %v c1: %d", tc.exp, r, i)
-		}
+		t.Run(fmt.Sprintf("test: %d", i), func(t *testing.T) {
+			if r := IsCondSame(tc.c1, tc.c2); r != tc.exp {
+				t.Fatalf("expect %v get %v c1: %d", tc.exp, r, i)
+			}
+		})
 	}
 }
 
@@ -884,9 +891,11 @@ func TestComponentVersionEqual(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		if r := tc.a.Equal(&tc.b); r != tc.expect {
-			t.Fatalf("Test Failed: %s, expected: %v, got: %v", tc.name, tc.expect, r)
-		}
+		t.Run(fmt.Sprintf("test: %s", tc.name), func(t *testing.T) {
+			if r := tc.a.Equal(&tc.b); r != tc.expect {
+				t.Fatalf("Test Failed: %s, expected: %v, got: %v", tc.name, tc.expect, r)
+			}
+		})
 	}
 }
 
@@ -899,10 +908,12 @@ func TestGetValuesKey(t *testing.T) {
 		{obj: ValuesReference{}, expect: "values.yaml"},
 		{obj: ValuesReference{ValuesKey: "new-values.yaml"}, expect: "new-values.yaml"},
 	}
-	for _, tc := range testCases {
-		if r := tc.obj.GetValuesKey(); r != tc.expect {
-			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
-		}
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test: %d", i), func(t *testing.T) {
+			if r := tc.obj.GetValuesKey(); r != tc.expect {
+				t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+			}
+		})
 	}
 }
 
@@ -931,10 +942,12 @@ func TestValuesReferenceGetValuesFileDir(t *testing.T) {
 			expect:        "/opt/helm/configmap.kube-system.def",
 		},
 	}
-	for _, tc := range testCases {
-		if r := tc.obj.GetValuesFileDir(tc.helmCacheHome, tc.namespace); r != tc.expect {
-			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
-		}
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test: %d", i), func(t *testing.T) {
+			if r := tc.obj.GetValuesFileDir(tc.helmCacheHome, tc.namespace); r != tc.expect {
+				t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+			}
+		})
 	}
 }
 
@@ -960,9 +973,11 @@ func TestOverrideGetValueFileDir(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(testCase.override.GetValueFileDir(testCase.helmCacheHome, testCase.namespace, testCase.name), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.override.GetValueFileDir(testCase.helmCacheHome, testCase.namespace, testCase.name))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(testCase.override.GetValueFileDir(testCase.helmCacheHome, testCase.namespace, testCase.name), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, testCase.override.GetValueFileDir(testCase.helmCacheHome, testCase.namespace, testCase.name))
+			}
+		})
 	}
 }
 
@@ -975,10 +990,12 @@ func TestTimeout(t *testing.T) {
 		{obj: Config{TimeOutSeconds: 30}, expect: time.Duration(30 * time.Second)},
 		{obj: Config{}, expect: time.Duration(300 * time.Second)},
 	}
-	for _, tc := range testCases {
-		if r := tc.obj.Timeout(); r.Seconds() != tc.expect.Seconds() {
-			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect.Seconds(), r.Seconds())
-		}
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test: %d", i), func(t *testing.T) {
+			if r := tc.obj.Timeout(); r.Seconds() != tc.expect.Seconds() {
+				t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect.Seconds(), r.Seconds())
+			}
+		})
 	}
 }
 
@@ -992,10 +1009,12 @@ func TestGetMaxHistory(t *testing.T) {
 		{obj: Config{}, expect: 10},
 		{obj: Config{MaxHistory: &maxHistory}, expect: 60},
 	}
-	for _, tc := range testCases {
-		if r := tc.obj.GetMaxHistory(); r != tc.expect {
-			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
-		}
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test: %d", i), func(t *testing.T) {
+			if r := tc.obj.GetMaxHistory(); r != tc.expect {
+				t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+			}
+		})
 	}
 }
 
@@ -1009,10 +1028,12 @@ func TestGetMaxRetry(t *testing.T) {
 		{obj: Config{}, expect: 5},
 		{obj: Config{MaxRetry: &maxRetry}, expect: 60},
 	}
-	for _, tc := range testCases {
-		if r := tc.obj.GetMaxRetry(); r != tc.expect {
-			t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
-		}
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("test: %d", i), func(t *testing.T) {
+			if r := tc.obj.GetMaxRetry(); r != tc.expect {
+				t.Fatalf("Test Failed, expected: %v, got: %v", tc.expect, r)
+			}
+		})
 	}
 }
 
@@ -1082,8 +1103,10 @@ func TestIsFilterSame(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !reflect.DeepEqual(IsFilterSame(testCase.cond1, testCase.cond2), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, IsFilterSame(testCase.cond1, testCase.cond2))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !reflect.DeepEqual(IsFilterSame(testCase.cond1, testCase.cond2), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, IsFilterSame(testCase.cond1, testCase.cond2))
+			}
+		})
 	}
 }

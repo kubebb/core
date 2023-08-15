@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -431,9 +432,11 @@ func TestComponentPlanCondition(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		if !IsEquivCondition(componentPlanCondition(testCase.ct, testCase.reason, testCase.status, testCase.err), testCase.expected) {
-			t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, componentPlanCondition(testCase.ct, testCase.reason, testCase.status, testCase.err))
-		}
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			if !IsEquivCondition(componentPlanCondition(testCase.ct, testCase.reason, testCase.status, testCase.err), testCase.expected) {
+				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, componentPlanCondition(testCase.ct, testCase.reason, testCase.status, testCase.err))
+			}
+		})
 	}
 }
 
@@ -497,12 +500,14 @@ func TestInitCondition(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		result := testCase.cp.InitCondition()
-		for i, condition := range result {
-			if !IsEquivCondition(condition, testCase.expected[i]) {
-				t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, condition)
+		t.Run(fmt.Sprintf("test: %s", testCase.description), func(t *testing.T) {
+			result := testCase.cp.InitCondition()
+			for i, condition := range result {
+				if !IsEquivCondition(condition, testCase.expected[i]) {
+					t.Fatalf("Test Failed: %s, expected: %v, actual: %v", testCase.description, testCase.expected, condition)
+				}
 			}
-		}
+		})
 	}
 }
 

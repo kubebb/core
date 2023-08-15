@@ -1,0 +1,151 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.2
+  creationTimestamp: null
+  name: ratings.core.kubebb.k8s.com.cn
+spec:
+  group: core.kubebb.k8s.com.cn
+  names:
+    kind: Rating
+    listKind: RatingList
+    plural: ratings
+    singular: rating
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              componentName:
+                description: ComponentName Each Rating corresponds to a component
+                type: string
+              pipelineParams:
+                items:
+                  properties:
+                    params:
+                      description: Params List of parameters defined in the pipeline
+                      items:
+                        description: ParamSpec defines arbitrary parameters needed
+                          beyond typed inputs (such as resources). Parameter values
+                          are provided by users as inputs on a TaskRun or PipelineRun.
+                        properties:
+                          default:
+                            description: Default is the value a parameter takes if
+                              no input value is supplied. If default is set, a Task
+                              may be executed without a supplied value for the parameter.
+                            properties:
+                              arrayVal:
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              objectVal:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                              stringVal:
+                                type: string
+                              type:
+                                description: ParamType indicates the type of an input
+                                  parameter; Used to distinguish between a single
+                                  string and an array of strings.
+                                type: string
+                            required:
+                            - arrayVal
+                            - objectVal
+                            - stringVal
+                            - type
+                            type: object
+                          description:
+                            description: Description is a user-facing description
+                              of the parameter that may be used to populate a UI.
+                            type: string
+                          name:
+                            description: Name declares the name by which a parameter
+                              is referenced.
+                            type: string
+                          properties:
+                            additionalProperties:
+                              description: PropertySpec defines the struct for object
+                                keys
+                              properties:
+                                type:
+                                  description: ParamType indicates the type of an
+                                    input parameter; Used to distinguish between a
+                                    single string and an array of strings.
+                                  type: string
+                              type: object
+                            description: Properties is the JSON Schema properties
+                              to support key-value pairs parameter.
+                            type: object
+                          type:
+                            description: Type is the user-specified type of the parameter.
+                              The possible types are currently "string", "array" and
+                              "object", and "string" is the default.
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
+                    pipelineName:
+                      description: PipelineName the name of pipeline
+                      type: string
+                  required:
+                  - pipelineName
+                  type: object
+                type: array
+            required:
+            - componentName
+            - pipelineParams
+            type: object
+          status:
+            properties:
+              actualWeight:
+                description: ActualWeight The sum of all successful task weights.
+                type: integer
+              expectWeight:
+                description: ExpectWeight Each pipeline contains multiple tasks. The
+                  default weight of each task is 1. This field describes the sum of
+                  the weights of all tasks included in the pipeline defined in Rating.
+                type: integer
+              tasks:
+                items:
+                  properties:
+                    name:
+                      type: string
+                    reason:
+                      description: Reason for failure
+                      type: string
+                    state:
+                      description: State three states, running, success, failure
+                      type: integer
+                    type:
+                      type: string
+                  required:
+                  - name
+                  - state
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

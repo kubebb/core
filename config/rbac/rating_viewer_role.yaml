@@ -1,0 +1,27 @@
+# permissions for end users to view ratings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: rating-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: core
+    app.kubernetes.io/part-of: core
+    app.kubernetes.io/managed-by: kustomize
+  name: rating-viewer-role
+rules:
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - ratings
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn
+  resources:
+  - ratings/status
+  verbs:
+  - get
