@@ -17,9 +17,18 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
+
+	v1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/utils/env"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 const (
@@ -31,6 +40,15 @@ const (
 
 	ComponentRepositoryLabel = "kubebb.component.repository"
 	RepositoryTypeLabel      = "kubebb.repository.type"
+
+	RatingServiceAccountEnv     = "RATING_SERVICEACCOUNT"
+	RatingClusterRoleEnv        = "RATING_CLUSTERROLE"
+	RatingClusterRoleBindingEnv = "RATING_CLUSTERROLEBINDING"
+	RatingEnableEnv             = "RATING_ENABLE"
+
+	DefaultRatingServiaceAccount    = "rating-serviceaccount"
+	DefaultRatingClusterRole        = "rating-clusterrole"
+	DefaultRatingClusterRoleBinding = "rating-clusterrolebinding"
 )
 
 // NamespacedName return the namespaced name of the repository in string format
@@ -57,4 +75,93 @@ func GetImageOverridePath() []string {
 		return ImageOverridePath
 	}
 	return strings.Split(v, ":")
+}
+
+func EnsureRatingResources() {
+	if !RatingEnabled() {
+		return
+	}
+
+	cfg := config.GetConfigOrDie()
+	c := kubernetes.NewForConfigOrDie(cfg)
+	clusterRoleName := GetRatingClusterRole()
+	if _, err := c.RbacV1().ClusterRoles().Get(context.Background(), clusterRoleName, metav1.GetOptions{}); err != nil {
+		panic(err)
+	}
+
+	clusterRolebingName := GetRatingClusterRoleBinding()
+	if _, err := c.RbacV1().ClusterRoleBindings().Get(context.Background(), clusterRolebingName, metav1.GetOptions{}); err != nil {
+		panic(err)
+	}
+}
+
+func RatingEnabled() bool {
+	r, _ := env.GetBool(RatingEnableEnv, false)
+	return r
+}
+
+func GetRatingServiceAccount() string {
+	return env.GetString(RatingServiceAccountEnv, DefaultRatingServiaceAccount)
+}
+
+func GetRatingClusterRole() string {
+	return env.GetString(RatingClusterRoleEnv, DefaultRatingClusterRole)
+}
+
+func GetRatingClusterRoleBinding() string {
+	return env.GetString(RatingClusterRoleBindingEnv, DefaultRatingClusterRoleBinding)
+}
+
+func AddSubjectToClusterRoleBinding(ctx context.Context, c client.Client, namespace string) error {
+	if !RatingEnabled() {
+		return nil
+	}
+
+	clusterRoleBinding := GetRatingClusterRoleBinding()
+	serviceAccount := GetRatingServiceAccount()
+	crb := v1.ClusterRoleBinding{}
+	if err := c.Get(ctx, types.NamespacedName{Name: clusterRoleBinding}, &crb); err != nil {
+		return err
+	}
+
+	add := true
+	for _, sub := range crb.Subjects {
+		if sub.Kind == "ServiceAccount" && sub.Name == serviceAccount && sub.Namespace == namespace {
+			add = false
+			break
+		}
+	}
+	if add {
+		crb.Subjects = append(crb.Subjects, v1.Subject{Kind: "ServiceAccount", Name: serviceAccount, Namespace: namespace})
+		return c.Update(ctx, &crb)
+	}
+	return nil
+}
+
+func RemoveSubjectFromClusterRoleBinding(ctx context.Context, c client.Client, namespace string) error {
+	if !RatingEnabled() {
+		return nil
+	}
+
+	clusterRoleBinding := GetRatingClusterRoleBinding()
+	serviceAccount := GetRatingServiceAccount()
+	crb := v1.ClusterRoleBinding{}
+	if err := c.Get(ctx, types.NamespacedName{Name: clusterRoleBinding}, &crb); err != nil {
+		return err
+	}
+
+	index, length := 0, len(crb.Subjects)
+	for idx := 0; idx < length; idx++ {
+		if crb.Subjects[idx].Kind == "ServiceAccount" && crb.Subjects[idx].Name == serviceAccount && crb.Subjects[idx].Namespace == namespace {
+			continue
+		}
+		crb.Subjects[index] = crb.Subjects[idx]
+		index++
+	}
+	if index != length {
+		crb.Subjects = crb.Subjects[:index]
+		return c.Update(ctx, &crb)
+	}
+
+	return nil
 }
