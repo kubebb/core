@@ -221,7 +221,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 	}
 
-	chartName := component.Status.Name
+	chartName := repo.NamespacedName() + "/" + component.Status.Name
 	if chartName == "" {
 		logger.Info("Failed to get Component's chart name in status.name, wait 15 seconds for another try", "Component", klog.KObj(component))
 		return ctrl.Result{Requeue: true, RequeueAfter: 15 * time.Second}, nil

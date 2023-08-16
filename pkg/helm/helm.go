@@ -19,7 +19,6 @@ package helm
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +35,6 @@ import (
 	"helm.sh/helm/v3/pkg/helmpath"
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
-	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -87,12 +85,6 @@ func (h *HelmWrapper) Pull(logger logr.Logger, url string) (chartRequested *char
 	entryName := combinedName[len(combinedName)-1]
 
 	i := action.NewPullWithOpts(action.WithConfig(h.config))
-	h.config.RegistryClient, err = registry.NewClient()
-	if err != nil {
-		logger.Error(err, "cannot create new registry")
-		return nil, err
-	}
-
 	i.Settings = settings
 	i.Devel = false
 	i.VerifyLater = false
@@ -127,6 +119,12 @@ func (h *HelmWrapper) Pull(logger logr.Logger, url string) (chartRequested *char
 // inspire by https://github.com/helm/helm/blob/main/cmd/helm/install.go
 func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli client.Client, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, dryRun bool, chartName string) (rel *release.Release, err error) {
 	log := logger.WithValues("ComponentPlan", klog.KObj(cpl))
+	if registry.IsOCI(repo.Spec.URL) {
+		log.Info("Installing OCI Component")
+		chartName = repo.Spec.URL
+	} else {
+		log.Info("Installing non-OCI Component")
+	}
 	if dryRun {
 		log.WithValues("dryRun", true)
 	}
@@ -147,11 +145,10 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	i.Atomic = cpl.Spec.Atomic
 	i.SkipCRDs = cpl.Spec.SkipCRDs
 	i.SubNotes = false // we cant see notes or subnotes
-
 	i.Version = cpl.Spec.InstallVersion
 	i.Verify = false // TODO enable these args after we can config keyring
-	i.RepoURL = repo.Spec.URL
-	i.Keyring = "" // TODO enable these args after we can config keyring
+	i.RepoURL = ""   // We only support adding a repo and then installing it, not installing it directly via an url.
+	i.Keyring = ""   // TODO enable these args after we can config keyring
 	if repo.Spec.AuthSecret != "" {
 		s := corev1.Secret{}
 		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
@@ -170,25 +167,9 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	log.V(1).Info(fmt.Sprintf("Original chart version: %q", i.Version))
 
 	i.ReleaseName = cpl.GetReleaseName()
-
-	var chartRequested *chart.Chart
-	var vals map[string]interface{}
-	if registry.IsOCI(repo.Spec.URL) {
-		logger.Info("Installing OCI component")
-		chartRequested, err = h.Pull(logger, repo.Spec.URL)
-		if err != nil {
-			return nil, err
-		}
-		_, vals, err = getVals(ctx, cli, logger, cpl)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		logger.Info("Installing non-OCI component")
-		chartRequested, vals, err = h.prepare(ctx, cli, log, i.ChartPathOptions, cpl, chartName)
-		if err != nil {
-			return nil, err
-		}
+	chartRequested, vals, err := h.prepare(ctx, cli, log, i.ChartPathOptions, cpl, chartName)
+	if err != nil {
+		return nil, err
 	}
 	i.Namespace = cpl.Namespace
 	if dryRun {
@@ -223,11 +204,10 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 	i.SubNotes = false // we cant see notes or subnotes
 	i.Description = cpl.Spec.Description
 	i.DependencyUpdate = true
-
 	i.Version = cpl.Spec.InstallVersion
 	i.Verify = false // TODO enable these args after we can config keyring
-	i.RepoURL = repo.Spec.URL
-	i.Keyring = "" // TODO enable these args after we can config keyring
+	i.RepoURL = ""   // We only support adding a repo and then installing it, not installing it directly via a url.
+	i.Keyring = ""   // TODO enable these args after we can config keyring
 	if repo.Spec.AuthSecret != "" {
 		s := corev1.Secret{}
 		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
@@ -309,37 +289,13 @@ func (h *HelmWrapper) chartDownload(chartName string, logger logr.Logger, i acti
 		dl.Verify = downloader.VerifyAlways
 	}
 
-	chartURL, err := repo.FindChartInAuthAndTLSAndPassRepoURL(i.RepoURL, i.Username, i.Password, chartName, i.Version,
-		i.CertFile, i.KeyFile, i.CaFile, i.InsecureSkipTLSverify, i.PassCredentialsAll, getter.All(settings))
-	if err != nil {
-		return "", err
-	}
-
-	// Only pass the user/pass on when the user has said to or when the
-	// location of the chart repo and the chart are the same domain.
-	u1, err := url.Parse(i.RepoURL)
-	if err != nil {
-		return "", err
-	}
-	u2, err := url.Parse(chartURL)
-	if err != nil {
-		return "", err
-	}
-
-	// Host on URL (returned from url.Parse) contains the port if present.
-	// This check ensures credentials are not passed between different
-	// services on different ports.
-	if i.PassCredentialsAll || (u1.Scheme == u2.Scheme && u1.Host == u2.Host) {
-		dl.Options = append(dl.Options, getter.WithBasicAuth(i.Username, i.Password))
-	} else {
-		dl.Options = append(dl.Options, getter.WithBasicAuth("", ""))
-	}
+	dl.Options = append(dl.Options, getter.WithBasicAuth(i.Username, i.Password))
 
 	if err := os.MkdirAll(settings.RepositoryCache, 0755); err != nil {
 		return "", err
 	}
 
-	filename, _, err := dl.DownloadTo(chartURL, i.Version, settings.RepositoryCache)
+	filename, _, err := dl.DownloadTo(chartName, i.Version, settings.RepositoryCache)
 	if err == nil {
 		lname, err := filepath.Abs(filename)
 		if err != nil {
