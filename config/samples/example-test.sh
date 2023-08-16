@@ -487,6 +487,29 @@ waitComponentPlanRetryTime "default" "do-once-nginx-sample-15.0.2" "5"
 info "5.7.4 verify this componentplan will failed, show error log"
 kubectl get cpl do-once-nginx-sample-15.0.2 --output='jsonpath={.status.conditions[?(@.type=="Actioned")]}'
 
+info "5.8 Verify that helm add repo with basic auth"
+info "5.8.1 Add kubebb repository"
+kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
+waitComponentStatus "kubebb-system" "repository-kubebb.chartmuseum"
+info "5.8.2 Plan a private repository with chartmuseum"
+kubectl apply -f config/samples/core_v1alpha1_componentplan_chartmuseum.yaml
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-chartmuseum"
+info "5.8.3 Verify private chartmuseum service is well running"
+export POD_NAME=$(kubectl get pods --namespace kubebb-system -l app.kubernetes.io/instance=my-chartmuseum -o jsonpath="{.items[0].metadata.name}")
+nohup kubectl port-forward $POD_NAME 8088:8080 --namespace kubebb-system > /dev/null 2>&1 &
+curl --retry 3 --retry-delay 5 --retry-connrefused -u admin:password http://localhost:8088
+
+info "5.9 Verify that helm install with basic auth"
+info "5.9.1 Push a chart to private chartmuseum"
+curl --retry 3 --retry-delay 5 -O https://charts.bitnami.com/bitnami/nginx-15.1.2.tgz
+curl --retry 3 --retry-delay 5 -u admin:password --data-binary "@nginx-15.1.2.tgz" http://localhost:8088/api/charts
+info "5.9.1 Add this private chartmuseum repository(basic auth enabled) to kubebb"
+kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
+waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
+info "5.9.1 Plan a nignx with private chartmuseum(basic auth enabled) "
+kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
+waitComponentPlanDone "kubebb-system" "mynginx" 
+
 info "6 try to verify that the common steps are valid to oci types"
 info "6.1 create oci repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_oci.yaml
