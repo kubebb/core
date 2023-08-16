@@ -27,14 +27,18 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/pkg/repository"
@@ -162,6 +166,10 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 		return false, err
 	}
 
+	if err := r.EnsureRatingServiceAccount(ctx, instance.GetNamespace()); err != nil {
+		return false, err
+	}
+
 	return true, nil
 }
 
@@ -192,7 +200,7 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	manager := ctrl.NewControllerManagedBy(mgr).
 		For(&corev1alpha1.Repository{}, builder.WithPredicates(predicate.Funcs{
 			CreateFunc: func(ce event.CreateEvent) bool {
 				obj := ce.Object.(*corev1alpha1.Repository)
@@ -205,6 +213,58 @@ func (r *RepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Deleted", "delete repository %s", obj.GetName())
 				return true
 			},
-		})).
-		Complete(r)
+		})).Watches(&source.Kind{Type: &v1.ServiceAccount{}}, handler.Funcs{})
+
+	if corev1alpha1.RatingEnabled() {
+		manager = manager.Watches(&source.Kind{Type: &v1.ServiceAccount{}}, handler.Funcs{
+			CreateFunc: func(ce event.CreateEvent, _ workqueue.RateLimitingInterface) {
+				sa := ce.Object.(*v1.ServiceAccount)
+				if sa.Name == corev1alpha1.GetRatingServiceAccount() {
+					_ = corev1alpha1.AddSubjectToClusterRoleBinding(context.Background(), r.Client, sa.GetNamespace())
+				}
+			},
+			UpdateFunc: func(ue event.UpdateEvent, _ workqueue.RateLimitingInterface) {
+				sa := ue.ObjectNew.(*v1.ServiceAccount)
+				if sa.Name == corev1alpha1.GetRatingServiceAccount() {
+					_ = corev1alpha1.AddSubjectToClusterRoleBinding(context.Background(), r.Client, sa.GetNamespace())
+				}
+			},
+			DeleteFunc: func(de event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+				sa := de.Object.(*v1.ServiceAccount)
+				if sa.Name == corev1alpha1.GetRatingServiceAccount() {
+					repoList := corev1alpha1.RepositoryList{}
+					if err := r.List(context.Background(), &repoList, client.InNamespace(sa.GetNamespace())); err == nil {
+						if len(repoList.Items) > 0 {
+							_ = r.EnsureRatingServiceAccount(context.Background(), sa.GetNamespace())
+						} else {
+							_ = corev1alpha1.RemoveSubjectFromClusterRoleBinding(context.Background(), r.Client, sa.GetNamespace())
+						}
+					}
+				}
+			},
+		})
+	}
+	return manager.Complete(r)
+}
+
+func (r RepositoryReconciler) EnsureRatingServiceAccount(ctx context.Context, namespace string) error {
+	if !corev1alpha1.RatingEnabled() {
+		return nil
+	}
+
+	ratingUsedServiceAccount := corev1alpha1.GetRatingServiceAccount()
+	sa := v1.ServiceAccount{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ratingUsedServiceAccount}, &sa); err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+
+		sa.Name = ratingUsedServiceAccount
+		sa.Namespace = namespace
+		if err = r.Create(ctx, &sa); err != nil && !errors.IsConflict(err) {
+			return err
+		}
+	}
+
+	return nil
 }
