@@ -337,6 +337,31 @@ function waitComponentPlanRetryTime() {
 	done
 }
 
+function checkDuplicatePortal(){
+  namespace=$1
+  portalName=$2
+  duplWant=$3
+
+	START_TIME=$(date +%s)
+  while true; do
+      status=$(kubectl -n${namespace} get Portal ${portalName} -ojson | jq -r '.status')
+  		dupl=$(kubectl -n${namespace} get Portal ${portalName} -ojson | jq -r '.status.conflicted')
+  		if [[ $dupl == $duplWant ]]; then
+  			echo "Portal ${portalName} got correct status"
+  			break
+  		fi
+
+  		CURRENT_TIME=$(date +%s)
+  		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+  		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+  			error "Timeout reached"
+  			kubectl -n${namespace} get ComponentPlan -o yaml
+  			exit 1
+  		fi
+  		sleep 5
+  	done
+}
+
 info "1. create kind cluster"
 make kind
 
@@ -486,6 +511,31 @@ kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run
 waitComponentPlanRetryTime "default" "do-once-nginx-sample-15.0.2" "5"
 info "5.7.4 verify this componentplan will failed, show error log"
 kubectl get cpl do-once-nginx-sample-15.0.2 --output='jsonpath={.status.conditions[?(@.type=="Actioned")]}'
+info "" # go to a new line
+
+info "5.8 Verify that helm add repo with basic auth"
+info "5.8.1 Add kubebb repository"
+kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
+waitComponentStatus "kubebb-system" "repository-kubebb.chartmuseum"
+info "5.8.2 Plan a private repository with chartmuseum"
+kubectl apply -f config/samples/core_v1alpha1_componentplan_chartmuseum.yaml
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-chartmuseum"
+info "5.8.3 Verify private chartmuseum service is well running"
+export POD_NAME=$(kubectl get pods --namespace kubebb-system -l app.kubernetes.io/instance=my-chartmuseum -o jsonpath="{.items[0].metadata.name}")
+nohup kubectl port-forward $POD_NAME 8088:8080 --namespace kubebb-system > /dev/null 2>&1 &
+curl --retry 3 --retry-delay 5 --retry-connrefused -u admin:password http://localhost:8088
+
+info "5.9 Verify that helm install with basic auth"
+info "5.9.1 Push a chart to private chartmuseum"
+curl --retry 3 --retry-delay 5 -O https://charts.bitnami.com/bitnami/nginx-15.1.2.tgz
+curl --retry 3 --retry-delay 5 -u admin:password --data-binary "@nginx-15.1.2.tgz" http://localhost:8088/api/charts
+info "" #go to a new line
+info "5.9.2 Add this private chartmuseum repository(basic auth enabled) to kubebb"
+kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
+waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
+info "5.9.3 Plan a nignx with private chartmuseum(basic auth enabled) "
+kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
+waitComponentPlanDone "kubebb-system" "mynginx" 
 
 info "5.8 Verify that helm add repo with basic auth"
 info "5.8.1 Add kubebb repository"
@@ -508,7 +558,7 @@ kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
 waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
 info "5.9.1 Plan a nignx with private chartmuseum(basic auth enabled) "
 kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
-waitComponentPlanDone "kubebb-system" "mynginx" 
+waitComponentPlanDone "kubebb-system" "mynginx"
 
 info "6 try to verify that the common steps are valid to oci types"
 info "6.1 create oci repository"
@@ -522,9 +572,19 @@ waitPodReady "kubebb-system" "app.kubernetes.io/instance=oci-nginx,app.kubernete
 getHelmRevision "kubebb-system" "oci-nginx" "1"
 deleteComponentPlan "kubebb-system" "do-once-oci-sample-15.1.0"
 
-
-info "7 try to verify that the common steps are valid to Portals"
-info "7.1 create a portal"
+info "7 try to verify portal works correctly"
+info "7.1 create two portals with different path and entry"
 kubectl apply -f config/samples/core_v1alpha1_portal.yaml
+kubectl apply -f config/samples/core_v1alpha1_portal_another.yaml
+checkDuplicatePortal "kubebb-system" "portal-example-another" ""
+
+info "7.2 create another portal with the same path and entry"
+kubectl apply -f config/samples/core_v1alpha1_portal_duplicate.yaml
+checkDuplicatePortal "kubebb-system" "portal-example" "/portal-example-duplicate"
+checkDuplicatePortal "kubebb-system" "portal-example-duplicate" "/portal-example"
+
+info "7.3 delete the duplicate portal and check the original portal"
+kubectl delete Portal portal-example-duplicate
+checkDuplicatePortal "kubebb-system" "portal-example" ""
 
 info "all finished! ✅"

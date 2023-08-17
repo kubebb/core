@@ -33,8 +33,10 @@ type PortalSpec struct {
 
 // PortalStatus defines the observed state of Portal
 type PortalStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// whether the portal has a duplicate one
+	Duplicated bool `json:"duplicated"`
+	// namespaced name of conflicted portals are seperated using semicolons
+	ConflictedPortals string `json:"conflicted"`
 }
 
 //+kubebuilder:object:root=true
