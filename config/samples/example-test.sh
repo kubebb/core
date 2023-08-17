@@ -522,4 +522,9 @@ waitPodReady "kubebb-system" "app.kubernetes.io/instance=oci-nginx,app.kubernete
 getHelmRevision "kubebb-system" "oci-nginx" "1"
 deleteComponentPlan "kubebb-system" "do-once-oci-sample-15.1.0"
 
+
+info "7 try to verify that the common steps are valid to Portals"
+info "7.1 create a portal"
+kubectl apply -f config/samples/core_v1alpha1_portal.yaml
+
 info "all finished! ✅"
