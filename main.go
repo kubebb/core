@@ -34,6 +34,7 @@ import (
 
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 	"github.com/kubebb/core/controllers"
+	"github.com/kubebb/core/pkg/helm"
 	"github.com/kubebb/core/pkg/repository"
 	"github.com/kubebb/core/pkg/utils"
 
@@ -140,9 +141,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.ComponentPlanReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("componentplan-reconcile"),
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Recorder:   mgr.GetEventRecorderFor("componentplan-reconcile"),
+		WorkerPool: helm.NewWorkerPool(mgr.GetLogger(), mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ComponentPlan")
 		os.Exit(1)
