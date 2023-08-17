@@ -51,6 +51,8 @@ var (
 
 const (
 	revisionNoExist = -1
+	waitLonger      = time.Minute
+	waitSmaller     = time.Second * 3
 )
 
 // ComponentPlanReconciler reconciles a ComponentPlan object
@@ -93,16 +95,17 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	component := &corev1alpha1.Component{}
 	err = r.Get(ctx, types.NamespacedName{Namespace: plan.Spec.ComponentRef.Namespace, Name: plan.Spec.ComponentRef.Name}, component)
 	if err != nil {
+		msg := fmt.Sprintf("Failed to get Component, wait %s for Component to be found", waitLonger)
 		if apierrors.IsNotFound(err) {
-			logger.Info("Failed to get Component, wait 1 minute for Component to be found", "Component.Namespace", plan.Spec.ComponentRef.Namespace, "Component.Name", plan.Spec.ComponentRef.Name)
+			logger.Info(msg, "Component.Namespace", plan.Spec.ComponentRef.Namespace, "Component.Name", plan.Spec.ComponentRef.Name)
 		} else {
-			logger.Error(err, "Failed to get Component, wait 1 minute for Component to be found", "Component.Namespace", plan.Spec.ComponentRef.Namespace, "Component.Name", plan.Spec.ComponentRef.Name)
+			logger.Error(err, msg, "Component.Namespace", plan.Spec.ComponentRef.Namespace, "Component.Name", plan.Spec.ComponentRef.Name)
 		}
-		return reconcile.Result{RequeueAfter: time.Minute}, utils.IgnoreNotFound(err)
+		return reconcile.Result{RequeueAfter: waitLonger}, utils.IgnoreNotFound(err)
 	}
 	if component.Status.RepositoryRef == nil || component.Status.RepositoryRef.Name == "" || component.Status.RepositoryRef.Namespace == "" {
-		logger.Info("Failed to get Component.Status.RepositoryRef, wait 1 minute to retry", "obj", klog.KObj(component))
-		return reconcile.Result{RequeueAfter: time.Minute}, nil
+		logger.Info(fmt.Sprintf("Failed to get Component.Status.RepositoryRef, wait %s to retry", waitLonger), "obj", klog.KObj(component))
+		return reconcile.Result{RequeueAfter: waitLonger}, nil
 	}
 	logger.V(1).Info("Get Component instance", "Component", klog.KObj(component))
 
@@ -217,14 +220,14 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	repo := &corev1alpha1.Repository{}
 	if err = r.Get(ctx, types.NamespacedName{Name: component.Status.RepositoryRef.Name, Namespace: component.Status.RepositoryRef.Namespace}, repo); err != nil {
-		logger.Error(err, "Failed to get Repository, wait 15 seconds for another try")
-		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+		logger.Error(err, fmt.Sprintf("Failed to get Repository, wait %s for another try", waitSmaller))
+		return ctrl.Result{RequeueAfter: waitSmaller}, nil
 	}
 
 	chartName := repo.NamespacedName() + "/" + component.Status.Name
 	if chartName == "" {
-		logger.Info("Failed to get Component's chart name in status.name, wait 15 seconds for another try", "Component", klog.KObj(component))
-		return ctrl.Result{Requeue: true, RequeueAfter: 15 * time.Second}, nil
+		logger.Info(fmt.Sprintf("Failed to get Component's chart name in status.name, wait %s for another try", waitSmaller), "Component", klog.KObj(component))
+		return ctrl.Result{Requeue: true, RequeueAfter: waitSmaller}, nil
 	}
 
 	// Check its helm template configmap exist
@@ -267,7 +270,6 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanWaitDo(err))
 		}
 		r.Recorder.Eventf(plan, corev1.EventTypeNormal, "Success", "configmap %s created successfully", manifest.GetName())
-
 		logger.Info(fmt.Sprintf("Reconcile ComponentPlan template Configmap, result:%s", res))
 	} else if err != nil {
 		logger.Error(err, "Failed to get template Configmap")
