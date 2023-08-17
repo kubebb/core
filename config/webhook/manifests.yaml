@@ -31,6 +31,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /mutate-core-kubebb-k8s-com-cn-v1alpha1-portal
+  failurePolicy: Fail
+  name: mportal.kb.io
+  rules:
+  - apiGroups:
+    - core.kubebb.k8s.com.cn
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - portals
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /mutate-core-kubebb-k8s-com-cn-v1alpha1-subscription
   failurePolicy: Fail
   name: msubscription.kb.io
@@ -90,6 +110,7 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
+    - DELETE
     resources:
     - portals
   sideEffects: None

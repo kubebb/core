@@ -28,19 +28,31 @@ import (
 // log is for logging in this package.
 var portallog = logf.Log.WithName("portal-resource")
 
-func (r *Portal) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (p *Portal) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+		For(p).
+		WithDefaulter(p).
+		WithValidator(p).
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/validate-core-kubebb-k8s-com-cn-v1alpha1-portal,mutating=false,failurePolicy=fail,sideEffects=None,groups=core.kubebb.k8s.com.cn,resources=portals,verbs=create;update,versions=v1alpha1,name=vportal.kb.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-core-kubebb-k8s-com-cn-v1alpha1-portal,mutating=true,failurePolicy=fail,sideEffects=None,groups=core.kubebb.k8s.com.cn,resources=portals,verbs=create;update,versions=v1alpha1,name=mportal.kb.io,admissionReviewVersions=v1
+
+var _ webhook.CustomDefaulter = &Portal{}
+
+func (p *Portal) Default(ctx context.Context, obj runtime.Object) error {
+	portallog.Info("default", "name", p.Name)
+
+	return nil
+}
+
+//+kubebuilder:webhook:path=/validate-core-kubebb-k8s-com-cn-v1alpha1-portal,mutating=false,failurePolicy=fail,sideEffects=None,groups=core.kubebb.k8s.com.cn,resources=portals,verbs=create;update;delete,versions=v1alpha1,name=vportal.kb.io,admissionReviewVersions=v1
 
 var _ webhook.CustomValidator = &Portal{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *Portal) ValidateCreate(ctx context.Context, obj runtime.Object) error {
-	portallog.Info("validate create", "name", r.Name)
+func (p *Portal) ValidateCreate(ctx context.Context, obj runtime.Object) error {
+	portallog.Info("validate create", "name", p.Name)
 
 	// TODO: validate entry & path conflicts
 
@@ -48,16 +60,16 @@ func (r *Portal) ValidateCreate(ctx context.Context, obj runtime.Object) error {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *Portal) ValidateUpdate(ctx context.Context, oldObj runtime.Object, newObj runtime.Object) error {
-	portallog.Info("validate update", "name", r.Name)
+func (p *Portal) ValidateUpdate(ctx context.Context, oldObj runtime.Object, newObj runtime.Object) error {
+	portallog.Info("validate update", "name", p.Name)
 
 	// TODO: validate entry & path conflicts
 	return nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *Portal) ValidateDelete(ctx context.Context, obj runtime.Object) error {
-	portallog.Info("validate delete", "name", r.Name)
+func (p *Portal) ValidateDelete(ctx context.Context, obj runtime.Object) error {
+	portallog.Info("validate delete", "name", p.Name)
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil
