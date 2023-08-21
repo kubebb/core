@@ -173,3 +173,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn.kubebb.k8s.com.cn
+  resources:
+  - portals
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.kubebb.k8s.com.cn.kubebb.k8s.com.cn
+  resources:
+  - portals/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.kubebb.k8s.com.cn.kubebb.k8s.com.cn
+  resources:
+  - portals/status
+  verbs:
+  - get
+  - patch
+  - update
