@@ -338,16 +338,19 @@ function waitComponentPlanRetryTime() {
 }
 
 function checkDuplicatePortal(){
-  namespace=$1
-  portalName=$2
-  duplWant=$3
+  portalName=$1
+  duplEntryWant=$2
+  duplPathWant=$3
 
-	START_TIME=$(date +%s)
+  START_TIME=$(date +%s)
   while true; do
-      status=$(kubectl -n${namespace} get Portal ${portalName} -ojson | jq -r '.status')
-  		dupl=$(kubectl -n${namespace} get Portal ${portalName} -ojson | jq -r '.status.conflicted')
-  		if [[ $dupl == $duplWant ]]; then
-  			echo "Portal ${portalName} got correct status"
+      status=$(kubectl get Portal ${portalName} -ojson | jq -r '.status')
+  		duplInEntry=$(kubectl get Portal ${portalName} -ojson | jq -r '.status.conflictsInEntry | join(",")')
+		echo "duplEntryWant: $duplEntryWant duplInEntry: $duplInEntry"
+  		duplInPath=$(kubectl get Portal ${portalName} -ojson | jq -r '.status.conflictsInPath | join(",")')
+		echo "duplPathWant: $duplPathWant duplInPath $duplInPath"
+  		if [[ $duplEntryWant == $duplInEntry ]] && [[ $duplPathWant == $duplInPath ]]; then
+  			echo "Portal ${portalName} got correct status in conflicted entry and path"
   			break
   		fi
 
@@ -355,7 +358,7 @@ function checkDuplicatePortal(){
   		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
   		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
   			error "Timeout reached"
-  			kubectl -n${namespace} get ComponentPlan -o yaml
+  			kubectl get Portal -o yaml
   			exit 1
   		fi
   		sleep 5
@@ -576,15 +579,24 @@ info "7 try to verify portal works correctly"
 info "7.1 create two portals with different path and entry"
 kubectl apply -f config/samples/core_v1alpha1_portal.yaml
 kubectl apply -f config/samples/core_v1alpha1_portal_another.yaml
-checkDuplicatePortal "kubebb-system" "portal-example-another" ""
+checkDuplicatePortal "portal-example" "portal-example-another" ""
+checkDuplicatePortal "portal-example-another" "portal-example" ""
 
 info "7.2 create another portal with the same path and entry"
 kubectl apply -f config/samples/core_v1alpha1_portal_duplicate.yaml
-checkDuplicatePortal "kubebb-system" "portal-example" "/portal-example-duplicate"
-checkDuplicatePortal "kubebb-system" "portal-example-duplicate" "/portal-example"
+checkDuplicatePortal  "portal-example" "portal-example-another,portal-example-duplicate" "portal-example-duplicate"
+checkDuplicatePortal "portal-example-another" "portal-example,portal-example-duplicate" ""
+checkDuplicatePortal "portal-example-duplicate" "portal-example,portal-example-another" "portal-example"
 
-info "7.3 delete the duplicate portal and check the original portal"
-kubectl delete Portal portal-example-duplicate
-checkDuplicatePortal "kubebb-system" "portal-example" ""
+info "7.3 update exmaple-another to have confilicts both in entry and path"
+kubectl apply -f config/samples/core_v1alpha1_portal_another_change.yaml
+checkDuplicatePortal  "portal-example" "portal-example-another,portal-example-duplicate" "portal-example-another,portal-example-duplicate"
+checkDuplicatePortal "portal-example-another" "portal-example,portal-example-duplicate" "portal-example,portal-example-duplicate"
+checkDuplicatePortal "portal-example-duplicate" "portal-example,portal-example-another" "portal-example,portal-example-another"
+
+info "7.4 delete the portal-example-another portal and check the original portal"
+kubectl delete Portal portal-example-another
+checkDuplicatePortal "portal-example" "portal-example-duplicate" "portal-example-duplicate"
+checkDuplicatePortal "portal-example-duplicate" "portal-example" "portal-example"
 
 info "all finished! ✅"

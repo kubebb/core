@@ -33,10 +33,10 @@ type PortalSpec struct {
 
 // PortalStatus defines the observed state of Portal
 type PortalStatus struct {
-	// whether the portal has a duplicate one
-	Duplicated bool `json:"duplicated"`
-	// namespaced name of conflicted portals are seperated using semicolons
-	ConflictedPortals string `json:"conflicted"`
+	// conflicted portals with same Entry
+	ConflictsInEntry []string `json:"conflictsInEntry"`
+	// conflicted portals with same Path
+	ConflictsInPath []string `json:"conflictsInPath"`
 }
 
 //+kubebuilder:object:root=true

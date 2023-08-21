@@ -18,13 +18,8 @@ package controllers
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
 
-	"github.com/go-logr/logr"
-	v1 "k8s.io/api/core/v1"
-	k8serror "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -32,9 +27,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
 )
@@ -62,111 +59,106 @@ func (r *PortalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	var portal = corev1alpha1.Portal{}
 	if err := r.Client.Get(ctx, req.NamespacedName, &portal); err != nil {
-		if k8serror.IsNotFound(err) {
-			list, err := r.getList(ctx, logger)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-			for _, item := range list {
-				_, err = r.Reconcile(ctx, ctrl.Request{
-					NamespacedName: types.NamespacedName{
-						Namespace: item.Namespace,
-						Name:      item.Name,
-					},
-				})
-				if err != nil {
-					logger.Error(err, "error while reconciling other portals")
-				}
-			}
-
+		if k8serrors.IsNotFound(err) {
 			// Portal has been deleted.
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
 	}
 
-	err := r.updateDuplicate(ctx, logger, &portal, true)
-	return ctrl.Result{}, err
-}
-
-func (r *PortalReconciler) updateDuplicate(ctx context.Context, logger logr.Logger, portal *corev1alpha1.Portal, init bool) error {
-	portalCopy := portal.DeepCopy()
-	list, err := r.getDuplicateList(ctx, logger, portalCopy)
+	// handle conflicts
+	entryConflicts, pathConflicts, err := GetConflicts(r.Client, ctx, &portal)
 	if err != nil {
-		return err
+		logger.Error(err, "Failed to get duplicate portals")
+		return reconcile.Result{}, err
 	}
-
-	logger.Info("updating duplicate for " + portalCopy.Name + " which has " + portalCopy.Status.ConflictedPortals)
-
-	conflicts := ""
-	for _, p := range list {
-		conflicts = conflicts + ":/" + p.Name
-	}
-	conflicts = strings.TrimPrefix(conflicts, ":")
 
 	status := corev1alpha1.PortalStatus{}
-	status.Duplicated = false
-	if len(conflicts) > 0 {
-		logger.Error(errors.New("duplicate error"), "found portals with duplicate path and entry", "duplicates", conflicts)
-		status.Duplicated = true
-	}
-	status.ConflictedPortals = conflicts
-	portalCopy.Status = status
+	status.ConflictsInEntry = entryConflicts
+	status.ConflictsInPath = pathConflicts
 
-	logger.Info("Update to " + fmt.Sprint(portalCopy.Status.Duplicated) + " and " + fmt.Sprint(portalCopy.Status.ConflictedPortals))
+	portalCopy := portal.DeepCopy()
+	portalCopy.Status = status
 	err = r.Client.Status().Update(ctx, portalCopy)
 	if err != nil {
-		logger.Error(err, "failed to add duplicate record")
-		return err
+		logger.Error(err, "Failed to update portal's status")
+		return reconcile.Result{}, err
 	}
-	return nil
-}
 
-func (r *PortalReconciler) getList(ctx context.Context, logger logr.Logger) ([]corev1alpha1.Portal, error) {
-	var list = corev1alpha1.PortalList{}
-	if err := r.Client.List(ctx, &list); err != nil {
-		logger.Error(err, "failed to list portals")
-		return nil, err
-	}
-	return list.Items, nil
-}
-
-func (r *PortalReconciler) getDuplicateList(ctx context.Context, logger logr.Logger, portal *corev1alpha1.Portal) ([]corev1alpha1.Portal, error) {
-	list, err := r.getList(ctx, logger)
-	if err != nil {
-		return nil, err
-	}
-	var result []corev1alpha1.Portal
-	for _, p := range list {
-		if portal.Namespace == p.Namespace && portal.Name == p.Name {
-			continue
-		}
-		if portal.Spec.Entry == p.Spec.Entry && portal.Spec.Path == p.Spec.Path {
-			result = append(result, p)
-		}
-	}
-	return result, nil
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *PortalReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *PortalReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1alpha1.Portal{}, builder.WithPredicates(predicate.Funcs{
-			CreateFunc: func(ce event.CreateEvent) bool {
-				obj := ce.Object.(*corev1alpha1.Portal)
-				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Created", "add new portal %s", obj.GetName())
-				return true
-			},
-			UpdateFunc: func(ue event.UpdateEvent) bool {
-				oldObj := ue.ObjectOld.(*corev1alpha1.Portal)
-				newObj := ue.ObjectNew.(*corev1alpha1.Portal)
-				return oldObj.Spec.Entry != newObj.Spec.Entry || oldObj.Spec.Path != newObj.Spec.Path
-			},
-			DeleteFunc: func(de event.DeleteEvent) bool {
-				obj := de.Object.(*corev1alpha1.Portal)
-				r.Recorder.Eventf(obj, v1.EventTypeNormal, "Deleted", "delete portal %s", obj.GetName())
-				return true
-			},
+		For(&corev1alpha1.Portal{}, builder.WithPredicates(PortalPredicate{})).
+		Watches(&source.Kind{Type: &corev1alpha1.Portal{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
+			portal := o.(*corev1alpha1.Portal)
+			cEntrys, cPaths, err := GetConflicts(r.Client, ctx, portal)
+			if err != nil {
+				ctrl.LoggerFrom(ctx).Error(err, "Failed to get duplicate portals")
+				return nil
+			}
+
+			var reqs []reconcile.Request
+			var dupPortalMap = make(map[string]bool)
+			for _, p := range append(cEntrys, cPaths...) {
+				if p == portal.Name {
+					continue
+				}
+				if _, ok := dupPortalMap[p]; !ok {
+					dupPortalMap[p] = true
+					reqs = append(reqs, reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Name: p,
+						},
+					})
+				}
+			}
+
+			return reqs
 		})).
 		Complete(r)
+}
+
+type PortalPredicate struct {
+	predicate.Funcs
+}
+
+func (p PortalPredicate) Update(ue event.UpdateEvent) bool {
+	oldObj := ue.ObjectOld.(*corev1alpha1.Portal)
+	newObj := ue.ObjectNew.(*corev1alpha1.Portal)
+
+	return oldObj.Spec.Entry != newObj.Spec.Entry || oldObj.Spec.Path != newObj.Spec.Path
+}
+
+// GetConflicts returns the entry and path conflicts for a given portal.
+func GetConflicts(c client.Client, ctx context.Context, portal *corev1alpha1.Portal) ([]string, []string, error) {
+	portalCopy := portal.DeepCopy()
+
+	var list = corev1alpha1.PortalList{}
+	err := c.List(ctx, &list)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	entryConflicts := make([]string, 0)
+	pathConflicts := make([]string, 0)
+	for _, p := range list.Items {
+		if portalCopy.Name == p.Name {
+			continue
+		}
+
+		// entry conflicts
+		if portalCopy.Spec.Entry == p.Spec.Entry {
+			entryConflicts = append(entryConflicts, p.Name)
+		}
+
+		// path conflicts
+		if portalCopy.Spec.Path == p.Spec.Path {
+			pathConflicts = append(pathConflicts, p.Name)
+		}
+	}
+
+	return entryConflicts, pathConflicts, nil
 }
