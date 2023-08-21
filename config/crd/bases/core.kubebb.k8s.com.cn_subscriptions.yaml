@@ -264,6 +264,10 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              schedule:
+                description: The installation schedule in Cron format, see https://en.wikipedia.org/wiki/Cron.
+                  ComponentPlanInstallMethod must be auto.
+                type: string
               skipCRDs:
                 description: SkipCRDs is pass to helm install/upgrade --skip-crds
                   if set, no CRDs will be installed. By default, CRDs are installed

@@ -1,0 +1,12 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Subscription
+metadata:
+  name: loki-sample-schedule
+  namespace: kubebb-system
+spec:
+  component:
+    name: repository-grafana-sample-image.loki
+    namespace: kubebb-system
+  componentPlanInstallMethod: auto
+  schedule: "*/1 * * * *"
+  name: loki-sample-schedule
