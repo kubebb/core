@@ -337,29 +337,33 @@ function waitComponentPlanRetryTime() {
 	done
 }
 
-function checkDuplicatePortal(){
-  namespace=$1
-  portalName=$2
-  duplWant=$3
+function checkPortalStatus() {
+  portalName=$1
+  expectConflictsInEntry=$2
+  expectConflictsInPath=$3
 
-	START_TIME=$(date +%s)
+  START_TIME=$(date +%s)
   while true; do
-      status=$(kubectl -n${namespace} get Portal ${portalName} -ojson | jq -r '.status')
-  		dupl=$(kubectl -n${namespace} get Portal ${portalName} -ojson | jq -r '.status.conflicted')
-  		if [[ $dupl == $duplWant ]]; then
-  			echo "Portal ${portalName} got correct status"
-  			break
-  		fi
+    conflictsInEntry=$(kubectl get Portal ${portalName} -ojson | jq -r 'if (.status.conflictsInEntry| type) == "array" then .status.conflictsInEntry| sort | join(",") else empty end')
+    conflictsInPath=$(kubectl get Portal ${portalName} -ojson | jq -r 'if (.status.conflictsInPath| type) == "array" then .status.conflictsInPath| sort | join(",") else empty end')
 
-  		CURRENT_TIME=$(date +%s)
-  		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
-  		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
-  			error "Timeout reached"
-  			kubectl -n${namespace} get ComponentPlan -o yaml
-  			exit 1
-  		fi
-  		sleep 5
-  	done
+    if [[ $expectConflictsInEntry == $conflictsInEntry ]] && [[ $expectConflictsInPath == $conflictsInPath ]]; then
+      info "Portal ${portalName} has the correct status in conflicted entry and path"
+      break
+    fi
+
+    info "expectConflictsInEntry:$expectConflictsInEntry  Actual:$conflictsInEntry"
+    info "expectConflictsInPath:$expectConflictsInPath  Actual:$conflictsInPath"
+
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+    if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+      error "Timeout reached"
+      kubectl get Portal -o yaml
+      exit 1
+    fi
+    sleep 5
+  done
 }
 
 info "1. create kind cluster"
@@ -513,78 +517,67 @@ info "5.7.4 verify this componentplan will failed, show error log"
 kubectl get cpl do-once-nginx-sample-15.0.2 --output='jsonpath={.status.conditions[?(@.type=="Actioned")]}'
 info "" # go to a new line
 
-info "5.8 Verify that helm add repo with basic auth"
-info "5.8.1 Add kubebb repository"
+info "6 Verify that helm repo with basic auth"
+info "6.1 Verify that helm repo add with basic auth"
 kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
 waitComponentStatus "kubebb-system" "repository-kubebb.chartmuseum"
-info "5.8.2 Plan a private repository with chartmuseum"
+info "6.1.1 Plan a private repository with chartmuseum"
 kubectl apply -f config/samples/core_v1alpha1_componentplan_chartmuseum.yaml
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-chartmuseum"
-info "5.8.3 Verify private chartmuseum service is well running"
+info "6.1.2 Verify private chartmuseum service is well running"
 export POD_NAME=$(kubectl get pods --namespace kubebb-system -l app.kubernetes.io/instance=my-chartmuseum -o jsonpath="{.items[0].metadata.name}")
 nohup kubectl port-forward $POD_NAME 8088:8080 --namespace kubebb-system > /dev/null 2>&1 &
 curl --retry 3 --retry-delay 5 --retry-connrefused -u admin:password http://localhost:8088
 
-info "5.9 Verify that helm install with basic auth"
-info "5.9.1 Push a chart to private chartmuseum"
+info "6.2 Verify that helm install with basic auth"
+info "6.2.1 Push a chart to private chartmuseum"
 curl --retry 3 --retry-delay 5 -O https://charts.bitnami.com/bitnami/nginx-15.1.2.tgz
 curl --retry 3 --retry-delay 5 -u admin:password --data-binary "@nginx-15.1.2.tgz" http://localhost:8088/api/charts
 info "" #go to a new line
-info "5.9.2 Add this private chartmuseum repository(basic auth enabled) to kubebb"
+info "6.2.2 Add this private chartmuseum repository(basic auth enabled) to kubebb"
 kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
 waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
-info "5.9.3 Plan a nignx with private chartmuseum(basic auth enabled) "
+info "6.2.3 Plan a nignx with private chartmuseum(basic auth enabled) "
 kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
 waitComponentPlanDone "kubebb-system" "mynginx" 
 
-info "5.8 Verify that helm add repo with basic auth"
-info "5.8.1 Add kubebb repository"
-kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
-waitComponentStatus "kubebb-system" "repository-kubebb.chartmuseum"
-info "5.8.2 Plan a private repository with chartmuseum"
-kubectl apply -f config/samples/core_v1alpha1_componentplan_chartmuseum.yaml
-waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-chartmuseum"
-info "5.8.3 Verify private chartmuseum service is well running"
-export POD_NAME=$(kubectl get pods --namespace kubebb-system -l app.kubernetes.io/instance=my-chartmuseum -o jsonpath="{.items[0].metadata.name}")
-nohup kubectl port-forward $POD_NAME 8088:8080 --namespace kubebb-system > /dev/null 2>&1 &
-curl --retry 3 --retry-delay 5 --retry-connrefused -u admin:password http://localhost:8088
-
-info "5.9 Verify that helm install with basic auth"
-info "5.9.1 Push a chart to private chartmuseum"
-curl --retry 3 --retry-delay 5 -O https://charts.bitnami.com/bitnami/nginx-15.1.2.tgz
-curl --retry 3 --retry-delay 5 -u admin:password --data-binary "@nginx-15.1.2.tgz" http://localhost:8088/api/charts
-info "5.9.1 Add this private chartmuseum repository(basic auth enabled) to kubebb"
-kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
-waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
-info "5.9.1 Plan a nignx with private chartmuseum(basic auth enabled) "
-kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
-waitComponentPlanDone "kubebb-system" "mynginx"
-
-info "6 try to verify that the common steps are valid to oci types"
-info "6.1 create oci repository"
+info "7 try to verify that the common steps are valid to oci types"
+info "7.1 create oci repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_oci.yaml
 waitComponentStatus "kubebb-system" "repository-oci-sample.nginx"
 
-info "6.2 create oci componentplan"
+info "7.2 create oci componentplan"
 kubectl apply -f config/samples/core_v1alpha1_oci_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-oci-sample-15.1.0"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=oci-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
 getHelmRevision "kubebb-system" "oci-nginx" "1"
 deleteComponentPlan "kubebb-system" "do-once-oci-sample-15.1.0"
 
-info "7 try to verify portal works correctly"
-info "7.1 create two portals with different path and entry"
+info "8 try to verify portal works correctly"
+info "8.1 create portal-example which has no conflicts"
 kubectl apply -f config/samples/core_v1alpha1_portal.yaml
+checkPortalStatus "portal-example" "" ""
+
+info "8.2 create portal-example-another which contains conflicts in entry"
 kubectl apply -f config/samples/core_v1alpha1_portal_another.yaml
-checkDuplicatePortal "kubebb-system" "portal-example-another" ""
+checkPortalStatus "portal-example" "portal-example-another" ""
+checkPortalStatus "portal-example-another" "portal-example" ""
 
-info "7.2 create another portal with the same path and entry"
+info "8.3 create a duplicate portal which both conflicts in entry and path"
 kubectl apply -f config/samples/core_v1alpha1_portal_duplicate.yaml
-checkDuplicatePortal "kubebb-system" "portal-example" "/portal-example-duplicate"
-checkDuplicatePortal "kubebb-system" "portal-example-duplicate" "/portal-example"
+checkPortalStatus "portal-example" "portal-example-another,portal-example-duplicate" "portal-example-duplicate"
+checkPortalStatus "portal-example-another" "portal-example,portal-example-duplicate" ""
+checkPortalStatus "portal-example-duplicate" "portal-example,portal-example-another" "portal-example"
 
-info "7.3 delete the duplicate portal and check the original portal"
-kubectl delete Portal portal-example-duplicate
-checkDuplicatePortal "kubebb-system" "portal-example" ""
+info "8.4 update portal-exmaple-another to have confilicts both in entry and path"
+kubectl apply -f config/samples/core_v1alpha1_portal_another_change.yaml
+checkPortalStatus "portal-example" "portal-example-another,portal-example-duplicate" "portal-example-another,portal-example-duplicate"
+checkPortalStatus "portal-example-another" "portal-example,portal-example-duplicate" "portal-example,portal-example-duplicate"
+checkPortalStatus "portal-example-duplicate" "portal-example,portal-example-another" "portal-example,portal-example-another"
+
+info "8.5 delete the portal-example-another portal and check the portal conflicts"
+kubectl delete Portal portal-example-another
+checkPortalStatus "portal-example" "portal-example-duplicate" "portal-example-duplicate"
+checkPortalStatus "portal-example-duplicate" "portal-example" "portal-example"
 
 info "all finished! ✅"
