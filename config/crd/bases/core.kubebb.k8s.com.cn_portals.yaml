@@ -48,16 +48,16 @@ spec:
           status:
             description: PortalStatus defines the observed state of Portal
             properties:
-              conflicted:
-                description: namespaced name of conflicted portals are seperated using
-                  semicolons
-                type: string
-              duplicated:
-                description: whether the portal has a duplicate one
-                type: boolean
-            required:
-            - conflicted
-            - duplicated
+              conflictsInEntry:
+                description: conflicted portals with same Entry
+                items:
+                  type: string
+                type: array
+              conflictsInPath:
+                description: conflicted portals with same Path
+                items:
+                  type: string
+                type: array
             type: object
         type: object
     served: true
