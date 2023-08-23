@@ -179,10 +179,13 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeSucceeded).Status == corev1.ConditionTrue {
-		if r.isGenerationUpdate(plan) {
-			logger.Info("ComponentPlan.Spec is changed, need to install or upgrade...")
+		switch {
+		case r.isGenerationUpdate(plan):
+			logger.Info("ComponentPlan.Spec is changed, need to install or upgrade ...")
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, plan.InitCondition()...)
-		} else {
+		case r.needRetry(plan):
+			logger.Info("ComponentPlan need to rollback...")
+		default:
 			logger.Info("ComponentPlan is unchanged and has been successful, no need to reconcile")
 			return ctrl.Result{}, nil
 		}
@@ -250,6 +253,36 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if !plan.Spec.Approved {
 		logger.Info("component plan isn't approved, skip install or upgrade...")
 		return ctrl.Result{}, nil
+	}
+	if r.needRollBack(plan) {
+		logger.Info("find rollback label, will try to RollBack...", "rollbackRevision", plan.Status.InstalledRevision)
+		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonRollBackFailed) {
+			logger.Info("the last one is RollBack failed, just skip this one")
+			return ctrl.Result{}, nil
+		}
+		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonRollBackSuccess) {
+			r.removeRollBackLabel(plan)
+			if err = r.Update(ctx, plan); err != nil {
+				logger.Error(err, "Failed to remove RollBack label for ComponentPlan")
+				return ctrl.Result{}, err
+			}
+			logger.Info("Remove RollBack label done")
+			return ctrl.Result{}, nil
+		}
+		rel, doing, err := r.WorkerPool.RollBack(ctx, plan)
+		if doing {
+			return ctrl.Result{RequeueAfter: waitSmaller}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanRollingBack())
+		}
+		if err != nil {
+			logger.Error(err, "Failed to RollBack ComponentPlan")
+			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, true, corev1alpha1.ComponentPlanRollBackFailed(err))
+		}
+		logger.Info("RollBack ComponentPlan succeeded")
+		revision := revisionNoExist
+		if rel != nil {
+			revision = rel.Version
+		}
+		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revision, true, false, corev1alpha1.ComponentPlanRollBackSuccess())
 	}
 	if r.statusShowDone(plan) {
 		return ctrl.Result{}, nil
@@ -455,4 +488,17 @@ func (r *ComponentPlanReconciler) updateLatest(ctx context.Context, logger logr.
 			logger.Info("Update ComponentPlan status.Latest", "obj", klog.KObj(&cur))
 		}
 	}
+}
+
+func (r *ComponentPlanReconciler) needRollBack(plan *corev1alpha1.ComponentPlan) bool {
+	if _, ok := plan.GetLabels()[corev1alpha1.ComponentPlanRollBackLabel]; ok {
+		if plan.Status.InstalledRevision != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *ComponentPlanReconciler) removeRollBackLabel(plan *corev1alpha1.ComponentPlan) {
+	delete(plan.GetLabels(), corev1alpha1.ComponentPlanRollBackLabel)
 }

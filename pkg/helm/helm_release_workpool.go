@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,6 +47,8 @@ type ReleaseWorkerPool interface {
 	Uninstall(ctx context.Context, plan *v1alpha1.ComponentPlan) (doing bool, err error)
 	// GetLastRelease is a synchronization function
 	GetLastRelease(plan *v1alpha1.ComponentPlan) (rel *release.Release, err error)
+	// RollBack is an asynchronous function
+	RollBack(ctx context.Context, plan *v1alpha1.ComponentPlan) (rel *release.Release, doing bool, err error)
 }
 
 type WorkerPool struct {
@@ -54,6 +57,7 @@ type WorkerPool struct {
 	logger        logr.Logger
 	installJobs   map[string]*installWorker   // key: jobkey()
 	uninstallJobs map[string]*uninstallWorker // key: jobkey()
+	rollbackJobs  map[string]*rollbackWorker  // key: jobkey()
 	resultCache   cache.Store
 	getter        map[string]genericclioptions.RESTClientGetter // key: getterKey()
 }
@@ -64,6 +68,7 @@ func NewWorkerPool(logger logr.Logger, cli client.Client) *WorkerPool {
 		logger:        logger,
 		installJobs:   make(map[string]*installWorker),
 		uninstallJobs: make(map[string]*uninstallWorker),
+		rollbackJobs:  make(map[string]*rollbackWorker),
 		resultCache:   cache.NewTTLStore(workCacheKey, 1*time.Hour),
 		getter:        make(map[string]genericclioptions.RESTClientGetter),
 	}
@@ -149,6 +154,20 @@ func (r *WorkerPool) Uninstall(ctx context.Context, plan *v1alpha1.ComponentPlan
 	}
 	_, doing, err = job.GetResult()
 	return
+}
+func (r *WorkerPool) RollBack(ctx context.Context, plan *v1alpha1.ComponentPlan) (rel *release.Release, doing bool, err error) {
+	getter, err := r.getGetterByPlan(plan)
+	if err != nil {
+		return nil, false, err
+	}
+	r.Lock()
+	defer r.Unlock()
+	job, ok := r.rollbackJobs[r.jobKey(plan)]
+	if !ok || !job.isSame(plan) {
+		r.rollbackJobs[r.jobKey(plan)] = newRollBackWorker(ctx, r.jobKey(plan), r.logger, plan, getter)
+		return nil, true, nil
+	}
+	return job.GetResult()
 }
 
 func (r *WorkerPool) getterKey(ns, impersonateUserName string) string {
@@ -298,11 +317,49 @@ func newUnInstallWorker(ctx context.Context, name string, logger logr.Logger, pl
 	return w
 }
 
-func (w *uninstallWorker) isSame(plan *v1alpha1.ComponentPlan) (same bool) {
+func (w *baseWorker) isSame(plan *v1alpha1.ComponentPlan) (same bool) {
 	isPlanSame := w.plan.GetUID() == plan.GetUID()
 	isPlanGenerationSame := plan.GetGeneration() == w.plan.GetGeneration()
 	if isPlanSame && isPlanGenerationSame {
 		return true
 	}
 	return false
+}
+
+type rollbackWorker struct {
+	baseWorker
+}
+
+func newRollBackWorker(ctx context.Context, name string, logger logr.Logger, plan *v1alpha1.ComponentPlan, getter genericclioptions.RESTClientGetter) *rollbackWorker {
+	w := &rollbackWorker{
+		baseWorker: baseWorker{
+			name:      name,
+			logger:    logger,
+			plan:      plan,
+			isRunning: true,
+		},
+	}
+	subCtx, cancel := context.WithCancel(ctx)
+	w.cancel = cancel
+	go func() {
+		w.logger.V(1).Info("start rollback worker", "workername", w.name)
+		startTime := metav1.Now()
+		defer func() {
+			w.logger.V(1).Info(fmt.Sprintf("stop rollback worker, cost %s", time.Since(startTime.Time)), "workername", w.name)
+			w.isRunning = false
+		}()
+		w.status = release.StatusUninstalling
+		w.err = RollBack(subCtx, getter, w.logger, w.plan)
+		if w.err != nil {
+			w.status = release.StatusFailed
+			return
+		}
+		rel, err := GetLastRelease(getter, w.logger, w.plan)
+		if rel != nil && rel.Info != nil && strings.HasPrefix(rel.Info.Description, "Rollback to ") {
+			w.release = rel
+		}
+		w.err = err
+		w.status = release.StatusDeployed
+	}()
+	return w
 }
