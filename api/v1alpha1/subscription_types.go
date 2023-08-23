@@ -41,6 +41,11 @@ type SubscriptionSpec struct {
 	// ComponentPlanInstallMethod is the method used to install the component
 	ComponentPlanInstallMethod InstallMethod `json:"componentPlanInstallMethod,omitempty"`
 
+	// The installation schedule in Cron format, see https://en.wikipedia.org/wiki/Cron.
+	// ComponentPlanInstallMethod must be auto.
+	// +optional
+	Schedule string `json:"schedule,omitempty"`
+
 	// Config is the configuration of the subscription's componentplan
 	Config `json:",inline"`
 }

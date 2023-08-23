@@ -30,11 +30,12 @@ import (
 )
 
 var (
-	ErrDecode            = errors.New("decode error")
-	ErrCreatorChange     = errors.New("creator (spec.creator) should not change")
-	ErrReleaseNameChange = errors.New("release name (spec.name) should not change")
-	ErrComponentChange   = errors.New("component name and namespace (spec.component) should not change")
-	ErrComponentMissing  = errors.New("component name and namespace (spec.component) should have values")
+	ErrDecode              = errors.New("decode error")
+	ErrCreatorChange       = errors.New("creator (spec.creator) should not change")
+	ErrReleaseNameChange   = errors.New("release name (spec.name) should not change")
+	ErrComponentChange     = errors.New("component name and namespace (spec.component) should not change")
+	ErrComponentMissing    = errors.New("component name and namespace (spec.component) should have values")
+	ErrUnParseableSchedule = errors.New("unparseable subscription schedule")
 )
 
 func getReqUserInfo(ctx context.Context) (authenticationv1.UserInfo, error) {

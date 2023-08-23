@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"github.com/robfig/cron/v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,6 +47,7 @@ import (
 const (
 	ComponentIndexKey  = "metadata.component"
 	RepositoryIndexKey = "metadata.repository"
+	DiffTimeDuration   = time.Minute
 )
 
 // SubscriptionReconciler reconciles a Subscription object
@@ -53,6 +55,9 @@ type SubscriptionReconciler struct {
 	client.Client
 	Recorder record.EventRecorder
 	Scheme   *runtime.Scheme
+
+	// Now is a function that returns current time, done to facilitate unit tests
+	Now func() time.Time
 }
 
 //+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=subscriptions,verbs=get;list;watch;create;update;patch;delete
@@ -139,6 +144,40 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileSuccess(corev1alpha1.SubscriptionTypeReady).WithMessage(msg))
 	}
 
+	if schedule := sub.Spec.Schedule; schedule != "" && sub.Spec.ComponentPlanInstallMethod == corev1alpha1.InstallMethodAuto {
+		sched, err := cron.ParseStandard(schedule)
+		if err != nil {
+			// this is likely a user error in defining the spec value
+			// we should log the error and not reconcile this cronjob until an update to spec
+			logger.Error(err, "Unparseable spec.schedule", "spec.schedule", schedule)
+			r.Recorder.Eventf(sub, corev1.EventTypeWarning, "UnParseableSubscriptionSchedule", "unparseable schedule for Subscription: %s", schedule)
+			return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypeReady, err))
+		}
+		now := r.Now()
+		createTime, mostRecentTime, _, err := sub.MostRecentScheduleTime(now, sched)
+		logger.V(1).Info(fmt.Sprintf("get schedule time now:%s createTime:%s, mostRecentTime:%s err:%s", now, createTime, mostRecentTime, err))
+		if err != nil {
+			logger.Error(err, "Failed to get most recent schedule time")
+			return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypeReady, err))
+		}
+		if mostRecentTime == nil {
+			// no missed schedules since create Time
+			// for example, createTime: 10:00, now: 10:05, sched: 10:10, if now is 10:09, we can let it pass
+			nextRequeueDuration := sched.Next(createTime).Sub(now)
+			if nextRequeueDuration > DiffTimeDuration {
+				logger.Info("requeue after", "nextRequeueDuration", nextRequeueDuration)
+				return ctrl.Result{RequeueAfter: nextRequeueDuration}, nil
+			}
+		} else {
+			// mostRecentTime has value,
+			// for example, createTime: 10:00, mostRecentTime: 10:10, now: 10:15, next sched: 10:20, if now is 10:19 or 10:21, we can let it pass
+			nextRequeueDuration := sched.Next(*mostRecentTime).Sub(now)
+			if mostRecentTime.Sub(now).Abs() > DiffTimeDuration && nextRequeueDuration > DiffTimeDuration {
+				logger.Info("requeue after", "nextRequeueDuration", nextRequeueDuration)
+				return ctrl.Result{RequeueAfter: nextRequeueDuration}, nil
+			}
+		}
+	}
 	// create componentplan
 	componentPlanName := corev1alpha1.GenerateComponentPlanName(sub, latestVersionFetch.Version)
 	if err = r.CreateComponentPlan(ctx, sub, latestVersionFetch); err != nil {
@@ -259,6 +298,7 @@ func (r *SubscriptionReconciler) UpdateStatusRepositoryHealth(ctx context.Contex
 // CreateComponentPlan create component plan if not exists or update component plan if exists
 func (r *SubscriptionReconciler) CreateComponentPlan(ctx context.Context, sub *corev1alpha1.Subscription, fetch corev1alpha1.ComponentVersion) error {
 	plan := &corev1alpha1.ComponentPlan{}
+	metav1.SetMetaDataLabel(&plan.ObjectMeta, corev1alpha1.SubscriptionNameLabel, sub.Name)
 	plan.Name = corev1alpha1.GenerateComponentPlanName(sub, fetch.Version)
 	plan.Namespace = sub.Namespace
 	if err := r.Get(ctx, types.NamespacedName{Namespace: plan.Namespace, Name: plan.Name}, plan); err == nil {

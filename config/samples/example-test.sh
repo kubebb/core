@@ -131,8 +131,8 @@ function waitComponentStatus() {
 		versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions|length')
 		if [[ $versions -ne 0 ]]; then
 			echo "component ${componentName} already have version information and can be installed"
-#			digest=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions.digest')
-#			echo "digest: ${digest}"
+			#			digest=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions.digest')
+			#			echo "digest: ${digest}"
 			break
 		fi
 		CURRENT_TIME=$(date +%s)
@@ -338,32 +338,32 @@ function waitComponentPlanRetryTime() {
 }
 
 function checkPortalStatus() {
-  portalName=$1
-  expectConflictsInEntry=$2
-  expectConflictsInPath=$3
+	portalName=$1
+	expectConflictsInEntry=$2
+	expectConflictsInPath=$3
 
-  START_TIME=$(date +%s)
-  while true; do
-    conflictsInEntry=$(kubectl get Portal ${portalName} -ojson | jq -r 'if (.status.conflictsInEntry| type) == "array" then .status.conflictsInEntry| sort | join(",") else empty end')
-    conflictsInPath=$(kubectl get Portal ${portalName} -ojson | jq -r 'if (.status.conflictsInPath| type) == "array" then .status.conflictsInPath| sort | join(",") else empty end')
+	START_TIME=$(date +%s)
+	while true; do
+		conflictsInEntry=$(kubectl get Portal ${portalName} -ojson | jq -r 'if (.status.conflictsInEntry| type) == "array" then .status.conflictsInEntry| sort | join(",") else empty end')
+		conflictsInPath=$(kubectl get Portal ${portalName} -ojson | jq -r 'if (.status.conflictsInPath| type) == "array" then .status.conflictsInPath| sort | join(",") else empty end')
 
-    if [[ $expectConflictsInEntry == $conflictsInEntry ]] && [[ $expectConflictsInPath == $conflictsInPath ]]; then
-      info "Portal ${portalName} has the correct status in conflicted entry and path"
-      break
-    fi
+		if [[ $expectConflictsInEntry == $conflictsInEntry ]] && [[ $expectConflictsInPath == $conflictsInPath ]]; then
+			info "Portal ${portalName} has the correct status in conflicted entry and path"
+			break
+		fi
 
-    info "expectConflictsInEntry:$expectConflictsInEntry  Actual:$conflictsInEntry"
-    info "expectConflictsInPath:$expectConflictsInPath  Actual:$conflictsInPath"
+		info "expectConflictsInEntry:$expectConflictsInEntry  Actual:$conflictsInEntry"
+		info "expectConflictsInPath:$expectConflictsInPath  Actual:$conflictsInPath"
 
-    CURRENT_TIME=$(date +%s)
-    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
-    if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
-      error "Timeout reached"
-      kubectl get Portal -o yaml
-      exit 1
-    fi
-    sleep 5
-  done
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			kubectl get Portal -o yaml
+			exit 1
+		fi
+		sleep 5
+	done
 }
 
 info "1. create kind cluster"
@@ -514,8 +514,7 @@ info "5.7.3 Use this user to create componentplan"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.metadata.namespace="default"' | jq '.spec.override.set[0]="ingress.enabled=true"' | kubectl apply --as=usera -f -
 waitComponentPlanRetryTime "default" "do-once-nginx-sample-15.0.2" "5"
 info "5.7.4 verify this componentplan will failed, show error log"
-kubectl get cpl do-once-nginx-sample-15.0.2 --output='jsonpath={.status.conditions[?(@.type=="Actioned")]}'
-info "" # go to a new line
+kubectl get cpl do-once-nginx-sample-15.0.2 '--output=jsonpath={.status.conditions[?(@.type=="Actioned")]}{"\n"}'
 
 info "6 Verify that helm repo with basic auth"
 info "6.1 Verify that helm repo add with basic auth"
@@ -526,7 +525,7 @@ kubectl apply -f config/samples/core_v1alpha1_componentplan_chartmuseum.yaml
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-chartmuseum"
 info "6.1.2 Verify private chartmuseum service is well running"
 export POD_NAME=$(kubectl get pods --namespace kubebb-system -l app.kubernetes.io/instance=my-chartmuseum -o jsonpath="{.items[0].metadata.name}")
-nohup kubectl port-forward $POD_NAME 8088:8080 --namespace kubebb-system > /dev/null 2>&1 &
+nohup kubectl port-forward $POD_NAME 8088:8080 --namespace kubebb-system >/dev/null 2>&1 &
 curl --retry 3 --retry-delay 5 --retry-connrefused -u admin:password http://localhost:8088
 
 info "6.2 Verify that helm install with basic auth"
@@ -539,7 +538,7 @@ kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
 waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
 info "6.2.3 Plan a nignx with private chartmuseum(basic auth enabled) "
 kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
-waitComponentPlanDone "kubebb-system" "mynginx" 
+waitComponentPlanDone "kubebb-system" "mynginx"
 
 info "7 try to verify that the common steps are valid to oci types"
 info "7.1 create oci repository"
@@ -579,5 +578,49 @@ info "8.5 delete the portal-example-another portal and check the portal conflict
 kubectl delete Portal portal-example-another
 checkPortalStatus "portal-example" "portal-example-duplicate" "portal-example-duplicate"
 checkPortalStatus "portal-example-duplicate" "portal-example" "portal-example"
+
+info "9 try to verify that the common steps are valid to subscription"
+info "9.1 create loki subscription with schedule to run after 5 minutes"
+current_time_seconds=$(date +%s)
+current_time=$(date +"%T")
+new_mins_seconds=$((current_time_seconds + 300))
+current_min=$(date +%M)
+new_min=$((current_min + 5))
+if [ $new_min -gt 59 ]; then
+	new_min=$((new_min - 60))
+fi
+new_mins_after_cron="$new_min * * * *"
+echo "Current time: $current_time, 5 minutes after crontab: $new_mins_after_cron"
+kubectl apply -f config/samples/core_v1alpha1_loki_subscription_schedule.yaml --dry-run -o json | jq --arg new_mins_after_cron "$new_mins_after_cron" '.spec.schedule=$new_mins_after_cron' | kubectl apply -f -
+while true; do
+	componentplanCreateTime=$(kubectl -nkubebb-system get ComponentPlan -l core.kubebb.k8s.com.cn/subscription-name=loki-sample-schedule -o jsonpath="{.items[0].metadata.creationTimestamp}" --ignore-not-found)
+	if [[ -n $componentplanCreateTime ]]; then
+		echo "componentplanCreateTime: $componentplanCreateTime"
+		date=${componentplanCreateTime:0:10}
+		time=${componentplanCreateTime:11:8}
+		timestamp_seconds=$(date -d "$date $time" +%s)
+		diff=$((timestamp_seconds - new_mins_seconds))
+		if [ $diff -lt 0 ]; then
+			diff=$((diff * -1))
+		fi
+		if [ $diff -lt 120 ]; then
+			break
+		else
+			error "diff is too long :$diff"
+			exit 1
+		fi
+		break
+	fi
+
+	CURRENT_TIME=$(date +%s)
+	ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+	if [ $ELAPSED_TIME -gt 1800 ]; then
+		error "Timeout reached"
+		kubectl get ComponentPlan -A -oyaml
+		kubectl get Subscription -A -o yaml
+		exit 1
+	fi
+	sleep 5
+done
 
 info "all finished! ✅"

@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"context"
 
+	"github.com/robfig/cron/v3"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -74,6 +75,15 @@ func (r *Subscription) ValidateCreate(ctx context.Context, obj runtime.Object) e
 		return err
 	}
 	log = log.WithValues("user", user)
+	s, ok := obj.(*Subscription)
+	if !ok {
+		log.Error(ErrDecode, "oldObj "+ErrDecode.Error())
+		return ErrDecode
+	}
+	if err = s.validateSpec(); err != nil {
+		log.Info(err.Error())
+		return err
+	}
 	log.Info("validate create done")
 	return nil
 }
@@ -109,6 +119,10 @@ func (r *Subscription) ValidateUpdate(ctx context.Context, oldObj runtime.Object
 		log.Info(ErrCreatorChange.Error(), "old", s.Spec.Creator, "new", ns.Spec.Creator)
 		return ErrCreatorChange
 	}
+	if err = ns.validateSpec(); err != nil {
+		log.Info(err.Error())
+		return err
+	}
 	log.Info("validate update done")
 	return nil
 }
@@ -123,5 +137,17 @@ func (r *Subscription) ValidateDelete(ctx context.Context, obj runtime.Object) e
 	}
 	log = log.WithValues("user", user)
 	log.Info("validate delete done")
+	return nil
+}
+
+func (r *Subscription) validateSpec() error {
+	if r.Spec.ComponentRef == nil || r.Spec.ComponentRef.Namespace == "" || r.Spec.ComponentRef.Name == "" {
+		return ErrComponentMissing
+	}
+	if r.Spec.ComponentPlanInstallMethod == InstallMethodAuto && r.Spec.Schedule != "" {
+		if _, err := cron.ParseStandard(r.Spec.Schedule); err != nil {
+			return ErrUnParseableSchedule
+		}
+	}
 	return nil
 }

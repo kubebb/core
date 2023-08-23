@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -133,6 +134,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("subscription-reconcile"),
+		Now:      time.Now,
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Subscription")
 		os.Exit(1)
