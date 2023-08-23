@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -53,6 +54,9 @@ func init() {
 
 	utilruntime.Must(corev1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
+
+	// add tekton resources
+	utilruntime.Must(v1beta1.AddToScheme(scheme))
 }
 
 func main() {
@@ -179,13 +183,16 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if err = (&controllers.RatingReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Rating")
-		os.Exit(1)
+	if corev1alpha1.RatingEnabled() {
+		if err = (&controllers.RatingReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Rating")
+			os.Exit(1)
+		}
 	}
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

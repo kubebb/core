@@ -29,7 +29,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/tektoncd/pipeline v0.40.2
+require (
+	github.com/tektoncd/pipeline v0.40.2
+	knative.dev/pkg v0.0.0-20220818004048-4a03844c0b15
+)
 
 require (
 	cloud.google.com/go v0.104.0 // indirect
@@ -205,7 +208,6 @@ require (
 	k8s.io/component-base v0.24.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20220627174259-011e075b9cb8 // indirect
 	k8s.io/kubectl v0.24.2 // indirect
-	knative.dev/pkg v0.0.0-20220818004048-4a03844c0b15 // indirect
 	oras.land/oras-go v1.2.0 // indirect
 	sigs.k8s.io/gateway-api v0.5.1-0.20220921185115-ee7a83814203 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect

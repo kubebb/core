@@ -42,14 +42,14 @@ spec:
                     params:
                       description: Params List of parameters defined in the pipeline
                       items:
-                        description: ParamSpec defines arbitrary parameters needed
-                          beyond typed inputs (such as resources). Parameter values
-                          are provided by users as inputs on a TaskRun or PipelineRun.
                         properties:
-                          default:
-                            description: Default is the value a parameter takes if
-                              no input value is supplied. If default is set, a Task
-                              may be executed without a supplied value for the parameter.
+                          name:
+                            type: string
+                          value:
+                            description: ParamValue is a type that can hold a single
+                              string or string array. Used in JSON unmarshalling so
+                              that a single JSON field can accept either an individual
+                              string or an array of strings.
                             properties:
                               arrayVal:
                                 items:
@@ -66,44 +66,20 @@ spec:
                                 description: ParamType indicates the type of an input
                                   parameter; Used to distinguish between a single
                                   string and an array of strings.
+                                enum:
+                                - string
+                                - array
+                                - object
                                 type: string
                             required:
-                            - arrayVal
-                            - objectVal
-                            - stringVal
                             - type
                             type: object
-                          description:
-                            description: Description is a user-facing description
-                              of the parameter that may be used to populate a UI.
-                            type: string
-                          name:
-                            description: Name declares the name by which a parameter
-                              is referenced.
-                            type: string
-                          properties:
-                            additionalProperties:
-                              description: PropertySpec defines the struct for object
-                                keys
-                              properties:
-                                type:
-                                  description: ParamType indicates the type of an
-                                    input parameter; Used to distinguish between a
-                                    single string and an array of strings.
-                                  type: string
-                              type: object
-                            description: Properties is the JSON Schema properties
-                              to support key-value pairs parameter.
-                            type: object
-                          type:
-                            description: Type is the user-specified type of the parameter.
-                              The possible types are currently "string", "array" and
-                              "object", and "string" is the default.
-                            type: string
                         required:
                         - name
+                        - value
                         type: object
                       type: array
+                      x-kubernetes-list-type: atomic
                     pipelineName:
                       description: PipelineName the name of pipeline
                       type: string
@@ -125,24 +101,117 @@ spec:
                   default weight of each task is 1. This field describes the sum of
                   the weights of all tasks included in the pipeline defined in Rating.
                 type: integer
-              tasks:
-                items:
+              pipelineRuns:
+                additionalProperties:
                   properties:
-                    name:
-                      type: string
-                    reason:
-                      description: Reason for failure
-                      type: string
-                    state:
-                      description: State three states, running, success, failure
+                    actualWeight:
+                      description: ActualWeight The sum of all successful task weights.
                       type: integer
-                    type:
+                    conditions:
+                      description: Conditions of the resource.
+                      items:
+                        description: A Condition that may apply to a resource.
+                        properties:
+                          lastSuccessfulTime:
+                            description: LastSuccessfulTime is repository Last Successful
+                              Update Time
+                            format: date-time
+                            type: string
+                          lastTransitionTime:
+                            description: LastTransitionTime is the last time this
+                              condition transitioned from one status to another.
+                            format: date-time
+                            type: string
+                          message:
+                            description: A Message containing details about this condition's
+                              last transition from one status to another, if any.
+                            type: string
+                          reason:
+                            description: A Reason for this condition's last transition
+                              from one status to another.
+                            type: string
+                          status:
+                            description: Status of this condition; is it currently
+                              True, False, or Unknown
+                            type: string
+                          type:
+                            description: Type of this condition. At most one of each
+                              condition type may apply to a resource at any point
+                              in time.
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                    expectWeight:
+                      description: ExpectWeight Each pipeline contains multiple tasks.
+                        The default weight of each task is 1. This field describes
+                        the sum of the weights of all tasks included in the pipeline
+                        defined in Rating.
+                      type: integer
+                    pipelineName:
                       type: string
+                    tasks:
+                      items:
+                        properties:
+                          conditions:
+                            description: Conditions of the resource.
+                            items:
+                              description: A Condition that may apply to a resource.
+                              properties:
+                                lastSuccessfulTime:
+                                  description: LastSuccessfulTime is repository Last
+                                    Successful Update Time
+                                  format: date-time
+                                  type: string
+                                lastTransitionTime:
+                                  description: LastTransitionTime is the last time
+                                    this condition transitioned from one status to
+                                    another.
+                                  format: date-time
+                                  type: string
+                                message:
+                                  description: A Message containing details about
+                                    this condition's last transition from one status
+                                    to another, if any.
+                                  type: string
+                                reason:
+                                  description: A Reason for this condition's last
+                                    transition from one status to another.
+                                  type: string
+                                status:
+                                  description: Status of this condition; is it currently
+                                    True, False, or Unknown
+                                  type: string
+                                type:
+                                  description: Type of this condition. At most one
+                                    of each condition type may apply to a resource
+                                    at any point in time.
+                                  type: string
+                              required:
+                              - lastTransitionTime
+                              - reason
+                              - status
+                              - type
+                              type: object
+                            type: array
+                          name:
+                            type: string
+                          taskRunName:
+                            type: string
+                          type:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
                   required:
-                  - name
-                  - state
+                  - pipelineName
                   type: object
-                type: array
+                type: object
             type: object
         type: object
     served: true

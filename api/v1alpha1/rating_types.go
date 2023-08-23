@@ -17,27 +17,53 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// ParamType indicates the type of an input parameter;
+// Used to distinguish between a single string and an array of strings.
+type ParamType string
+
+// Valid ParamTypes:
+const (
+	ParamTypeString ParamType = "string"
+	ParamTypeArray  ParamType = "array"
+	ParamTypeObject ParamType = "object"
+)
+
+// ParamValue is a type that can hold a single string or string array.
+// Used in JSON unmarshalling so that a single JSON field can accept
+// either an individual string or an array of strings.
+type ParamValue struct {
+	// +kubebuilder:validation:Enum:=string;array;object
+	Type      ParamType `json:"type"` // Represents the stored type of ParamValues.
+	StringVal string    `json:"stringVal,omitempty"`
+	// +listType=atomic
+	ArrayVal  []string          `json:"arrayVal,omitempty"`
+	ObjectVal map[string]string `json:"objectVal,omitempty"`
+}
+
+type Param struct {
+	Name  string     `json:"name"`
+	Value ParamValue `json:"value"`
+}
 
 type PipelineParam struct {
 	// PipelineName the name of pipeline
 	PipelineName string `json:"pipelineName"`
 
 	// Params List of parameters defined in the pipeline
-	Params []v1beta1.ParamSpec `json:"params,omitempty"`
+	// +listType=atomic
+	Params []Param `json:"params,omitempty"`
 }
 
 type Task struct {
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	TaskRunName string `json:"taskRunName,omitempty"`
+
 	Type string `json:"type,omitempty"`
 
-	// State three states, running, success, failure
-	State uint8 `json:"state"`
-
-	// Reason for failure
-	Reason string `json:"reason,omitempty"`
+	ConditionedStatus `json:",inline"`
 }
 
 type RatingSpec struct {
@@ -48,7 +74,21 @@ type RatingSpec struct {
 }
 
 type RatingStatus struct {
-	Tasks []Task `json:"tasks,omitempty"`
+	PipelineRuns map[string]PipelineRunStatus `json:"pipelineRuns,omitempty"`
+
+	// ExpectWeight Each pipeline contains multiple tasks. The default weight of each task is 1.
+	// This field describes the sum of the weights of all tasks included in the pipeline defined in Rating.
+	ExpectWeight int `json:"expectWeight,omitempty"`
+
+	// ActualWeight The sum of all successful task weights.
+	ActualWeight int `json:"actualWeight,omitempty"`
+}
+
+type PipelineRunStatus struct {
+	Tasks        []Task `json:"tasks,omitempty"`
+	PipelineName string `json:"pipelineName"`
+
+	ConditionedStatus `json:",inline"`
 
 	// ExpectWeight Each pipeline contains multiple tasks. The default weight of each task is 1.
 	// This field describes the sum of the weights of all tasks included in the pipeline defined in Rating.

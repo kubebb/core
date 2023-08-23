@@ -54,6 +54,11 @@ const (
 	ReasonReconcileSuccess ConditionReason = "ReconcileSuccess"
 	ReasonReconcileError   ConditionReason = "ReconcileError"
 	ReasonReconcilePaused  ConditionReason = "ReconcilePaused"
+
+	RatingResolvingPipelineRef ConditionReason = "ResolvingPipelineRef"
+	RatingResolvingTaskRef     ConditionReason = "ResolvingTaskRef"
+	RatingRunning              ConditionReason = "Running"
+	RatingSucceeded            ConditionReason = "Succeeded"
 )
 
 // A Condition that may apply to a resource.
