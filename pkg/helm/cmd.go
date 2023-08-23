@@ -106,3 +106,11 @@ func ReleaseLog(rel *release.Release) []interface{} {
 	}
 	return l
 }
+
+func RollBack(ctx context.Context, getter genericclioptions.RESTClientGetter, logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (err error) {
+	h, err := NewHelmWrapper(getter, cpl.Namespace, logger)
+	if err != nil {
+		return err
+	}
+	return h.rollback(logger, cpl)
+}

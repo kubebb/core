@@ -35,6 +35,7 @@ import (
 const (
 	ComponentPlanReleaseNameLabel     = Group + "/componentplan-release"
 	ComponentPlanRetryTimesAnnotation = Group + "/componentplan-retry"
+	ComponentPlanRollBackLabel        = Group + "/rollback"
 )
 
 // ConditionType for ComponentPlan
@@ -50,12 +51,15 @@ const (
 	ComponentPlanReasonInstalling       ConditionReason = "Installing"
 	ComponentPlanReasonUpgrading        ConditionReason = "Upgrading"
 	ComponentPlanReasonUninstalling     ConditionReason = "Uninstalling"
+	ComponentPlanReasonRollingBack      ConditionReason = "RollingBack"
 	ComponentPlanReasonInstallSuccess   ConditionReason = "InstallSuccess"
 	ComponentPlanReasonInstallFailed    ConditionReason = "InstallFailed"
 	ComponentPlanReasonUninstallSuccess ConditionReason = "UninstallSuccess"
 	ComponentPlanReasonUninstallFailed  ConditionReason = "UninstallFailed"
 	ComponentPlanReasonUpgradeSuccess   ConditionReason = "UpgradeSuccess"
 	ComponentPlanReasonUpgradeFailed    ConditionReason = "UpgradeFailed"
+	ComponentPlanReasonRollBackSuccess  ConditionReason = "RollBackSuccess"
+	ComponentPlanReasonRollBackFailed   ConditionReason = "RollBackFailed"
 )
 
 // GenerateComponentPlanName generates the name of the component plan for a given subscription
@@ -127,6 +131,17 @@ func ComponentPlanWaitDo(err error) Condition {
 	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonWaitDo, corev1.ConditionFalse, err)
 }
 
+func ComponentPlanRollBackSuccess() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonRollBackSuccess, corev1.ConditionTrue, nil)
+}
+
+func ComponentPlanRollBackFailed(err error) Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonRollBackFailed, corev1.ConditionFalse, err)
+}
+
+func ComponentPlanRollingBack() Condition {
+	return componentPlanCondition(ComponentPlanTypeActioned, ComponentPlanReasonRollingBack, corev1.ConditionFalse, nil)
+}
 func componentPlanCondition(ct ConditionType, reason ConditionReason, status corev1.ConditionStatus, err error) Condition {
 	if status == "" {
 		status = corev1.ConditionUnknown

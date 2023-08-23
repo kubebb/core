@@ -368,6 +368,28 @@ func (h *HelmWrapper) prepare(ctx context.Context, cli client.Client, logger log
 	return chartRequested, vals, nil
 }
 
+// rollback
+// inspire by https://github.com/helm/helm/blob/main/cmd/helm/rollback.go
+func (h *HelmWrapper) rollback(logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (err error) {
+	log := logger.WithValues("ComponentPlan", klog.KObj(cpl))
+	i := action.NewRollback(h.config)
+	i.DryRun = false // do not need to simulate the rollback
+	i.DisableHooks = cpl.Spec.DisableHooks
+	i.Timeout = cpl.Spec.Timeout()
+	i.Wait = cpl.Spec.Wait
+	i.WaitForJobs = cpl.Spec.WaitForJobs
+	i.CleanupOnFail = cpl.Spec.CleanupOnFail
+	i.MaxHistory = cpl.Spec.GetMaxHistory()
+	i.Recreate = cpl.Spec.RecreatePods
+	i.Force = cpl.Spec.Force
+	i.Version = cpl.Status.InstalledRevision
+	if err = i.Run(cpl.GetReleaseName()); err != nil {
+		return err
+	}
+	log.Info(fmt.Sprintf("release \"%s\" rollback to revision:%d", cpl.GetReleaseName(), cpl.Status.InstalledRevision))
+	return nil
+}
+
 func getVals(ctx context.Context, cli client.Client, logger logr.Logger, cpl *corev1alpha1.ComponentPlan) (p getter.Providers, vals map[string]interface{}, err error) {
 	p = getter.All(settings)
 	valueOpts := &values.Options{}
