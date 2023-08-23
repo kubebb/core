@@ -23,17 +23,17 @@ gh auth setup-git
 git config --global user.email "$GITHUB_USERNAME@users.noreply.github.com"
 git config --global user.name "$GITHUB_USERNAME"
 function updateChartVersion() {
-    local RE='[^0-9]*\([0-9]*\)[.]\([0-9]*\)[.]\([0-9]*\)\([0-9A-Za-z-]*\)'
-    eval MAJOR=`echo $1 | sed -e "s#$RE#\1#"`
-    eval MINOR=`echo $1 | sed -e "s#$RE#\2#"`
-    eval PATCH=`echo $1 | sed -e "s#$RE#\3#"`
-    eval SPECIAL=`echo $1 | sed -e "s#$RE#\4#"`
-    PATCH=$((PATCH+1))
-    if [[ $SPECIAL == "" ]]; then
-      eval $2=v$MAJOR.$MINOR.$PATCH
-    else
-      eval $2=v$MAJOR.$MINOR.$PATCH.$SPECIAL
-    fi
+	local RE='[^0-9]*\([0-9]*\)[.]\([0-9]*\)[.]\([0-9]*\)\([0-9A-Za-z-]*\)'
+	eval MAJOR=$(echo $1 | sed -e "s#$RE#\1#")
+	eval MINOR=$(echo $1 | sed -e "s#$RE#\2#")
+	eval PATCH=$(echo $1 | sed -e "s#$RE#\3#")
+	eval SPECIAL=$(echo $1 | sed -e "s#$RE#\4#")
+	PATCH=$((PATCH + 1))
+	if [[ $SPECIAL == "" ]]; then
+		eval $2=v$MAJOR.$MINOR.$PATCH
+	else
+		eval $2=v$MAJOR.$MINOR.$PATCH.$SPECIAL
+	fi
 }
 
 echo "1.get kubebb-core latest version"

@@ -10,7 +10,7 @@ source "${ROOT_PATH}/hack/lib/init.sh"
 go::setup_env
 
 echo "installing golangci-lint"
-go install github.com/golangci/golangci-lint/cmd/golangci-lint
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 cd "${ROOT_PATH}"
 

@@ -260,3 +260,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
+# Verify code validity
+.PHONY: verify
+verify:
+	@hack/verify-all.sh
