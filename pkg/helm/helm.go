@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -138,7 +139,7 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	i.WaitForJobs = cpl.Spec.WaitForJobs
 	i.GenerateName = false // we use ComponentPlan.Spec.Name
 	i.NameTemplate = ""    // we use ComponentPlan.Spec.Name
-	i.Description = cpl.Spec.Description
+	i.Description = generateDescription(cpl)
 	i.Devel = false // just set `>0.0.0-0` to ComponentPlan.Spec.Version is enough
 	i.DependencyUpdate = true
 	i.DisableOpenAPIValidation = cpl.Spec.DisableOpenAPIValidation
@@ -202,7 +203,7 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 	i.MaxHistory = cpl.Spec.GetMaxHistory()
 	i.CleanupOnFail = cpl.Spec.CleanupOnFail
 	i.SubNotes = false // we cant see notes or subnotes
-	i.Description = cpl.Spec.Description
+	i.Description = generateDescription(cpl)
 	i.DependencyUpdate = true
 	i.Version = cpl.Spec.InstallVersion
 	i.Verify = false // TODO enable these args after we can config keyring
@@ -242,6 +243,7 @@ func (h *HelmWrapper) uninstall(logger logr.Logger, cpl *corev1alpha1.ComponentP
 	i.KeepHistory = cpl.Spec.KeepHistory
 	i.Timeout = cpl.Spec.Timeout()
 	i.Wait = cpl.Spec.Wait
+	i.Description = generateDescription(cpl)
 	res, err := i.Run(cpl.GetReleaseName())
 	if err != nil {
 		return err
@@ -404,4 +406,30 @@ func (h *HelmWrapper) GetDigest(ref string) (string, error) {
 		return "", err
 	}
 	return result.Manifest.Digest, nil
+}
+
+func generateDescription(plan *corev1alpha1.ComponentPlan) string {
+	return fmt.Sprintf("core:%s/%s/%s/%d %s", plan.GetNamespace(), plan.GetName(), plan.GetUID(), plan.GetGeneration(), plan.Spec.Config.Description)
+}
+
+func ParseDescription(desc string) (ns, name, uid string, generation int64, raw string) {
+	raw = desc
+	if !strings.HasPrefix(desc, "core:") {
+		return
+	}
+	other := strings.TrimPrefix(desc, "core:")
+	s := strings.Split(other, " ")
+	if len(s) < 2 {
+		return
+	}
+	s0 := s[0]
+	t := strings.Split(s0, "/")
+	if len(t) != 4 {
+		return
+	}
+	ns = t[0]
+	name = t[1]
+	uid = t[2]
+	generation, _ = strconv.ParseInt(t[3], 10, 64)
+	return ns, name, uid, generation, strings.Join(s[1:], " ")
 }
