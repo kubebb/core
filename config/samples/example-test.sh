@@ -131,8 +131,6 @@ function waitComponentStatus() {
 		versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions|length')
 		if [[ $versions -ne 0 ]]; then
 			echo "component ${componentName} already have version information and can be installed"
-			#			digest=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions.digest')
-			#			echo "digest: ${digest}"
 			break
 		fi
 		CURRENT_TIME=$(date +%s)
@@ -561,6 +559,13 @@ info "7 try to verify that the common steps are valid to oci types"
 info "7.1 create oci repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_oci.yaml
 waitComponentStatus "kubebb-system" "repository-oci-sample.nginx"
+oci_digest=$(kubectl -n${namespace} get components ${componentName} -ojson | jq -r '.status.versions[0].digest')
+fixed_nginx_digest="d9459e1206a4f5a8e0d7c5da8a306ab9b1ba5d7182ae671610b5699250ea45f8"
+echo "digest: ${oci_digest}"
+if [[ ${oci_digest} != ${fixed_nginx_digest} ]]; then
+	echo "digest has wrong value"
+	exit 1
+fi
 
 info "7.2 create oci componentplan"
 kubectl apply -f config/samples/core_v1alpha1_oci_componentplan.yaml
