@@ -130,7 +130,8 @@ func (c *OCIWatcher) Poll() {
 	if err != nil {
 		c.logger.Error(err, "Cannot create a new helm wrapper")
 	}
-	info, err := h.Pull(c.logger, c.instance.Spec.URL)
+	out, info, err := h.Pull(c.logger, c.instance.Spec.URL)
+
 	if err != nil {
 		c.logger.Error(err, "Cannot pull chart")
 		return
@@ -178,7 +179,7 @@ func (c *OCIWatcher) Poll() {
 		Version:    versions.Version,
 		AppVersion: versions.AppVersion,
 		CreatedAt:  metav1.Now(), //TODO: metav1.NewTime(versions.Created),
-		//Digest:     digest, //TODO: Set digest
+		Digest:     helm.ParseDigestFromPullOut(out),
 		UpdatedAt:  metav1.Now(),
 		Deprecated: versions.Deprecated,
 	})

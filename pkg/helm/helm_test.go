@@ -108,3 +108,49 @@ func TestParseDescription(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDigestFromPullOut(t *testing.T) {
+	type args struct {
+		out string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "normal oci",
+			args: args{
+				out: `Pulled: registry-1.docker.io/bitnamicharts/nginx:15.0.2
+Digest: sha256:32d95bdf27824295fcb8a9f7dd8e2b001524a9181d514076586f90565e986401
+				`,
+			},
+			want: "32d95bdf27824295fcb8a9f7dd8e2b001524a9181d514076586f90565e986401",
+		},
+		{
+			name: "normal http",
+			args: args{
+				out: `
+				`,
+			},
+			want: "",
+		},
+		{
+			name: "normal oci with extra output",
+			args: args{
+				out: `Pulled: registry-1.docker.io/bitnamicharts/nginx:15.0.2
+Digest: sha256:32d95bdf27824295fcb8a9f7dd8e2b001524a9181d514076586f90565e986401
+Error: failed to untar: a file or directory with the name nginx already exists
+				`,
+			},
+			want: "32d95bdf27824295fcb8a9f7dd8e2b001524a9181d514076586f90565e986401",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ParseDigestFromPullOut(tt.args.out); got != tt.want {
+				t.Errorf("ParseDigestFromPullOut() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

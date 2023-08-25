@@ -17,6 +17,7 @@ limitations under the License.
 package helm
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -53,6 +54,7 @@ var settings = cli.New()
 // HelmWrapper is a wrapper for helm command
 type HelmWrapper struct {
 	config *action.Configuration
+	buf    *bytes.Buffer
 }
 
 // NewHelmWrapper returns a new helmWrapper instance
@@ -63,11 +65,12 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 	}); err != nil {
 		return nil, err
 	}
-
+	buf := new(bytes.Buffer)
 	registryClient, err := registry.NewClient(
 		registry.ClientOptDebug(settings.Debug),
 		registry.ClientOptEnableCache(true),
 		registry.ClientOptCredentialsFile(settings.RegistryConfig),
+		registry.ClientOptWriter(buf),
 	)
 	if err != nil {
 		return nil, err
@@ -76,12 +79,13 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 
 	return &HelmWrapper{
 		config: cfg,
+		buf:    buf,
 	}, nil
 }
 
 // Pull
 // inspire by https://github.com/helm/helm/blob/main/cmd/helm/pull.go
-func (h *HelmWrapper) Pull(logger logr.Logger, url string) (chartRequested *chart.Chart, err error) {
+func (h *HelmWrapper) Pull(logger logr.Logger, url string) (out string, chartRequested *chart.Chart, err error) {
 	combinedName := strings.Split(url, "/")
 	entryName := combinedName[len(combinedName)-1]
 
@@ -93,27 +97,28 @@ func (h *HelmWrapper) Pull(logger logr.Logger, url string) (chartRequested *char
 	i.UntarDir, err = os.MkdirTemp(i.UntarDir, "kubebb-*")
 	if err != nil {
 		logger.Error(err, "Failed to create a new dir")
-		return nil, err
+		return "", nil, err
 	}
 	defer os.RemoveAll(i.UntarDir)
 
 	_, err = i.Run(url) // chartref - the chart name
 	if err != nil {
 		logger.Error(err, "cannot download chart")
-		return nil, err
+		return "", nil, err
 	}
 
 	chartRequested, err = loader.Load(i.UntarDir + "/" + entryName)
 	if err != nil {
 		logger.Error(err, "Cannot load chart")
-		return nil, err
+		return "", nil, err
 	}
 
 	if chartRequested.Metadata.Deprecated {
 		logger.V(1).Info("This chart is deprecated")
 	}
-
-	return chartRequested, nil
+	out = h.buf.String()
+	h.buf.Reset()
+	return out, chartRequested, nil
 }
 
 // install
@@ -454,4 +459,17 @@ func ParseDescription(desc string) (ns, name, uid string, generation int64, raw 
 	uid = t[2]
 	generation, _ = strconv.ParseInt(t[3], 10, 64)
 	return ns, name, uid, generation, strings.Join(s[1:], " ")
+}
+
+// ParseDigestFromPullOut extracts the sha256 digest from the `helm pull` output string.
+// It takes a string as input parameter which represents the output string.
+// It returns a string which is the extracted sha256 digest.
+func ParseDigestFromPullOut(out string) string {
+	for _, l := range strings.Split(out, "\n") {
+		l = strings.TrimSpace(l)
+		if strings.HasPrefix(l, "Digest: sha256:") {
+			return strings.TrimPrefix(l, "Digest: sha256:")
+		}
+	}
+	return ""
 }
