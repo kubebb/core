@@ -19,7 +19,7 @@ spec:
       type: string
   steps:
     - name: helm-lint
-      image: alpine/k8s:1.27.4
+      image: kubebb/rating:v0.1.3
       script: |
         #!/usr/bin/env sh
         # Download and untar chart package

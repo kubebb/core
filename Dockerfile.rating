@@ -1,0 +1,6 @@
+FROM alpine/k8s:1.22.15
+
+# Install rback for task security-rbac
+RUN curl -sL https://github.com/team-soteria/rback/releases/download/v0.4.0/linux_rback -o rback
+RUN chmod +x rback && mv rback /usr/local/bin
+
