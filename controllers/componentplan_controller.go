@@ -328,12 +328,12 @@ func (r *ComponentPlanReconciler) updateReleaseStatus(ctx context.Context, logge
 	}
 	if inputErr != nil {
 		if revision == revisionNoExist || revision == revisionInstall {
-			logger.Error(err, "componentplan install failed")
-			err = r.PatchCondition(ctx, plan, logger, revision, false, true, corev1alpha1.ComponentPlanInstallFailed(err))
+			logger.Error(inputErr, "componentplan install failed")
+			err = r.PatchCondition(ctx, plan, logger, revision, false, true, corev1alpha1.ComponentPlanInstallFailed(inputErr))
 			r.Recorder.Eventf(plan, corev1.EventTypeWarning, "InstallationFailure", "%s install failed", plan.GetReleaseName())
 		} else {
-			logger.Error(err, "componentplan upgrade failed")
-			err = r.PatchCondition(ctx, plan, logger, revision, false, true, corev1alpha1.ComponentPlanUpgradeFailed(err))
+			logger.Error(inputErr, "componentplan upgrade failed")
+			err = r.PatchCondition(ctx, plan, logger, revision, false, true, corev1alpha1.ComponentPlanUpgradeFailed(inputErr))
 			r.Recorder.Eventf(plan, corev1.EventTypeWarning, "UpgradeFailure", "%s upgrade failed", plan.GetReleaseName())
 		}
 	} else {
