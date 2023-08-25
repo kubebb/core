@@ -394,6 +394,10 @@ spec:
                       description: InstalledVersion is the version currently installed
                         in cluster
                       properties:
+                        annotations:
+                          additionalProperties:
+                            type: string
+                          type: object
                         appVersion:
                           type: string
                         createdAt:

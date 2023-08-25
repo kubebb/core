@@ -57,6 +57,10 @@ spec:
                   version update, how to deal with it? A one-sentence description
                   of the chart'
                 type: string
+              displayName:
+                description: DisplayName of the component that comes from the helm
+                  chart's latest annotation
+                type: string
               home:
                 description: The URL to a relevant project page, git repo, or contact
                   person
@@ -139,6 +143,10 @@ spec:
                   description: ComponentVersion Indicates the fields required for
                     a specific version of Component.
                   properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      type: object
                     appVersion:
                       type: string
                     createdAt:

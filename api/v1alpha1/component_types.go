@@ -31,6 +31,8 @@ type ComponentStatus struct {
 	RepositoryRef *corev1.ObjectReference `json:"repository"`
 	// The name of the component may come from helm chart name
 	Name string `json:"name"`
+	// DisplayName of the component that comes from the helm chart's latest annotation
+	DisplayName string `json:"displayName,omitempty"`
 	// versions contains all version of one component.
 	Versions []ComponentVersion `json:"versions"`
 	// FIXME: some fields(like description) may change when version update, how to deal with it?

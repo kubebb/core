@@ -232,12 +232,13 @@ func (c *HTTPWatcher) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 				}
 			}
 			components[index].Status.Versions = append(components[index].Status.Versions, v1alpha1.ComponentVersion{
-				Version:    version.Version,
-				AppVersion: version.AppVersion,
-				CreatedAt:  metav1.NewTime(version.Created),
-				Digest:     version.Digest,
-				UpdatedAt:  metav1.Now(),
-				Deprecated: version.Deprecated,
+				Annotations: version.Annotations,
+				Version:     version.Version,
+				AppVersion:  version.AppVersion,
+				CreatedAt:   metav1.NewTime(version.Created),
+				Digest:      version.Digest,
+				UpdatedAt:   metav1.Now(),
+				Deprecated:  version.Deprecated,
 			})
 
 			if latest {
@@ -250,6 +251,10 @@ func (c *HTTPWatcher) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 				components[index].Status.Icon = version.Icon
 				components[index].Status.Keywords = keywords
 				components[index].Status.Sources = version.Sources
+				if version.Annotations != nil {
+					// update displayName based on the annotation from latest version
+					components[index].Status.DisplayName = version.Annotations[v1alpha1.DisplayNameAnnotationKey]
+				}
 				latest = false
 			}
 		}
