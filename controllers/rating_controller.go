@@ -46,6 +46,11 @@ type RatingReconciler struct {
 //+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=ratings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=ratings/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=ratings/finalizers,verbs=update
+//+kubebuilder:rbac:groups=tekton.dev,resources=tasks;taskruns;pipelines;pipelineruns,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=tekton.dev,resources=tasks/status;taskruns/status;pipelines/status;pipelineruns/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=tekton.dev,resources=tasks/finalizers;taskruns/finalizers;pipelines/finalizers;pipelineruns/finalizers,verbs=update
+//+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create
+//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

@@ -44,9 +44,9 @@ type PortalReconciler struct {
 	Recorder record.EventRecorder
 }
 
-//+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn.kubebb.k8s.com.cn,resources=portals,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn.kubebb.k8s.com.cn,resources=portals/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn.kubebb.k8s.com.cn,resources=portals/finalizers,verbs=update
+//+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=portals,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=portals/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=core.kubebb.k8s.com.cn,resources=portals/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
