@@ -193,7 +193,14 @@ function waitPodReady() {
 function deleteComponentPlan() {
 	namespace=$1
 	componentPlanName=$2
+	helmReleaseShouldDelete=$3
 	START_TIME=$(date +%s)
+	helmReleaseName=$(kubectl get ComponentPlan -n${namespace} ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.spec.name')
+	if [[ $helmReleaseName == "" ]]; then
+		echo "componentPlan ${componentPlanName} has no release name"
+		kubectl get ComponentPlan -n${namespace} ${componentPlanName} -oyaml
+		exit 1
+	fi
 	while true; do
 		kubectl -n${namespace} delete ComponentPlan ${componentPlanName} --wait --ignore-not-found=true
 		if [[ $? -eq 0 ]]; then
@@ -210,9 +217,12 @@ function deleteComponentPlan() {
 		sleep 30
 	done
 	while true; do
-		results=$(helm status -n ${namespace} ${componentPlanName})
-		if [[ $results == "" ]]; then
-			echo "helm status also show ${componentPlanName} removed"
+		results=$(helm status -n ${namespace} ${helmReleaseName})
+		if [[ $helmReleaseShouldDelete == "true" ]] && [[ $results == "" ]]; then
+			echo "helm release should remove, and helm status also show componentplan:${componentPlanName} 's release:${helmReleaseName} removed"
+			break
+		elif [[ $helmReleaseShouldDelete == "false" ]] && [[ $results != "" ]]; then
+			echo "helm release should not remove, and helm status also show componentplan:${componentPlanName} 's release:${helmReleaseName} not removed"
 			break
 		fi
 
@@ -403,7 +413,7 @@ kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getHelmRevision "kubebb-system" "my-nginx" "1"
-deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
 
 info "3.3 create nginx-15.0.2 componentplan to verify imageOverride in componentPlan is valid"
 kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml
@@ -411,7 +421,7 @@ waitComponentPlanDone "kubebb-system" "nginx-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getPodImage "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2" "docker.io/bitnami/nginx:latest"
 getHelmRevision "kubebb-system" "my-nginx" "1"
-deleteComponentPlan "kubebb-system" "nginx-15.0.2"
+deleteComponentPlan "kubebb-system" "nginx-15.0.2" "true"
 
 info "3.4 create nginx-replicas-example-1/2 componentplan to verify value override in componentPlan is valid"
 kubectl apply -f config/samples/core_v1alpha1_nginx_replicas2_componentplan.yaml
@@ -419,13 +429,13 @@ waitComponentPlanDone "kubebb-system" "nginx-replicas-example-1"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-replicas-example-1,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getDeployReplicas "kubebb-system" "my-nginx-replicas-example-1" "2"
 getHelmRevision "kubebb-system" "my-nginx-replicas-example-1" "1"
-deleteComponentPlan "kubebb-system" "nginx-replicas-example-1"
+deleteComponentPlan "kubebb-system" "nginx-replicas-example-1" "true"
 
 waitComponentPlanDone "kubebb-system" "nginx-replicas-example-2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-replicas-example-2,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getDeployReplicas "kubebb-system" "my-nginx-replicas-example-2" "2"
 getHelmRevision "kubebb-system" "my-nginx-replicas-example-2" "1"
-deleteComponentPlan "kubebb-system" "nginx-replicas-example-2"
+deleteComponentPlan "kubebb-system" "nginx-replicas-example-2" "true"
 
 info "4 try to verify that the repository imageOverride steps are valid"
 info "4.1 create repository-grafana-sample-image repository"
@@ -467,30 +477,30 @@ waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes
 getHelmRevision "kubebb-system" "my-nginx" "4"
 validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.1.0" "false"
 validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
-deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0"
-deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0" "false"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
 
 info "5.5 Verify long running componentPlan install don not block others to install"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_long_ready.yaml
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run=client -o json | jq '.spec.name="my-nginx-back"' | kubectl apply -f -
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-back,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
-deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready"
+deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready" "false"
 getHelmRevision "kubebb-system" "my-nginx-back" "1"
-deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
+deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
 
 info "5.6 Verify can install to other namespace"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run=client -o json | jq '.metadata.namespace="default"' | kubectl apply -f -
 waitComponentPlanDone "default" "do-once-nginx-sample-15.0.2"
 waitPodReady "default" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getHelmRevision "default" "my-nginx" "1"
-deleteComponentPlan "default" "do-once-nginx-sample-15.0.2"
+deleteComponentPlan "default" "do-once-nginx-sample-15.0.2" "true"
 
 info "5.7 Verify can be successfully uninstalled when install failed"
 kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml --dry-run=client -o json | jq '.spec.wait=true' | jq '.spec.override.images[0].newTag="xxxxx"' | jq '.spec.timeoutSeconds=30' | kubectl apply -f -
 getPodImage "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2" "docker.io/bitnami/nginx:xxxx"
 waitComponentPlanRetryTime "kubebb-system" "nginx-15.0.2" "5"
-deleteComponentPlan "kubebb-system" "nginx-15.0.2"
+deleteComponentPlan "kubebb-system" "nginx-15.0.2" "true"
 
 info "5.8 verify common user can create componentplan, but they must have permissions."
 info "5.8.1 create a sa with deploy and svc permissions, but no ingress"
@@ -574,7 +584,27 @@ kubectl apply -f config/samples/core_v1alpha1_oci_componentplan.yaml
 waitComponentPlanDone "kubebb-system" "do-once-oci-sample-15.1.0"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=oci-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
 getHelmRevision "kubebb-system" "oci-nginx" "1"
-deleteComponentPlan "kubebb-system" "do-once-oci-sample-15.1.0"
+
+info "7.3 create new componentPlan to update oci release replicas to 2, to valid upgrade"
+kubectl apply -f config/samples/core_v1alpha1_oci_componentplan.yaml --dry-run=client -o json | jq '.metadata.name="do-once-oci-sample-15.1.0-2"' | jq '.spec.override.values.replicaCount=2' | kubectl apply -f -
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=oci-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
+getHelmRevision "kubebb-system" "oci-nginx" "2"
+getDeployReplicas "kubebb-system" "oci-nginx" "2"
+waitComponentPlanDone "kubebb-system" "do-once-oci-sample-15.1.0-2"
+validateComponentPlanStatusLatestValue "kubebb-system" "do-once-oci-sample-15.1.0-2" "true"
+validateComponentPlanStatusLatestValue "kubebb-system" "do-once-oci-sample-15.1.0" "false"
+
+info "7.4 rollback nginx to older version, to valid rollback"
+kubectl patch componentplan -n kubebb-system do-once-oci-sample-15.1.0 --type=json \
+	-p='[{"op": "add", "path": "/metadata/labels/core.kubebb.k8s.com.cn~1rollback", "value": "true"}]'
+waitPodReady "kubebb-system" "app.kubernetes.io/instance=oci-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.1.0"
+getHelmRevision "kubebb-system" "oci-nginx" "3"
+validateComponentPlanStatusLatestValue "kubebb-system" "do-once-oci-sample-15.1.0-2" "false"
+validateComponentPlanStatusLatestValue "kubebb-system" "do-once-oci-sample-15.1.0" "true"
+
+info "7.5 remove them, to valid uninstall"
+deleteComponentPlan "kubebb-system" "do-once-oci-sample-15.1.0-2" "false"
+deleteComponentPlan "kubebb-system" "do-once-oci-sample-15.1.0" "true"
 
 info "8 try to verify portal works correctly"
 info "8.1 create portal-example which has no conflicts"

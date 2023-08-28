@@ -188,6 +188,12 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 // inspire by https://github.com/helm/helm/blob/main/cmd/helm/upgrade.go
 func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli client.Client, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, dryRun bool, chartName string) (rel *release.Release, err error) {
 	log := logger.WithValues("ComponentPlan", klog.KObj(cpl))
+	if registry.IsOCI(repo.Spec.URL) {
+		log.Info("Upgrading OCI Component")
+		chartName = repo.Spec.URL
+	} else {
+		log.Info("Upgrading non-OCI Component")
+	}
 	if dryRun {
 		log.WithValues("dryRun", true)
 	}
