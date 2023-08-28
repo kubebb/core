@@ -128,7 +128,7 @@ function waitComponentStatus() {
 	componentName=$2
 	START_TIME=$(date +%s)
 	while true; do
-		versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} -ojson | jq -r '.status.versions|length')
+		versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} --ignore-not-found=true -ojson | jq -r '.status.versions|length')
 		if [[ $versions -ne 0 ]]; then
 			echo "component ${componentName} already have version information and can be installed"
 			break
@@ -137,6 +137,7 @@ function waitComponentStatus() {
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
 			error "Timeout reached"
+			kubectl -n${namespace} get components
 			exit 1
 		fi
 		sleep 5
@@ -148,7 +149,7 @@ function waitComponentPlanDone() {
 	componentPlanName=$2
 	START_TIME=$(date +%s)
 	while true; do
-		doneConds=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} -ojson | jq -r '.status.conditions' | jq 'map(select(.type == "Succeeded"))|map(select(.status == "True"))|length')
+		doneConds=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.status.conditions' | jq 'map(select(.type == "Succeeded"))|map(select(.status == "True"))|length')
 		if [[ $doneConds -ne 0 ]]; then
 			echo "componentPlan ${componentPlanName} done"
 			break
@@ -194,7 +195,7 @@ function deleteComponentPlan() {
 	componentPlanName=$2
 	START_TIME=$(date +%s)
 	while true; do
-		kubectl -n${namespace} delete ComponentPlan ${componentPlanName} --wait
+		kubectl -n${namespace} delete ComponentPlan ${componentPlanName} --wait --ignore-not-found=true
 		if [[ $? -eq 0 ]]; then
 			echo "delete componentPlan ${componentPlanName} done"
 			break
@@ -305,7 +306,7 @@ function validateComponentPlanStatusLatestValue() {
 	want=$3
 	START_TIME=$(date +%s)
 	while true; do
-		latestValue=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} -ojson | jq -r '.status.latest')
+		latestValue=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.status.latest')
 		if [[ $latestValue == $want ]]; then
 			echo "componentPlan ${componentPlanName} status.latest is $latestValue"
 			break
@@ -328,7 +329,7 @@ function waitComponentPlanRetryTime() {
 	retryTimeWant=$3
 	START_TIME=$(date +%s)
 	while true; do
-		anno=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} -ojson | jq -r '.metadata.annotations["core.kubebb.k8s.com.cn/componentplan-retry"]')
+		anno=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.metadata.annotations["core.kubebb.k8s.com.cn/componentplan-retry"]')
 		if [[ $anno == $retryTimeWant ]]; then
 			echo "componentPlan ${componentPlanName} retry time match"
 			break
@@ -471,7 +472,7 @@ deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
 info "5.5 Verify long running componentPlan install don not block others to install"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_long_ready.yaml
-kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.spec.name="my-nginx-back"' | kubectl apply -f -
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run=client -o json | jq '.spec.name="my-nginx-back"' | kubectl apply -f -
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-back,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready"
@@ -479,14 +480,14 @@ getHelmRevision "kubebb-system" "my-nginx-back" "1"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2"
 
 info "5.6 Verify can install to other namespace"
-kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.metadata.namespace="default"' | kubectl apply -f -
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run=client -o json | jq '.metadata.namespace="default"' | kubectl apply -f -
 waitComponentPlanDone "default" "do-once-nginx-sample-15.0.2"
 waitPodReady "default" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
 getHelmRevision "default" "my-nginx" "1"
 deleteComponentPlan "default" "do-once-nginx-sample-15.0.2"
 
 info "5.7 Verify can be successfully uninstalled when install failed"
-kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml --dry-run -o json | jq '.spec.wait=true' | jq '.spec.override.images[0].newTag="xxxxx"' | jq '.spec.timeoutSeconds=30' | kubectl apply -f -
+kubectl apply -f config/samples/core_v1alpha1_componentplan_image_override.yaml --dry-run=client -o json | jq '.spec.wait=true' | jq '.spec.override.images[0].newTag="xxxxx"' | jq '.spec.timeoutSeconds=30' | kubectl apply -f -
 getPodImage "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2" "docker.io/bitnami/nginx:xxxx"
 waitComponentPlanRetryTime "kubebb-system" "nginx-15.0.2" "5"
 deleteComponentPlan "kubebb-system" "nginx-15.0.2"
@@ -527,7 +528,7 @@ EOF
 info "5.8.2 Verify that this user can't create ingress"
 kubectl create ingress simple --rule="foo.com/bar=svc1:8080" --as=usera || true
 info "5.8.3 Use this user to create componentplan"
-kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run -o json | jq '.metadata.namespace="default"' | jq '.spec.override.set[0]="ingress.enabled=true"' | kubectl apply --as=usera -f -
+kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run=client -o json | jq '.metadata.namespace="default"' | jq '.spec.override.set[0]="ingress.enabled=true"' | kubectl apply --as=usera -f -
 waitComponentPlanRetryTime "default" "do-once-nginx-sample-15.0.2" "5"
 info "5.8.4 verify this componentplan will failed, show error log"
 kubectl get cpl do-once-nginx-sample-15.0.2 '--output=jsonpath={.status.conditions[?(@.type=="Actioned")]}{"\n"}'
@@ -548,6 +549,7 @@ info "6.2 Verify that helm install with basic auth"
 info "6.2.1 Push a chart to private chartmuseum"
 curl --silent --retry 3 --retry-delay 5 -O https://charts.bitnami.com/bitnami/nginx-15.1.2.tgz
 curl --silent --retry 3 --retry-delay 5 -u admin:password --data-binary "@nginx-15.1.2.tgz" http://localhost:8088/api/charts
+echo "\n"
 info "6.2.2 Add this private chartmuseum repository(basic auth enabled) to kubebb"
 kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
 waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
@@ -606,14 +608,14 @@ info "9.1 create loki subscription with schedule to run after 5 minutes"
 current_time_seconds=$(date +%s)
 current_time=$(date +"%T")
 new_mins_seconds=$((current_time_seconds + 300))
-current_min=$(date +%M)
+current_min=$(date +%-M)
 new_min=$((current_min + 5))
 if [ $new_min -gt 59 ]; then
 	new_min=$((new_min - 60))
 fi
 new_mins_after_cron="$new_min * * * *"
 echo "Current time: $current_time, 5 minutes after crontab: $new_mins_after_cron"
-kubectl apply -f config/samples/core_v1alpha1_loki_subscription_schedule.yaml --dry-run -o json | jq --arg new_mins_after_cron "$new_mins_after_cron" '.spec.schedule=$new_mins_after_cron' | kubectl apply -f -
+kubectl apply -f config/samples/core_v1alpha1_loki_subscription_schedule.yaml --dry-run=client -o json | jq --arg new_mins_after_cron "$new_mins_after_cron" '.spec.schedule=$new_mins_after_cron' | kubectl apply -f -
 while true; do
 	componentplanCreateTime=$(kubectl -nkubebb-system get ComponentPlan -l core.kubebb.k8s.com.cn/subscription-name=loki-sample-schedule -o jsonpath="{.items[0].metadata.creationTimestamp}" --ignore-not-found)
 	if [[ -n $componentplanCreateTime ]]; then
