@@ -485,7 +485,7 @@ kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_long_ready.yam
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml --dry-run=client -o json | jq '.spec.name="my-nginx-back"' | kubectl apply -f -
 waitComponentPlanDone "kubebb-system" "do-once-nginx-sample-15.0.2"
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx-back,app.kubernetes.io/managed-by=Helm,helm.sh/chart=nginx-15.0.2"
-deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready" "false"
+deleteComponentPlan "kubebb-system" "nginx-15.0.2-long-ready" "true"
 getHelmRevision "kubebb-system" "my-nginx-back" "1"
 deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
 
