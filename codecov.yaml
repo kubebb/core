@@ -5,3 +5,5 @@ coverage:
   range: "50...80"
   status:
     patch: false
+ignore:
+  - "**/zz_generated.deepcopy.go"
