@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"helm.sh/helm/v3/pkg/repo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -80,20 +81,24 @@ type Switch interface {
 }
 
 // Start the Watcher
-func Start(ctx context.Context, instance *v1alpha1.Repository, duration time.Duration, repoName string, c client.Client, logger logr.Logger) (string, string, error) {
+func Start(ctx context.Context, instance *v1alpha1.Repository, duration time.Duration, repoName string, c client.Client, logger logr.Logger) (repo.Entry, error) {
 	logger.Info("Start to fetch")
-	var username, password string
 	_ = helm.RepoRemove(ctx, logger, repoName)
 	if instance.Spec.AuthSecret != "" {
 		i := v1.Secret{}
 		if err := c.Get(ctx, types.NamespacedName{Name: instance.Spec.AuthSecret, Namespace: instance.GetNamespace()}, &i); err != nil {
 			logger.Error(err, "Failed to get secret")
-			return "", "", err
+			return repo.Entry{}, err
 		}
-		username = string(i.Data[v1alpha1.Username])
-		password = string(i.Data[v1alpha1.Password])
+		return repo.Entry{
+			Username: string(i.Data[v1alpha1.Username]),
+			Password: string(i.Data[v1alpha1.Password]),
+			CertFile: string(i.Data[v1alpha1.CertData]),
+			KeyFile:  string(i.Data[v1alpha1.KeyData]),
+			CAFile:   string(i.Data[v1alpha1.CAData]),
+		}, nil
 	}
-	return username, password, nil
+	return repo.Entry{}, nil
 }
 
 // Action defines the actiosn required to control the components

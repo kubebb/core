@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/repo/repotest"
 	"k8s.io/utils/strings/slices"
 )
@@ -47,10 +48,7 @@ func TestRepoAdd(t *testing.T) {
 	type args struct {
 		ctx                context.Context
 		logger             logr.Logger
-		name               string
-		url                string
-		username           string
-		password           string
+		entry              repo.Entry
 		httpRequestTimeout time.Duration
 	}
 	tests := []struct {
@@ -65,8 +63,10 @@ func TestRepoAdd(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName,
-				url:    srv.URL(),
+				entry: repo.Entry{
+					Name: repoName,
+					URL:  srv.URL(),
+				},
 			},
 			wantErr:    false,
 			needRemove: true,
@@ -76,8 +76,10 @@ func TestRepoAdd(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName,
-				url:    srv.URL(),
+				entry: repo.Entry{
+					Name: repoName,
+					URL:  srv.URL(),
+				},
 			},
 			wantErr:    false,
 			needRemove: true,
@@ -87,8 +89,10 @@ func TestRepoAdd(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName,
-				url:    srv1.URL(),
+				entry: repo.Entry{
+					Name: repoName,
+					URL:  srv1.URL(),
+				},
 			},
 			wantErr:    false,
 			needRemove: true,
@@ -98,8 +102,10 @@ func TestRepoAdd(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName,
-				url:    "",
+				entry: repo.Entry{
+					Name: repoName,
+					URL:  "",
+				},
 			},
 			wantErr: true,
 			errMsg:  "could not find protocol handler for: ",
@@ -109,8 +115,10 @@ func TestRepoAdd(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   "test/test",
-				url:    srv.URL(),
+				entry: repo.Entry{
+					Name: "test/test",
+					URL:  srv.URL(),
+				},
 			},
 			wantErr: true,
 			errMsg:  "repository name (test/test) contains '/', please specify a different name without '/'",
@@ -118,12 +126,14 @@ func TestRepoAdd(t *testing.T) {
 		{
 			name: "basic auth with right username and password",
 			args: args{
-				ctx:      context.Background(),
-				logger:   logr.Discard(),
-				name:     repoName,
-				url:      srvBasicAuth.URL(),
-				username: username,
-				password: password,
+				ctx:    context.Background(),
+				logger: logr.Discard(),
+				entry: repo.Entry{
+					Name:     repoName,
+					URL:      srvBasicAuth.URL(),
+					Username: username,
+					Password: password,
+				},
 			},
 			wantErr:    false,
 			needRemove: true,
@@ -131,12 +141,14 @@ func TestRepoAdd(t *testing.T) {
 		{
 			name: "basic auth with wrong password",
 			args: args{
-				ctx:      context.Background(),
-				logger:   logr.Discard(),
-				name:     repoName,
-				url:      srvBasicAuth.URL(),
-				username: username,
-				password: password + "1",
+				ctx:    context.Background(),
+				logger: logr.Discard(),
+				entry: repo.Entry{
+					Name:     repoName,
+					URL:      srvBasicAuth.URL(),
+					Username: username,
+					Password: password + "1",
+				},
 			},
 			wantErr: true,
 			errMsg:  fmt.Sprintf("looks like \"%s\" is not a valid chart repository or cannot be reached: failed to fetch %s/index.yaml : 401 Unauthorized", srvBasicAuth.URL(), srvBasicAuth.URL()),
@@ -144,11 +156,11 @@ func TestRepoAdd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := RepoAdd(tt.args.ctx, tt.args.logger, tt.args.name, tt.args.url, tt.args.username, tt.args.password, tt.args.httpRequestTimeout); (err != nil) != tt.wantErr || tt.errMsg != "" && (err == nil || err.Error() != tt.errMsg) {
+			if err := RepoAdd(tt.args.ctx, tt.args.logger, tt.args.entry, tt.args.httpRequestTimeout); (err != nil) != tt.wantErr || tt.errMsg != "" && (err == nil || err.Error() != tt.errMsg) {
 				t.Errorf("RepoAdd() wantErr = %v error = %v, wantErrMsg = %s", tt.wantErr, err, tt.errMsg)
 			}
 			if tt.needRemove {
-				_ = RepoRemove(tt.args.ctx, tt.args.logger, tt.args.name)
+				_ = RepoRemove(tt.args.ctx, tt.args.logger, tt.args.entry.Name)
 			}
 		})
 	}
@@ -177,12 +189,12 @@ func newTempServer(t *testing.T, glob, optionUsername, optionPassword string) *r
 // v3.9.4 is the version in go.mod that should be rechecked for test completeness when go.mod is updated.
 func TestRepoUpdate(t *testing.T) {
 	const repoName = "test_repo_update"
-	srv := newTempServer(t, "testdata/testserver/*.*", username, password)
+	srv := newTempServer(t, "testdata/testserver/*.*", "", "")
 	defer srv.Stop()
 	type args struct {
 		ctx                context.Context
 		logger             logr.Logger
-		name               string
+		entry              repo.Entry
 		httpRequestTimeout time.Duration
 	}
 	tests := []struct {
@@ -198,7 +210,10 @@ func TestRepoUpdate(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName,
+				entry: repo.Entry{
+					Name: repoName,
+					URL:  srv.URL(),
+				},
 			},
 			wantErr:    false,
 			needAdd:    true,
@@ -209,7 +224,10 @@ func TestRepoUpdate(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName + "1",
+				entry: repo.Entry{
+					Name: repoName + "1",
+					URL:  srv.URL(),
+				},
 			},
 			wantErr: true,
 			errMsg:  []string{"no repositories found matching 'test_repo_update1'.  Nothing will be updated", "no repositories found."}, // Whether there was a repo before determines the difference in the error.
@@ -218,13 +236,13 @@ func TestRepoUpdate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.needAdd {
-				_ = RepoAdd(tt.args.ctx, tt.args.logger, tt.args.name, srv.URL(), username, password, tt.args.httpRequestTimeout)
+				_ = RepoAdd(tt.args.ctx, tt.args.logger, tt.args.entry, tt.args.httpRequestTimeout)
 			}
-			if err := RepoUpdate(tt.args.ctx, tt.args.logger, tt.args.name, tt.args.httpRequestTimeout); (err != nil) != tt.wantErr || len(tt.errMsg) != 0 && (err == nil || !slices.Contains(tt.errMsg, err.Error())) {
+			if err := RepoUpdate(tt.args.ctx, tt.args.logger, tt.args.entry.Name, tt.args.httpRequestTimeout); (err != nil) != tt.wantErr || len(tt.errMsg) != 0 && (err == nil || !slices.Contains(tt.errMsg, err.Error())) {
 				t.Errorf("RepoUpdate() wantErr = %v error = %v, wantErrMsg = %s", tt.wantErr, err, tt.errMsg)
 			}
 			if tt.needRemove {
-				_ = RepoRemove(tt.args.ctx, tt.args.logger, tt.args.name)
+				_ = RepoRemove(tt.args.ctx, tt.args.logger, tt.args.entry.Name)
 			}
 		})
 	}
@@ -234,12 +252,12 @@ func TestRepoUpdate(t *testing.T) {
 // v3.9.4 is the version in go.mod that should be rechecked for test completeness when go.mod is updated.
 func TestRepoRemove(t *testing.T) {
 	const repoName = "test_repo_remove"
-	srv := newTempServer(t, "testdata/testserver/*.*", username, password)
+	srv := newTempServer(t, "testdata/testserver/*.*", "", "")
 	defer srv.Stop()
 	type args struct {
 		ctx    context.Context
 		logger logr.Logger
-		name   string
+		entry  repo.Entry
 	}
 	tests := []struct {
 		name    string
@@ -253,7 +271,10 @@ func TestRepoRemove(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName,
+				entry: repo.Entry{
+					Name: repoName,
+					URL:  srv.URL(),
+				},
 			},
 			wantErr: false,
 			needAdd: true,
@@ -263,7 +284,10 @@ func TestRepoRemove(t *testing.T) {
 			args: args{
 				ctx:    context.Background(),
 				logger: logr.Discard(),
-				name:   repoName + "1",
+				entry: repo.Entry{
+					Name: repoName + "1",
+					URL:  srv.URL(),
+				},
 			},
 			wantErr: true,
 			errMsg:  []string{"no repo named \"test_repo_remove1\" found", "no repositories configured"}, // Whether there was a repo before determines the difference in the error.
@@ -272,9 +296,9 @@ func TestRepoRemove(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.needAdd {
-				_ = RepoAdd(tt.args.ctx, tt.args.logger, tt.args.name, srv.URL(), username, password, time.Second)
+				_ = RepoAdd(tt.args.ctx, tt.args.logger, tt.args.entry, time.Second)
 			}
-			if err := RepoRemove(tt.args.ctx, tt.args.logger, tt.args.name); (err != nil) != tt.wantErr || len(tt.errMsg) != 0 && (err == nil || !slices.Contains(tt.errMsg, err.Error())) {
+			if err := RepoRemove(tt.args.ctx, tt.args.logger, tt.args.entry.Name); (err != nil) != tt.wantErr || len(tt.errMsg) != 0 && (err == nil || !slices.Contains(tt.errMsg, err.Error())) {
 				t.Errorf("RepoRemove() wantErr = %v error = %v, wantErrMsg = %s", tt.wantErr, err, tt.errMsg)
 			}
 		})

@@ -83,8 +83,7 @@ func allProviders(settings *cli.EnvSettings, httpRequestTimeout time.Duration) g
 // some difference with `helm repo add` command
 // 1. when the same repo name is added, it will overwrite
 // 2. many options we do not need now are not supported yet.
-func RepoAdd(ctx context.Context, logger logr.Logger, name, url, username, password string, httpRequestTimeout time.Duration) (err error) {
-	entry := repo.Entry{Name: name, URL: url, Username: username, Password: password}
+func RepoAdd(ctx context.Context, logger logr.Logger, entry repo.Entry, httpRequestTimeout time.Duration) (err error) {
 	repoFile := settings.RepositoryConfig
 	repoCache := settings.RepositoryCache
 
@@ -135,7 +134,7 @@ func RepoAdd(ctx context.Context, logger logr.Logger, name, url, username, passw
 	if repoCache != "" {
 		r.CachePath = repoCache
 	}
-	if !registry.IsOCI(url) {
+	if !registry.IsOCI(entry.URL) {
 		if _, err := r.DownloadIndexFile(); err != nil {
 			return errors.Wrapf(err, "looks like %q is not a valid chart repository or cannot be reached", entry.URL)
 		}

@@ -160,13 +160,14 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
 			return nil, err
 		}
+
 		i.Username = string(s.Data[corev1alpha1.Username])
 		i.Password = string(s.Data[corev1alpha1.Password])
+		i.CertFile = string(s.Data[corev1alpha1.CertData])
+		i.KeyFile = string(s.Data[corev1alpha1.KeyData])
+		i.CaFile = string(s.Data[corev1alpha1.CAData])
 	}
 
-	// i.CertFile // FIXME
-	// i.KeyFile // FIXME
-	// i.CaFile // FIXME
 	i.InsecureSkipTLSverify = repo.Spec.Insecure
 	i.PassCredentialsAll = false // TODO do we need add this args to override?
 	i.PostRenderer = newPostRenderer(repo.Spec.ImageOverride, cpl.Spec.Override.Images)
@@ -221,11 +222,11 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 		}
 		i.Username = string(s.Data[corev1alpha1.Username])
 		i.Password = string(s.Data[corev1alpha1.Password])
+		i.CertFile = string(s.Data[corev1alpha1.CertData])
+		i.KeyFile = string(s.Data[corev1alpha1.KeyData])
+		i.CaFile = string(s.Data[corev1alpha1.CAData])
 	}
 
-	// i.CertFile // FIXME
-	// i.KeyFile // FIXME
-	// i.CaFile // FIXME
 	i.InsecureSkipTLSverify = repo.Spec.Insecure
 	i.PassCredentialsAll = false // TODO do we need add this args to override?
 	i.PostRenderer = newPostRenderer(repo.Spec.ImageOverride, cpl.Spec.Override.Images)
