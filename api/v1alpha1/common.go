@@ -45,12 +45,13 @@ const (
 
 // ComponentVersion Indicates the fields required for a specific version of Component.
 type ComponentVersion struct {
-	Version    string      `json:"version"`
-	AppVersion string      `json:"appVersion"`
-	UpdatedAt  metav1.Time `json:"updatedAt"`
-	CreatedAt  metav1.Time `json:"createdAt"`
-	Digest     string      `json:"digest"`
-	Deprecated bool        `json:"deprecated"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	Version     string            `json:"version"`
+	AppVersion  string            `json:"appVersion"`
+	UpdatedAt   metav1.Time       `json:"updatedAt"`
+	CreatedAt   metav1.Time       `json:"createdAt"`
+	Digest      string            `json:"digest"`
+	Deprecated  bool              `json:"deprecated"`
 }
 
 // Equal compares two ComponetVersions, ignoring UpdatedAt and CreatedAt fields

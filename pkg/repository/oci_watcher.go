@@ -159,6 +159,7 @@ func (c *OCIWatcher) Poll() {
 				APIVersion: c.instance.APIVersion,
 			},
 			Name:        entryName,
+			DisplayName: versions.Annotations[v1alpha1.DisplayNameAnnotationKey],
 			Versions:    make([]v1alpha1.ComponentVersion, 0),
 			Maintainers: make([]v1alpha1.Maintainer, 0),
 		},
@@ -176,12 +177,13 @@ func (c *OCIWatcher) Poll() {
 	}
 
 	item.Status.Versions = append(item.Status.Versions, v1alpha1.ComponentVersion{
-		Version:    versions.Version,
-		AppVersion: versions.AppVersion,
-		CreatedAt:  metav1.Now(), //TODO: metav1.NewTime(versions.Created),
-		Digest:     helm.ParseDigestFromPullOut(out),
-		UpdatedAt:  metav1.Now(),
-		Deprecated: versions.Deprecated,
+		Annotations: versions.Annotations,
+		Version:     versions.Version,
+		AppVersion:  versions.AppVersion,
+		CreatedAt:   metav1.Now(), //TODO: metav1.NewTime(versions.Created),
+		Digest:      helm.ParseDigestFromPullOut(out),
+		UpdatedAt:   metav1.Now(),
+		Deprecated:  versions.Deprecated,
 	})
 
 	keywords := versions.Keywords
