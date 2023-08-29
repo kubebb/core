@@ -80,22 +80,20 @@ type HTTPWatcher struct {
 	duration time.Duration
 	repoName string
 
-	username  string
-	password  string
 	logger    logr.Logger
 	scheme    *runtime.Scheme
 	filterMap map[string]v1alpha1.FilterCond
 }
 
 func (c *HTTPWatcher) Start() error {
-	username, password, err := Start(c.ctx, c.instance, c.duration, c.repoName, c.c, c.logger)
+	entry, err := Start(c.ctx, c.instance, c.duration, c.repoName, c.c, c.logger)
 	if err != nil {
 		return err
 	}
-	c.username = username
-	c.password = password
+	entry.Name = c.repoName
+	entry.URL = c.instance.Spec.URL
 
-	if err := helm.RepoAdd(c.ctx, c.logger, c.repoName, c.instance.Spec.URL, c.username, c.password, c.duration/2); err != nil {
+	if err := helm.RepoAdd(c.ctx, c.logger, entry, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to add repository")
 		return err
 	}
