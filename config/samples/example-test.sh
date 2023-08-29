@@ -561,8 +561,8 @@ info "7 try to verify that the common steps are valid to oci types"
 info "7.1 create oci repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_oci.yaml
 waitComponentStatus "kubebb-system" "repository-oci-sample.nginx"
-oci_digest=$(kubectl -n${namespace} get components ${componentName} -ojson | jq -r '.status.versions[0].digest')
-fixed_nginx_digest="d9459e1206a4f5a8e0d7c5da8a306ab9b1ba5d7182ae671610b5699250ea45f8"
+oci_digest=$(kubectl -n${namespace} get components ${componentName} -ojson | jq -r '.status.versions[] | select(.version == "15.1.0") | .digest')
+fixed_nginx_digest="c41385f887cda101c714ed962d6530ba88ab42b67321dbebe75bbeb1c8a3671d"
 echo "digest: ${oci_digest}"
 if [[ ${oci_digest} != ${fixed_nginx_digest} ]]; then
 	echo "digest has wrong value"

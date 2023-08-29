@@ -47,14 +47,16 @@ func NewOCIWatcher(
 	duration time.Duration,
 	cancel context.CancelFunc,
 	scheme *runtime.Scheme,
+	fm map[string]v1alpha1.FilterCond,
 ) IWatcher {
 	result := &OCIWatcher{
-		instance: instance,
-		logger:   logger,
-		duration: duration,
-		cancel:   cancel,
-		scheme:   scheme,
-		repoName: instance.NamespacedName(),
+		instance:  instance,
+		logger:    logger,
+		duration:  duration,
+		cancel:    cancel,
+		scheme:    scheme,
+		repoName:  instance.NamespacedName(),
+		filterMap: fm,
 	}
 
 	// Common Action in the watcher needs client and context to function
@@ -70,8 +72,9 @@ type OCIWatcher struct {
 	duration time.Duration
 	repoName string
 
-	logger logr.Logger
-	scheme *runtime.Scheme
+	logger    logr.Logger
+	scheme    *runtime.Scheme
+	filterMap map[string]v1alpha1.FilterCond
 }
 
 func (c *OCIWatcher) Start() error {
@@ -124,22 +127,12 @@ func (c *OCIWatcher) Poll() {
 		Namespace:   &ns,
 	}
 
-	h, err := helm.NewHelmWrapper(&getter, ns, c.logger)
+	latest, all, err := helm.GetOCIRepoCharts(c.ctx, &getter, c.c, c.logger, ns, c.instance)
 	if err != nil {
-		c.logger.Error(err, "Cannot create a new helm wrapper")
-	}
-	out, info, err := h.Pull(c.logger, c.instance.Spec.URL)
-
-	if err != nil {
-		c.logger.Error(err, "Cannot pull chart")
+		c.logger.Error(err, "Cannot get oci repo charts")
 		return
 	}
-	versions := info.Metadata
 
-	// filter component and its versions
-	// _, keep := v1alpha1.Match(c.filterMap, v1alpha1.Filter{Name: entryName, Versions: versions.Version})
-	// 	if keep {
-	// if it is, create a corresponding component plan
 	item := v1alpha1.Component{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s.%s", c.instance.GetName(), entryName),
@@ -157,14 +150,14 @@ func (c *OCIWatcher) Poll() {
 				APIVersion: c.instance.APIVersion,
 			},
 			Name:        entryName,
-			DisplayName: versions.Annotations[v1alpha1.DisplayNameAnnotationKey],
+			DisplayName: latest.Annotations[v1alpha1.DisplayNameAnnotationKey],
 			Versions:    make([]v1alpha1.ComponentVersion, 0),
 			Maintainers: make([]v1alpha1.Maintainer, 0),
 		},
 	}
 
 	maintainers := make(map[string]v1alpha1.Maintainer)
-	for _, m := range versions.Maintainers {
+	for _, m := range latest.Maintainers {
 		if _, ok := maintainers[m.Name]; !ok {
 			maintainers[m.Name] = v1alpha1.Maintainer{
 				Name:  m.Name,
@@ -173,26 +166,31 @@ func (c *OCIWatcher) Poll() {
 			}
 		}
 	}
-
-	item.Status.Versions = append(item.Status.Versions, v1alpha1.ComponentVersion{
-		Annotations: versions.Annotations,
-		Version:     versions.Version,
-		AppVersion:  versions.AppVersion,
-		CreatedAt:   metav1.Now(), //TODO: metav1.NewTime(versions.Created),
-		Digest:      helm.ParseDigestFromPullOut(out),
-		UpdatedAt:   metav1.Now(),
-		Deprecated:  versions.Deprecated,
-	})
-
-	keywords := versions.Keywords
+	item.Status.Versions = make([]v1alpha1.ComponentVersion, 0)
+	filterVersionIndices, keep := v1alpha1.Match(c.filterMap, v1alpha1.Filter{Name: entryName, Versions: all})
+	if keep {
+		for _, idx := range filterVersionIndices {
+			version := all[idx]
+			item.Status.Versions = append(item.Status.Versions, v1alpha1.ComponentVersion{
+				Annotations: version.Annotations,
+				Version:     version.Version,
+				AppVersion:  version.AppVersion,
+				CreatedAt:   metav1.NewTime(version.Created),
+				Digest:      version.Digest,
+				UpdatedAt:   metav1.Now(),
+				Deprecated:  version.Deprecated,
+			})
+		}
+	}
+	keywords := latest.Keywords
 	if r := c.instance.Spec.KeywordLenLimit; r > 0 && len(keywords) > r {
 		keywords = keywords[:r]
 	}
-	item.Status.Description = versions.Description
-	item.Status.Home = versions.Home
-	item.Status.Icon = versions.Icon
+	item.Status.Description = latest.Description
+	item.Status.Home = latest.Home
+	item.Status.Icon = latest.Icon
 	item.Status.Keywords = keywords
-	item.Status.Sources = versions.Sources
+	item.Status.Sources = latest.Sources
 
 	for _, m := range maintainers {
 		item.Status.Maintainers = append(item.Status.Maintainers, m)
