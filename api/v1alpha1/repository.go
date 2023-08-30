@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"helm.sh/helm/v3/pkg/registry"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -208,4 +209,9 @@ func ParseRepoSecret(c client.Client, instance *Repository) (username, password,
 		keypath = basePath + "/" + KeyData
 	}
 	return
+}
+
+// IsOCI determines whether the repository is to be treated as an OCI repo
+func (repo *Repository) IsOCI() bool {
+	return registry.IsOCI(repo.Spec.URL)
 }

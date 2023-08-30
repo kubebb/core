@@ -292,8 +292,8 @@ func (c *HTTPWatcher) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 // compared to the already existing Components in the cluster
 func (c *HTTPWatcher) diff(indexFile *hrepo.IndexFile) ([3][]v1alpha1.Component, error) {
 	targetComponents := c.indexFileToComponent(indexFile)
-	exitComponents := v1alpha1.ComponentList{}
-	if err := c.c.List(c.ctx, &exitComponents, &client.ListOptions{
+	existComponents := v1alpha1.ComponentList{}
+	if err := c.c.List(c.ctx, &existComponents, &client.ListOptions{
 		LabelSelector: labels.SelectorFromSet(map[string]string{
 			v1alpha1.ComponentRepositoryLabel: c.instance.GetName(),
 		}),
@@ -311,7 +311,7 @@ func (c *HTTPWatcher) diff(indexFile *hrepo.IndexFile) ([3][]v1alpha1.Component,
 	updateComponent := make([]v1alpha1.Component, 0)
 	delComponent := make([]v1alpha1.Component, 0)
 
-	for _, component := range exitComponents.Items {
+	for _, component := range existComponents.Items {
 		key := fmt.Sprintf("%s/%s", component.GetNamespace(), component.GetName())
 		tmp, ok := targetComponentMap[key]
 		if !ok {

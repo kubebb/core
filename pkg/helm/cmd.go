@@ -131,17 +131,27 @@ func RollBack(ctx context.Context, getter genericclioptions.RESTClientGetter, lo
 }
 
 // GetOCIRepoCharts retrieves the latest chart metadata and all component versions for a given OCI repository.
-func GetOCIRepoCharts(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, ns string, repo *corev1alpha1.Repository) (latest *chart.Metadata, all []*hrepo.ChartVersion, err error) {
+func GetOCIRepoCharts(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, ns, pullURL string, repo *corev1alpha1.Repository, skipTags map[string]bool) (latest *chart.Metadata, all []*hrepo.ChartVersion, err error) {
 	h, err := NewHelmWrapper(getter, ns, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	tags, err := h.config.RegistryClient.Tags(strings.TrimPrefix(repo.Spec.URL, "oci://"))
+	tags, err := h.config.RegistryClient.Tags(strings.TrimPrefix(pullURL, "oci://"))
 	if err != nil {
 		return nil, nil, err
 	}
+	if len(tags) == 0 {
+		return nil, nil, nil
+	}
+	latestOne := tags[0]
+	if skipTags[latestOne] {
+		return nil, nil, nil
+	}
 	for i, tag := range tags {
-		out, c, err := h.Pull(ctx, logger, cli, repo, tag)
+		if skipTags[tag] {
+			continue // It is ok for deprecated chart. Because once a chart is deprecated the expectation is the chart will see no further development. The Version will increase. All charts are immutable.
+		}
+		out, c, err := h.Pull(ctx, logger, cli, repo, pullURL, tag)
 		if err != nil {
 			return nil, nil, err
 		}

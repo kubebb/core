@@ -1,10 +1,13 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: Repository
 metadata:
-  name: repository-oci-sample
+  name: repository-oci-bitnamicharts
   namespace: kubebb-system
 spec:
-  url: oci://registry-1.docker.io/bitnamicharts/nginx
+  url: oci://registry-1.docker.io/bitnamicharts
+  # This repo has 111 components, each one need about 90s to pull and parse.
+  # Pull concurrency can be set through the environment variable OCI_PULL_WORKER, the default is 5.
+  # Increasing this number will download faster, but also more likely to trigger '429 Too Many Requests' error.
   pullStategy:
-    intervalSeconds: 120
+    intervalSeconds: 3600
     retry: 5

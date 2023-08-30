@@ -83,9 +83,8 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 
 // Pull
 // inspire by https://github.com/helm/helm/blob/main/cmd/helm/pull.go
-func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.Client, repo *corev1alpha1.Repository, version string) (out string, chartRequested *chart.Chart, err error) {
-	combinedName := strings.Split(repo.Spec.URL, "/")
-	entryName := combinedName[len(combinedName)-1]
+func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.Client, repo *corev1alpha1.Repository, pullURL, version string) (out string, chartRequested *chart.Chart, err error) {
+	entryName := utils.GetOCIEntryName(pullURL)
 	i := action.NewPullWithOpts(action.WithConfig(h.config))
 
 	if repo.Spec.AuthSecret != "" {
@@ -107,7 +106,7 @@ func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.C
 	}
 	defer os.RemoveAll(i.UntarDir)
 
-	_, err = i.Run(repo.Spec.URL)
+	_, err = i.Run(pullURL)
 	if err != nil {
 		logger.Error(err, "cannot download chart")
 		return "", nil, err
@@ -128,9 +127,8 @@ func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.C
 // inspire by https://github.com/helm/helm/blob/main/cmd/helm/install.go
 func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli client.Client, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, dryRun bool, chartName string) (rel *release.Release, err error) {
 	log := logger.WithValues("ComponentPlan", klog.KObj(cpl))
-	if registry.IsOCI(repo.Spec.URL) {
+	if repo.IsOCI() {
 		log.Info("Installing OCI Component")
-		chartName = repo.Spec.URL
 	} else {
 		log.Info("Installing non-OCI Component")
 	}
@@ -186,9 +184,8 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 // inspire by https://github.com/helm/helm/blob/main/cmd/helm/upgrade.go
 func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli client.Client, cpl *corev1alpha1.ComponentPlan, repo *corev1alpha1.Repository, dryRun bool, chartName string) (rel *release.Release, err error) {
 	log := logger.WithValues("ComponentPlan", klog.KObj(cpl))
-	if registry.IsOCI(repo.Spec.URL) {
+	if repo.IsOCI() {
 		log.Info("Upgrading OCI Component")
-		chartName = repo.Spec.URL
 	} else {
 		log.Info("Upgrading non-OCI Component")
 	}
@@ -424,14 +421,6 @@ func getVals(ctx context.Context, cli client.Client, logger logr.Logger, cpl *co
 		return nil, nil, err
 	}
 	return p, vals, err
-}
-
-func (h *HelmWrapper) GetDigest(ref string) (string, error) {
-	result, err := h.config.RegistryClient.Pull(ref)
-	if err != nil {
-		return "", err
-	}
-	return result.Manifest.Digest, nil
 }
 
 func generateDescription(plan *corev1alpha1.ComponentPlan) string {
