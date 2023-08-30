@@ -157,15 +157,22 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 	if instanceDeepCopy.Labels == nil {
 		instanceDeepCopy.Labels = make(map[string]string)
 	}
+	changedLabels := false
 	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
 		instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
+		changedLabels = true
+	}
+	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel]; !ok || (v != string(corev1alpha1.Official) && v != string(corev1alpha1.Unknown)) {
+		instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel] = string(corev1alpha1.Unknown)
+		changedLabels = true
+	}
+	if changedLabels {
 		err := r.Client.Update(ctx, instanceDeepCopy)
 		if err != nil {
 			logger.Error(err, "")
 		}
 		return false, err
 	}
-
 	if err := r.EnsureRatingServiceAccount(ctx, instance.GetNamespace()); err != nil {
 		return false, err
 	}

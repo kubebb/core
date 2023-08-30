@@ -40,6 +40,7 @@ const (
 
 	ComponentRepositoryLabel = "kubebb.component.repository"
 	RepositoryTypeLabel      = "kubebb.repository.type"
+	RepositorySourceLabel    = "kubebb.repository.source"
 
 	RatingServiceAccountEnv     = "RATING_SERVICEACCOUNT"
 	RatingClusterRoleEnv        = "RATING_CLUSTERROLE"
@@ -68,6 +69,14 @@ func IsPullStrategySame(a, b *PullStategy) bool {
 // ImageOverridePath is the manifest path to detect kustomize image overrides
 // can be replaced by environment variables IMAGEOVERRIDE_PATH, for example IMAGEOVERRIDE_PATH=spec/template/spec/initContainers/image:spec/initContainers/image
 var ImageOverridePath = []string{"spec/containers/image", "spec/initContainers/image", "spec/template/spec/containers/image", "spec/template/spec/initContainers/image"}
+
+// RepositorySource is the source of code repository
+type RepositorySource string
+
+const (
+	Official RepositorySource = "official"
+	Unknown  RepositorySource = "unknown"
+)
 
 func GetImageOverridePath() []string {
 	v := os.Getenv("IMAGEOVERRIDE_PATH")
