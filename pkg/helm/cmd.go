@@ -19,9 +19,13 @@ package helm
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
+	hrepo "helm.sh/helm/v3/pkg/repo"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -113,4 +117,33 @@ func RollBack(ctx context.Context, getter genericclioptions.RESTClientGetter, lo
 		return err
 	}
 	return h.rollback(logger, cpl)
+}
+
+// GetOCIRepoCharts retrieves the latest chart metadata and all component versions for a given OCI repository.
+func GetOCIRepoCharts(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, ns string, repo *corev1alpha1.Repository) (latest *chart.Metadata, all []*hrepo.ChartVersion, err error) {
+	h, err := NewHelmWrapper(getter, ns, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	tags, err := h.config.RegistryClient.Tags(strings.TrimPrefix(repo.Spec.URL, "oci://"))
+	if err != nil {
+		return nil, nil, err
+	}
+	for i, tag := range tags {
+		out, c, err := h.Pull(ctx, logger, cli, repo, tag)
+		if err != nil {
+			return nil, nil, err
+		}
+		if i == 0 {
+			latest = c.Metadata
+		}
+		all = append(all, &hrepo.ChartVersion{
+			Metadata: c.Metadata,
+			URLs:     nil,
+			Created:  time.Now(),
+			Removed:  false,
+			Digest:   ParseDigestFromPullOut(out),
+		})
+	}
+	return latest, all, nil
 }

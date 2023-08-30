@@ -18,11 +18,10 @@ package repository
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,9 +48,8 @@ func NewWatcher(
 ) IWatcher {
 	duration, fm := getWatcherValues(logger, instance)
 	logger.Info("Create watcher with " + instance.Spec.URL)
-	logger.Info(fmt.Sprint(strings.HasPrefix(instance.Spec.URL, "oci")))
-	if strings.HasPrefix(instance.Spec.URL, "oci") {
-		return NewOCIWatcher(instance, c, ctx, logger, duration, cancel, scheme)
+	if registry.IsOCI(instance.Spec.URL) {
+		return NewOCIWatcher(instance, c, ctx, logger, duration, cancel, scheme, fm)
 	} else {
 		return NewHTTPWatcher(instance, c, ctx, logger, duration, cancel, scheme, fm)
 	}

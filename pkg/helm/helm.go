@@ -85,11 +85,22 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 
 // Pull
 // inspire by https://github.com/helm/helm/blob/main/cmd/helm/pull.go
-func (h *HelmWrapper) Pull(logger logr.Logger, url string) (out string, chartRequested *chart.Chart, err error) {
-	combinedName := strings.Split(url, "/")
+func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.Client, repo *corev1alpha1.Repository, version string) (out string, chartRequested *chart.Chart, err error) {
+	combinedName := strings.Split(repo.Spec.URL, "/")
 	entryName := combinedName[len(combinedName)-1]
-
 	i := action.NewPullWithOpts(action.WithConfig(h.config))
+	if repo.Spec.AuthSecret != "" {
+		s := corev1.Secret{}
+		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
+			return "", nil, err
+		}
+		i.Username = string(s.Data[corev1alpha1.Username])
+		i.Password = string(s.Data[corev1alpha1.Password])
+		i.CertFile = string(s.Data[corev1alpha1.CertData])
+		i.KeyFile = string(s.Data[corev1alpha1.KeyData])
+		i.CaFile = string(s.Data[corev1alpha1.CAData])
+	}
+	i.Version = version
 	i.Settings = settings
 	i.Devel = false
 	i.VerifyLater = false
@@ -101,7 +112,7 @@ func (h *HelmWrapper) Pull(logger logr.Logger, url string) (out string, chartReq
 	}
 	defer os.RemoveAll(i.UntarDir)
 
-	_, err = i.Run(url) // chartref - the chart name
+	_, err = i.Run(repo.Spec.URL)
 	if err != nil {
 		logger.Error(err, "cannot download chart")
 		return "", nil, err
@@ -113,9 +124,6 @@ func (h *HelmWrapper) Pull(logger logr.Logger, url string) (out string, chartReq
 		return "", nil, err
 	}
 
-	if chartRequested.Metadata.Deprecated {
-		logger.V(1).Info("This chart is deprecated")
-	}
 	out = h.buf.String()
 	h.buf.Reset()
 	return out, chartRequested, nil
