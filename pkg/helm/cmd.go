@@ -50,10 +50,21 @@ func Uninstall(ctx context.Context, getter genericclioptions.RESTClientGetter, l
 	if rel == nil {
 		return nil
 	}
-	if rel.Version != cpl.Status.InstalledRevision {
-		return nil
+	// version match, the chart is exactly installed by this componentplan
+	if rel.Version == cpl.Status.InstalledRevision {
+		return h.uninstall(logger, cpl)
 	}
-	return h.uninstall(logger, cpl)
+	// descrpiton match, the chart is exactly installed by this componentplan
+	if ns, name, uid, _, _ := ParseDescription(rel.Info.Description); ns == cpl.Namespace && name == cpl.Name && uid == string(cpl.GetUID()) {
+		return h.uninstall(logger, cpl)
+	}
+	// when installing/upgrading/rollingback, description will be setted by helm, so we compare helm release version and component status
+	if cpl.Status.InstalledRevision+1 == rel.Version {
+		if cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonInstalling) || cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonUpgrading) || cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonRollingBack) {
+			return h.uninstall(logger, cpl)
+		}
+	}
+	return nil
 }
 
 // GetLastRelease get last release revision
