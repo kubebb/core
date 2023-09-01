@@ -11,6 +11,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /mutate-core-kubebb-k8s-com-cn-v1alpha1-component
+  failurePolicy: Fail
+  name: component.kb.io
+  rules:
+  - apiGroups:
+    - core.kubebb.k8s.com.cn
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - components
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /mutate-core-kubebb-k8s-com-cn-v1alpha1-componentplan
   failurePolicy: Fail
   name: mcomponentplan.kb.io

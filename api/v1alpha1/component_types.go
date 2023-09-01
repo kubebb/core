@@ -23,6 +23,7 @@ import (
 
 // ComponentSpec defines the desired state of Component
 type ComponentSpec struct {
+	Creator string `json:"creator,omitempty"`
 }
 
 // ComponentStatus defines the observed state of Component
