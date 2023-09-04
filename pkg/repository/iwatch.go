@@ -83,17 +83,17 @@ func Start(ctx context.Context, instance *v1alpha1.Repository, duration time.Dur
 	logger.Info("Start to fetch")
 	_ = helm.RepoRemove(ctx, logger, repoName)
 	if instance.Spec.AuthSecret != "" {
-		i := v1.Secret{}
-		if err := c.Get(ctx, types.NamespacedName{Name: instance.Spec.AuthSecret, Namespace: instance.GetNamespace()}, &i); err != nil {
+		u, p, ca, cert, k, err := v1alpha1.ParseRepoSecret(c, instance)
+		if err != nil {
 			logger.Error(err, "Failed to get secret")
 			return repo.Entry{}, err
 		}
 		return repo.Entry{
-			Username: string(i.Data[v1alpha1.Username]),
-			Password: string(i.Data[v1alpha1.Password]),
-			CertFile: string(i.Data[v1alpha1.CertData]),
-			KeyFile:  string(i.Data[v1alpha1.KeyData]),
-			CAFile:   string(i.Data[v1alpha1.CAData]),
+			Username: u,
+			Password: p,
+			CertFile: cert,
+			KeyFile:  k,
+			CAFile:   ca,
 		}, nil
 	}
 	return repo.Entry{}, nil
