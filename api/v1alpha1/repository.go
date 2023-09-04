@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -173,4 +175,37 @@ func RemoveSubjectFromClusterRoleBinding(ctx context.Context, c client.Client, n
 	}
 
 	return nil
+}
+
+func ParseRepoSecret(c client.Client, instance *Repository) (username, password, capath, certpath, keypath string, err error) {
+	i := corev1.Secret{}
+	if err = c.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.AuthSecret}, &i); err != nil {
+		return
+	}
+
+	tmp := os.TempDir()
+	basePath := filepath.Join(tmp, instance.Namespace, instance.Name)
+	if err = os.MkdirAll(basePath, os.ModePerm); err != nil {
+		return
+	}
+	for _, f := range []string{CAData, CertData, KeyData} {
+		p := basePath + "/" + f
+		if err = os.WriteFile(p, i.Data[f], 0777); err != nil {
+			return
+		}
+	}
+
+	username = string(i.Data[Username])
+	password = string(i.Data[Password])
+
+	if len(i.Data[CAData]) > 0 {
+		capath = basePath + "/" + CAData
+	}
+	if len(i.Data[CertData]) > 0 {
+		certpath = basePath + "/" + CertData
+	}
+	if len(i.Data[KeyData]) > 0 {
+		keypath = basePath + "/" + KeyData
+	}
+	return
 }

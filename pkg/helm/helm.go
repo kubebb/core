@@ -38,8 +38,6 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -89,17 +87,14 @@ func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.C
 	combinedName := strings.Split(repo.Spec.URL, "/")
 	entryName := combinedName[len(combinedName)-1]
 	i := action.NewPullWithOpts(action.WithConfig(h.config))
+
 	if repo.Spec.AuthSecret != "" {
-		s := corev1.Secret{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
+		i.Username, i.Password, i.CaFile, i.CertFile, i.KeyFile, err = corev1alpha1.ParseRepoSecret(cli, repo)
+		if err != nil {
 			return "", nil, err
 		}
-		i.Username = string(s.Data[corev1alpha1.Username])
-		i.Password = string(s.Data[corev1alpha1.Password])
-		i.CertFile = string(s.Data[corev1alpha1.CertData])
-		i.KeyFile = string(s.Data[corev1alpha1.KeyData])
-		i.CaFile = string(s.Data[corev1alpha1.CAData])
 	}
+
 	i.Version = version
 	i.Settings = settings
 	i.Devel = false
@@ -164,16 +159,10 @@ func (h *HelmWrapper) install(ctx context.Context, logger logr.Logger, cli clien
 	i.RepoURL = ""   // We only support adding a repo and then installing it, not installing it directly via an url.
 	i.Keyring = ""   // TODO enable these args after we can config keyring
 	if repo.Spec.AuthSecret != "" {
-		s := corev1.Secret{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
+		i.Username, i.Password, i.CaFile, i.CertFile, i.KeyFile, err = corev1alpha1.ParseRepoSecret(cli, repo)
+		if err != nil {
 			return nil, err
 		}
-
-		i.Username = string(s.Data[corev1alpha1.Username])
-		i.Password = string(s.Data[corev1alpha1.Password])
-		i.CertFile = string(s.Data[corev1alpha1.CertData])
-		i.KeyFile = string(s.Data[corev1alpha1.KeyData])
-		i.CaFile = string(s.Data[corev1alpha1.CAData])
 	}
 
 	i.InsecureSkipTLSverify = repo.Spec.Insecure
@@ -230,15 +219,10 @@ func (h *HelmWrapper) upgrade(ctx context.Context, logger logr.Logger, cli clien
 	i.RepoURL = ""   // We only support adding a repo and then installing it, not installing it directly via a url.
 	i.Keyring = ""   // TODO enable these args after we can config keyring
 	if repo.Spec.AuthSecret != "" {
-		s := corev1.Secret{}
-		if err := cli.Get(ctx, types.NamespacedName{Name: repo.Spec.AuthSecret, Namespace: repo.GetNamespace()}, &s); err != nil {
+		i.Username, i.Password, i.CaFile, i.CertFile, i.KeyFile, err = corev1alpha1.ParseRepoSecret(cli, repo)
+		if err != nil {
 			return nil, err
 		}
-		i.Username = string(s.Data[corev1alpha1.Username])
-		i.Password = string(s.Data[corev1alpha1.Password])
-		i.CertFile = string(s.Data[corev1alpha1.CertData])
-		i.KeyFile = string(s.Data[corev1alpha1.KeyData])
-		i.CaFile = string(s.Data[corev1alpha1.CAData])
 	}
 
 	i.InsecureSkipTLSverify = repo.Spec.Insecure
