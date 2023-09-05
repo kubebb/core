@@ -164,6 +164,32 @@ function waitRatingDone() {
 	done
 }
 
+function waitEvaluationsDone() {
+	namespace=$1
+	ratingName=$2
+	dimension=$3
+	START_TIME=$(date +%s)
+	sleep 2 # wait for operator patch status. avoid 0=0 situations
+	while true; do
+		conditionType=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq -r ".status.evaluations.$dimension.conditions[0].type")
+		conditionStatus=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq -r ".status.evaluations.$dimension.conditions[0].status")
+		prompt=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq -r ".status.evaluations.$dimension.prompt")
+		if [[ $conditionType == "Done" && $conditionStatus == "True" ]]; then
+			echo "rating ${ratingName}'s evaluation for dimension ${dimension} completed"
+			evaluationData=$(kubectl -n${namespace} get prompt ${prompt} --output="jsonpath={.status.data}" | base64 --decode)
+			echo "Evaluation Data: ${evaluationData}"
+			break
+		fi
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			exit 1
+		fi
+		sleep 5
+	done
+}
+
 function checkCm() {
 	namespace=$1
 	cmname=$2
@@ -188,7 +214,8 @@ function checkCm() {
 info "1. create kind cluster"
 make kind
 
-info "2. install tekton operator"
+info "2 install pre-requisites"
+info "2.1 install tekton operator"
 helm repo add kubebb https://kubebb.github.io/components
 helm repo update kubebb
 kubectl create ns tekton
@@ -201,7 +228,12 @@ helm install cert-manager jetstack/cert-manager --namespace cert-manager --creat
 	--set prometheus.enabled=false \
 	--set installCRDs=true
 
-info "2.2 deploy kubebb/core"
+info "2.2 install kubeagi arcadia operator"
+helm repo add kubeagi https://kubeagi.github.io/arcadia
+helm repo update kubeagi
+helm install arcadia kubeagi/arcadia --namespace arcadia --create-namespace --wait --set installCRDs=true
+
+info "3. deploy kubebb/core"
 docker tag kubebb/core:latest kubebb/core:example-e2e
 kind load docker-image kubebb/core:example-e2e --name=$KindName
 make deploy IMG="kubebb/core:example-e2e"
@@ -252,35 +284,37 @@ EOF
 kubectl -nkubebb-system patch deployment kubebb-controller-manager --patch-file patch.yaml
 kubectl wait deploy -n kubebb-system kubebb-controller-manager --for condition=Available=True
 
-info "3 create tasks and pipeline"
-
-info "3.1 craete task rback"
-kubectl apply -f config/samples/task-rback.yaml
-
-info "3.2 create task helm-lint"
-kubectl apply -f config/samples/task-helm-lint.yaml
-
-info "3.3 create pipeline rback-helm-lint-pipeline"
-kubectl apply -f config/samples/pipeline-rback-helm-lint.yaml
-
-info "3.4 create pipline only-rback-pipeline"
-kubectl apply -f config/samples/pipeline-rback.yaml
-
-info "3.5 create pipeline only-helm-lint-pipeline"
-kubectl apply -f config/samples/pipeline-helm-lint.yaml
+info "4 create tasks and pipeline"
+info "3.1 craete reliability tasks and pipelines"
+kubectl apply -f pipeline/rating/reliability/
+info "3.2 create security tasks and pipelines"
+kubectl apply -f pipeline/rating/security/
 
 info "3.6 add kubebb repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
 waitComponentStatus "kubebb-system" "repository-kubebb.kubebb-core"
 
-info "4 create rating with one pipline"
+info "4 create rating with one dimension"
+info "$LLM_API_KEY"
+if [ -n "$LLM_API_KEY" ]; then
+	cat config/samples/core_v1alpha1_rating_1.yaml | sed -e "s/apiKey:.*/apiKey: \"$LLM_API_KEY\"/" >config/samples/core_v1alpha1_rating_1.yaml
+fi
 kubectl apply -f config/samples/core_v1alpha1_rating_1.yaml
-waitRatingDone "kubebb-system" "one-pipeline-rating"
-checkCm "kubebb-system" "repository-kubebb.kubebb-core.v0.1.10"
+waitRatingDone "kubebb-system" "one-dimension-rating"
+if [ -n "$LLM_API_KEY" ]; then
+	waitEvaluationsDone "kubebb-system" "one-dimension-rating" "reliability"
+fi
 
-info "5 create rating with two pipeline"
+info "5 create rating with two dimension"
+if [ -n "$LLM_API_KEY" ]; then
+	cat config/samples/core_v1alpha1_rating_2.yaml | sed -e "s/apiKey:.*/apiKey: \"$LLM_API_KEY\"/" >config/samples/core_v1alpha1_rating_2.yaml
+fi
 kubectl apply -f config/samples/core_v1alpha1_rating_2.yaml
-waitRatingDone "kubebb-system" "two-pipeline-rating"
+waitRatingDone "kubebb-system" "two-dimension-rating"
 checkCm "kubebb-system" "repository-kubebb.kubebb-core.v0.1.10"
+if [ -n "$LLM_API_KEY" ]; then
+	waitEvaluationsDone "kubebb-system" "two-dimension-rating" "reliability"
+	waitEvaluationsDone "kubebb-system" "two-dimension-rating" "security"
+fi
 
 info "all finished! ✅"
