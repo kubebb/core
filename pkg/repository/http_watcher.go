@@ -95,6 +95,18 @@ func (c *HTTPWatcher) Start() error {
 
 	if err := helm.RepoAdd(c.ctx, c.logger, entry, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to add repository")
+		now := metav1.Now()
+		readyCond := getReadyCond(now)
+		syncCond := getSyncCond(now)
+		readyCond.Status = v1.ConditionFalse
+		readyCond.Message = fmt.Sprintf("failed to add repo %s", err.Error())
+		readyCond.Reason = v1alpha1.ReasonUnavailable
+
+		syncCond.Status = v1.ConditionFalse
+		syncCond.Message = fmt.Sprintf("failed to add repo %s", err.Error())
+		syncCond.Reason = v1alpha1.ReasonUnavailable
+
+		updateRepository(c.ctx, c.instance, c.c, c.logger, readyCond, syncCond)
 		return err
 	}
 
@@ -119,8 +131,17 @@ func (c *HTTPWatcher) Poll() {
 
 	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
 		c.logger.Error(err, "Failed to update repository")
+		readyCond.Status = v1.ConditionFalse
+		readyCond.Message = fmt.Sprintf("failed to update repo %s", err.Error())
+		readyCond.Reason = v1alpha1.ReasonUnavailable
+
+		syncCond.Status = v1.ConditionFalse
+		syncCond.Message = fmt.Sprintf("failed to update repo %s", err.Error())
+		syncCond.Reason = v1alpha1.ReasonUnavailable
+		updateRepository(c.ctx, c.instance, c.c, c.logger, readyCond, syncCond)
 		return
 	}
+
 	indexFile, err := c.fetchIndexYaml()
 	if err != nil {
 		c.logger.Error(err, "Failed to fetch index file")
