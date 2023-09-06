@@ -28,6 +28,7 @@ import (
 
 // TestConditionEqual tests Condition.Equal
 func TestConditionEqual(t *testing.T) {
+	timeA := time.Now()
 	testCases := []struct {
 		description string
 		name        string
@@ -102,13 +103,13 @@ func TestConditionEqual(t *testing.T) {
 				Type:               TypeReady,
 				Status:             corev1.ConditionTrue,
 				Reason:             ReasonAvailable,
-				LastTransitionTime: metav1.NewTime(time.Now()),
+				LastTransitionTime: metav1.NewTime(timeA),
 			},
 			conditionB: Condition{
 				Type:               TypeReady,
 				Status:             corev1.ConditionTrue,
 				Reason:             ReasonAvailable,
-				LastTransitionTime: metav1.NewTime(time.Now()),
+				LastTransitionTime: metav1.NewTime(timeA.Add(time.Second)),
 			},
 
 			expected: false,
