@@ -36,9 +36,25 @@ spec:
               componentName:
                 description: ComponentName Each Rating corresponds to a component
                 type: string
+              evaluator:
+                description: Evaluator defines the configuration when evaluating the
+                  component
+                properties:
+                  llm:
+                    description: LLM defines the LLM to be used when evaluating the
+                      component
+                    type: string
+                type: object
               pipelineParams:
+                description: PipelineParams List of parameters defined in the pipeline
+                  If mulitple PipelineParams contains same dimension,only the 1st
+                  one shall be used
                 items:
                   properties:
+                    dimension:
+                      description: Dimension of this pipelinerun
+                      pattern: ^[A-Za-z]+$
+                      type: string
                     params:
                       description: Params List of parameters defined in the pipeline
                       items:
@@ -84,29 +100,20 @@ spec:
                       description: PipelineName the name of pipeline
                       type: string
                   required:
+                  - dimension
                   - pipelineName
                   type: object
                 type: array
             required:
             - componentName
+            - evaluator
             - pipelineParams
             type: object
           status:
             properties:
-              actualWeight:
-                description: ActualWeight The sum of all successful task weights.
-                type: integer
-              expectWeight:
-                description: ExpectWeight Each pipeline contains multiple tasks. The
-                  default weight of each task is 1. This field describes the sum of
-                  the weights of all tasks included in the pipeline defined in Rating.
-                type: integer
-              pipelineRuns:
+              evaluations:
                 additionalProperties:
                   properties:
-                    actualWeight:
-                      description: ActualWeight The sum of all successful task weights.
-                      type: integer
                     conditions:
                       description: Conditions of the resource.
                       items:
@@ -146,13 +153,61 @@ spec:
                         - type
                         type: object
                       type: array
-                    expectWeight:
-                      description: ExpectWeight Each pipeline contains multiple tasks.
-                        The default weight of each task is 1. This field describes
-                        the sum of the weights of all tasks included in the pipeline
-                        defined in Rating.
-                      type: integer
+                    finalRating:
+                      description: 'FinalRating from this evaluation TODO: add the
+                        final rating'
+                      type: string
+                    prompt:
+                      type: string
+                  type: object
+                description: Evaluations contains the evaluator status with the `Dimension`
+                  as the key
+                type: object
+              pipelineRuns:
+                additionalProperties:
+                  properties:
+                    conditions:
+                      description: Conditions of the resource.
+                      items:
+                        description: A Condition that may apply to a resource.
+                        properties:
+                          lastSuccessfulTime:
+                            description: LastSuccessfulTime is repository Last Successful
+                              Update Time
+                            format: date-time
+                            type: string
+                          lastTransitionTime:
+                            description: LastTransitionTime is the last time this
+                              condition transitioned from one status to another.
+                            format: date-time
+                            type: string
+                          message:
+                            description: A Message containing details about this condition's
+                              last transition from one status to another, if any.
+                            type: string
+                          reason:
+                            description: A Reason for this condition's last transition
+                              from one status to another.
+                            type: string
+                          status:
+                            description: Status of this condition; is it currently
+                              True, False, or Unknown
+                            type: string
+                          type:
+                            description: Type of this condition. At most one of each
+                              condition type may apply to a resource at any point
+                              in time.
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
                     pipelineName:
+                      type: string
+                    pipelinerunName:
                       type: string
                     tasks:
                       items:
@@ -198,6 +253,8 @@ spec:
                               - type
                               type: object
                             type: array
+                          description:
+                            type: string
                           name:
                             type: string
                           taskRunName:
@@ -205,12 +262,16 @@ spec:
                           type:
                             type: string
                         required:
+                        - description
                         - name
                         type: object
                       type: array
                   required:
                   - pipelineName
+                  - pipelinerunName
                   type: object
+                description: PipelineRuns contains the pipelinerun status with the
+                  `Dimension` as the key
                 type: object
             type: object
         type: object

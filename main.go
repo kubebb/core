@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	arcadiav1 "github.com/kubeagi/arcadia/api/v1alpha1"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -57,6 +58,9 @@ func init() {
 
 	// add tekton resources
 	utilruntime.Must(v1beta1.AddToScheme(scheme))
+
+	// add kubeagi arcadia resources
+	utilruntime.Must(arcadiav1.AddToScheme(scheme))
 }
 
 func main() {

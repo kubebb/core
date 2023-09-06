@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	arcadiav1 "github.com/kubeagi/arcadia/api/v1alpha1"
+	arcadiallms "github.com/kubeagi/arcadia/pkg/llms"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -49,6 +51,9 @@ type Param struct {
 }
 
 type PipelineParam struct {
+	// Dimension of this pipelinerun
+	// +kubebuilder:validation:Pattern=`^[A-Za-z]+$`
+	Dimension string `json:"dimension"`
 	// PipelineName the name of pipeline
 	PipelineName string `json:"pipelineName"`
 
@@ -59,6 +64,8 @@ type PipelineParam struct {
 
 type Task struct {
 	Name        string `json:"name"`
+	Description string `json:"description"`
+
 	TaskRunName string `json:"taskRunName,omitempty"`
 
 	Type string `json:"type,omitempty"`
@@ -70,32 +77,41 @@ type RatingSpec struct {
 	// ComponentName Each Rating corresponds to a component
 	ComponentName string `json:"componentName"`
 
+	// PipelineParams List of parameters defined in the pipeline
+	// If mulitple PipelineParams contains same dimension,only the 1st one shall be used
 	PipelineParams []PipelineParam `json:"pipelineParams"`
+
+	// Evaluator defines the configuration when evaluating the component
+	Evaluator `json:"evaluator"`
+}
+
+type Evaluator struct {
+	// LLM defines the LLM to be used when evaluating the component
+	LLM arcadiallms.LLMType `json:"llm,omitempty"`
 }
 
 type RatingStatus struct {
+	// PipelineRuns contains the pipelinerun status with the `Dimension` as the key
 	PipelineRuns map[string]PipelineRunStatus `json:"pipelineRuns,omitempty"`
+	// Evaluations contains the evaluator status with the `Dimension` as the key
+	Evaluations map[string]EvaluatorStatus `json:"evaluations,omitempty"`
+}
 
-	// ExpectWeight Each pipeline contains multiple tasks. The default weight of each task is 1.
-	// This field describes the sum of the weights of all tasks included in the pipeline defined in Rating.
-	ExpectWeight int `json:"expectWeight,omitempty"`
+type EvaluatorStatus struct {
+	Prompt                      string `json:"prompt,omitempty"`
+	arcadiav1.ConditionedStatus `json:",inline"`
 
-	// ActualWeight The sum of all successful task weights.
-	ActualWeight int `json:"actualWeight,omitempty"`
+	// FinalRating from this evaluation
+	// TODO: add the final rating
+	FinalRating string `json:"finalRating,omitempty"`
 }
 
 type PipelineRunStatus struct {
-	Tasks        []Task `json:"tasks,omitempty"`
-	PipelineName string `json:"pipelineName"`
+	PipelineRunName string `json:"pipelinerunName"`
+	PipelineName    string `json:"pipelineName"`
 
+	Tasks             []Task `json:"tasks,omitempty"`
 	ConditionedStatus `json:",inline"`
-
-	// ExpectWeight Each pipeline contains multiple tasks. The default weight of each task is 1.
-	// This field describes the sum of the weights of all tasks included in the pipeline defined in Rating.
-	ExpectWeight int `json:"expectWeight,omitempty"`
-
-	// ActualWeight The sum of all successful task weights.
-	ActualWeight int `json:"actualWeight,omitempty"`
 }
 
 //+kubebuilder:object:root=true

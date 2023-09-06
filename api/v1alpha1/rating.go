@@ -17,23 +17,11 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/workqueue"
 	"knative.dev/pkg/apis"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-
-	"github.com/kubebb/core/pkg/utils"
 )
 
 const (
@@ -43,10 +31,11 @@ const (
 	PipelineRun2RatingLabel     = "rating.pipelinerun"
 	PipelineRun2ComponentLabel  = "rating.pipelinerun.component"
 	PipelineRun2RepositoryLabel = "rating.pipelinerun.repository"
+	PipelineRunDimensionLabel   = Group + "/dimension"
 )
 
-func PipelineRunName(ratingName, pipelineName string) string {
-	return fmt.Sprintf("%s.%s", ratingName, pipelineName)
+func PipelineRunName(ratingName, dimension string) string {
+	return fmt.Sprintf("%s.%s", ratingName, dimension)
 }
 
 func IsTaskSame(a, b Task) bool {
@@ -75,6 +64,24 @@ func GetPipelineName(pipelinerun *v1beta1.PipelineRun) string {
 		}
 	}
 	return ""
+}
+
+func GetPipelineRunDimension(pipelinerun *v1beta1.PipelineRun) string {
+	if pipelinerun.Labels != nil {
+		return pipelinerun.Labels[PipelineRunDimensionLabel]
+	}
+	return ""
+}
+
+func (rating Rating) GetPipelineRunStatus(dimensionLabel string) PipelineRunStatus {
+	status := rating.Status.PipelineRuns[dimensionLabel]
+	if status.Tasks == nil {
+		status.Tasks = make([]Task, 0)
+	}
+	if status.ConditionedStatus.Conditions == nil {
+		status.ConditionedStatus.Conditions = make([]Condition, 0)
+	}
+	return status
 }
 
 func Params2PipelinrunParams(params []Param) []v1beta1.Param {
@@ -118,106 +125,12 @@ func ConvertPipelineRunCondition(pipelinerun *v1beta1.PipelineRun) []Condition {
 	}}
 }
 
-// Before creating pipelinerun, we shoulde delete all the existing pipelineruns.
-func DeletePieline(ctx context.Context, c client.Client, instance *Rating) error {
-	for _, pipelineDef := range instance.Spec.PipelineParams {
-		name := pipelineDef.PipelineName
-		pipelineRun := v1beta1.PipelineRun{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: instance.Namespace,
-				Name:      PipelineRunName(instance.Name, name),
-			},
-		}
-		if err := c.Delete(ctx, &pipelineRun); err != nil && !errors.IsNotFound(err) {
-			return err
-		}
-	}
-	return nil
-}
-
-func CreatePipelineRun(ctx context.Context, c client.Client, scheme *runtime.Scheme, instance *Rating, logger logr.Logger) error {
-	if err := DeletePieline(ctx, c, instance); err != nil {
-		return err
-	}
-	component := instance.Labels[RatingComponentLabel]
-	repository := instance.Labels[RatingRepositoryLabel]
-	namespace, err := utils.GetNamespace()
-	if err != nil {
-		return err
-	}
-	nextCreate := make([]v1beta1.PipelineRun, len(instance.Spec.PipelineParams))
-	pipelineRunStatus := make(map[string]PipelineRunStatus)
-
-	for idx, pipelineDef := range instance.Spec.PipelineParams {
-		pipelineRunName := PipelineRunName(instance.Name, pipelineDef.PipelineName)
-		if _, ok := pipelineRunStatus[pipelineRunName]; ok {
-			logger.Error(fmt.Errorf("repeatedly defined pipeline %s", pipelineDef.PipelineName), "")
-			continue
-		}
-
-		pipeline := v1beta1.Pipeline{}
-		if err := c.Get(ctx, types.NamespacedName{Name: pipelineDef.PipelineName, Namespace: namespace}, &pipeline); err != nil {
-			return err
-		}
-		pipelineRunStatus[pipelineRunName] = PipelineRunStatus{ExpectWeight: len(pipeline.Spec.Tasks), PipelineName: pipelineDef.PipelineName}
-
-		ppr := v1beta1.PipelineRun{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: instance.GetNamespace(),
-				Name:      pipelineRunName,
-				Labels: map[string]string{
-					PipelineRun2RatingLabel:     instance.Name,
-					PipelineRun2ComponentLabel:  component,
-					PipelineRun2RepositoryLabel: repository,
-				},
-			},
-			Spec: v1beta1.PipelineRunSpec{
-				ServiceAccountName: GetRatingServiceAccount(),
-				PipelineRef: &v1beta1.PipelineRef{
-					ResolverRef: v1beta1.ResolverRef{
-						Resolver: "cluster",
-						Params: []v1beta1.Param{
-							{
-								Name:  "kind",
-								Value: v1beta1.ParamValue{Type: v1beta1.ParamTypeString, StringVal: "pipeline"},
-							},
-							{
-								Name:  "name",
-								Value: v1beta1.ParamValue{Type: v1beta1.ParamTypeString, StringVal: pipelineDef.PipelineName},
-							},
-							{
-								Name:  "namespace",
-								Value: v1beta1.ParamValue{Type: v1beta1.ParamTypeString, StringVal: namespace},
-							},
-						},
-					},
-				},
-				Params: Params2PipelinrunParams(pipelineDef.Params),
-			},
-		}
-		nextCreate[idx] = ppr
-	}
-
-	instanceDeepCopy := instance.DeepCopy()
-	instanceDeepCopy.Status.PipelineRuns = pipelineRunStatus
-	if err := c.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance)); err != nil {
-		return err
-	}
-
-	for idx := range nextCreate {
-		_ = controllerutil.SetOwnerReference(instance, &nextCreate[idx], scheme)
-		if err := c.Create(ctx, &nextCreate[idx]); err != nil {
-			for i := idx - 1; i >= 0; i-- {
-				_ = c.Delete(ctx, &nextCreate[idx])
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
 func WhenRunningOrSucceeded(pipelinerun *v1beta1.PipelineRun, instance *Rating, ratingState string) {
+	dimension := GetPipelineRunDimension(pipelinerun)
+	if dimension == "" {
+		return
+	}
+
 	pipelineSpec := pipelinerun.Status.PipelineSpec
 	taskState := make(map[string]*v1beta1.PipelineRunTaskRunStatus)
 	task2taskRun := make(map[string]string)
@@ -226,7 +139,7 @@ func WhenRunningOrSucceeded(pipelinerun *v1beta1.PipelineRun, instance *Rating, 
 		task2taskRun[tr.PipelineTaskName] = taskRunName
 	}
 
-	pipelineStatus := instance.Status.PipelineRuns[pipelinerun.Name]
+	pipelineStatus := instance.GetPipelineRunStatus(dimension)
 	if pipelineSpec != nil {
 		now := metav1.Now()
 		for _, task := range pipelineSpec.Tasks {
@@ -255,72 +168,6 @@ func WhenRunningOrSucceeded(pipelinerun *v1beta1.PipelineRun, instance *Rating, 
 			}
 			AppendTask(&pipelineStatus.Tasks, t)
 		}
-		pipelineStatus.ActualWeight = 0
-		for _, t := range pipelineStatus.Tasks {
-			if len(t.Conditions) == 0 {
-				continue
-			}
-
-			cond := t.Conditions[0]
-			if cond.Reason == RatingSucceeded && cond.Status == corev1.ConditionTrue {
-				pipelineStatus.ActualWeight++
-			}
-		}
-		instance.Status.PipelineRuns[pipelinerun.Name] = pipelineStatus
-	}
-}
-
-func PipelineRunUpdate(c client.Client, logger logr.Logger) func(event.UpdateEvent, workqueue.RateLimitingInterface) {
-	return func(ue event.UpdateEvent, rli workqueue.RateLimitingInterface) {
-		pipelinerun := ue.ObjectNew.(*v1beta1.PipelineRun)
-		ratingName := ""
-		for _, own := range pipelinerun.OwnerReferences {
-			if own.Kind == "Rating" {
-				ratingName = own.Name
-				break
-			}
-		}
-		if ratingName == "" {
-			ratingName = pipelinerun.Labels[PipelineRun2RatingLabel]
-			if ratingName == "" {
-				logger.Info(fmt.Sprintf("unable to find the Rating resource associated with the pipelinerune: %s", pipelinerun.Name))
-				return
-			}
-		}
-
-		conditions := pipelinerun.Status.Conditions
-		if len(conditions) == 0 {
-			logger.Info(fmt.Sprintf("pipelinerun %s currently does not have any conditions, waiting for conditions", pipelinerun.Name))
-			return
-		}
-		rating := &Rating{}
-		if err := c.Get(context.TODO(), types.NamespacedName{Namespace: pipelinerun.Namespace, Name: ratingName}, rating); err != nil {
-			logger.Error(err, "")
-			return
-		}
-
-		deepCopyRating := rating.DeepCopy()
-		var curCond apis.Condition
-
-		for _, cond := range conditions {
-			if cond.Type == apis.ConditionSucceeded {
-				curCond = cond
-			}
-		}
-		pipelineRunStatus := deepCopyRating.Status.PipelineRuns[pipelinerun.Name]
-		pipelineRunStatus.Conditions = ConvertPipelineRunCondition(pipelinerun)
-		deepCopyRating.Status.PipelineRuns[pipelinerun.Name] = pipelineRunStatus
-
-		if curCond.Reason == string(RatingResolvingPipelineRef) || curCond.Reason == string(RatingResolvingTaskRef) {
-			logger.Info(fmt.Sprintf("pipelinerun %s currently in {reason: %v, status: %v, msg: %s}, please wait a moment...", pipelinerun.Name, curCond.Reason, curCond.Status, curCond.Message))
-		} else if curCond.Reason == string(RatingRunning) || curCond.Reason == string(RatingSucceeded) {
-			WhenRunningOrSucceeded(pipelinerun, deepCopyRating, curCond.Reason)
-			logger.Info(fmt.Sprintf("pipelinerun %s currently in {reason: %v, status: %v, msg: %s}, expectWeight: %d, actualWeight: %d",
-				pipelinerun.Name, curCond.Reason, curCond.Status, curCond.Message, deepCopyRating.Status.ExpectWeight, deepCopyRating.Status.ActualWeight))
-		}
-
-		if err := c.Status().Patch(context.TODO(), deepCopyRating, client.MergeFrom(rating)); err != nil {
-			logger.Error(err, "")
-		}
+		instance.Status.PipelineRuns[dimension] = pipelineStatus
 	}
 }
