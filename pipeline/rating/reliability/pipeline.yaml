@@ -7,7 +7,7 @@ metadata:
     tekton.dev/tags: component-secreliabilityurity
     tekton.dev/displayName: component-reliability
     tekton.dev/platforms: linux/amd64
-    rating.core.kubebb.k8s.com.cn/type: reliability
+    core.kubebb.k8s.com.cn/dimension: reliability
 spec:
   description: >-
     reliability checks on component

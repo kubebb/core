@@ -1,48 +1,71 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: zhipuai
+  namespace: kubebb-system
+type: Opaque
+data:
+  apiKey: "ZmVkMDk2NWJjZTAxOTBmZjJiYzY4MWFjMzA2ZDVmM2QuZUlwN3NPWHJueG1XSnhPaw==" # replace this with your API key
+---
+apiVersion: arcadia.kubeagi.k8s.com.cn/v1alpha1
+kind: LLM
+metadata:
+  name: zhipuai
+  namespace: kubebb-system
+spec:
+  type: "zhipuai"
+  url: "https://open.bigmodel.cn/api/paas/v3/model-api" # replace this with your LLM URL(Zhipuai use predefined url https://open.bigmodel.cn/api/paas/v3/model-api)
+  auth: "zhipuai" # replace this with your auth secret
+---
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: Rating
 metadata:
-  name: two-pipeline-rating
+  name: two-dimension-rating
   namespace: kubebb-system
 spec:
+  evaluator:
+    llm: zhipuai
   componentName: repository-kubebb.kubebb-core
   pipelineParams:
-  - pipelineName: only-rback-pipeline
-    params:
-    - name: URL
-      value: 
-        type: string
-        stringVal: https://github.com/kubebb/components/releases/download/kubebb-core-v0.1.10/kubebb-core-v0.1.10.tgz
-        arrayVal: []
-        objectVal: {}
-    - name: COMPONENT_NAME
-      value: 
-        stringVal: kubebb-core
-        type: string
-    - name: VERSION
-      value: 
-        stringVal: v0.1.10
-        type: string
-    - name: REPOSITORY_NAME
-      value: 
-        stringVal: repository-kubebb
-        type: string
-  - pipelineName: only-rback-pipeline
-    params:
-    - name: URL
-      value: 
-        type: string
-        stringVal: https://github.com/kubebb/components/releases/download/kubebb-core-v0.1.10/kubebb-core-v0.1.10.tgz
-        arrayVal: []
-        objectVal: {}
-    - name: COMPONENT_NAME
-      value: 
-        stringVal: kubebb-core
-        type: string
-    - name: VERSION
-      value: 
-        stringVal: v0.1.10
-        type: string
-    - name: REPOSITORY_NAME
-      value: 
-        stringVal: repository-kubebb
-        type: string
+    - pipelineName: component-reliability
+      dimension: "reliability"
+      params:
+        - name: URL
+          value:
+            type: string
+            stringVal: https://github.com/kubebb/components/releases/download/kubebb-core-v0.1.10/kubebb-core-v0.1.10.tgz
+            arrayVal: []
+            objectVal: {}
+        - name: COMPONENT_NAME
+          value:
+            stringVal: kubebb-core
+            type: string
+        - name: VERSION
+          value:
+            stringVal: v0.1.10
+            type: string
+        - name: REPOSITORY_NAME
+          value:
+            stringVal: repository-kubebb
+            type: string
+    - pipelineName: component-security
+      dimension: "security"
+      params:
+        - name: URL
+          value:
+            type: string
+            stringVal: https://github.com/kubebb/components/releases/download/kubebb-core-v0.1.10/kubebb-core-v0.1.10.tgz
+            arrayVal: []
+            objectVal: {}
+        - name: COMPONENT_NAME
+          value:
+            stringVal: kubebb-core
+            type: string
+        - name: VERSION
+          value:
+            stringVal: v0.1.10
+            type: string
+        - name: REPOSITORY_NAME
+          value:
+            stringVal: repository-kubebb
+            type: string
