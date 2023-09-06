@@ -219,3 +219,43 @@ func TestGetImageOverridePath(t *testing.T) {
 		})
 	}
 }
+
+func TestRepository_IsOCI(t *testing.T) {
+	type fields struct {
+		Spec RepositorySpec
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   bool
+	}{
+		{
+			name: "is oci",
+			fields: fields{
+				Spec: RepositorySpec{
+					URL: "oci://registry-1.docker.io/bitnamicharts",
+				},
+			},
+			want: true,
+		},
+		{
+			name: "not oci",
+			fields: fields{
+				Spec: RepositorySpec{
+					URL: "http://registry-1.docker.io/bitnamicharts",
+				},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &Repository{
+				Spec: tt.fields.Spec,
+			}
+			if got := repo.IsOCI(); got != tt.want {
+				t.Errorf("IsOCI() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

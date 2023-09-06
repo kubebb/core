@@ -22,12 +22,15 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/utils/env"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -109,11 +112,6 @@ func (c *OCIWatcher) Poll() {
 	readyCond := getReadyCond(now)
 	syncCond := getSyncCond(now)
 
-	if err := helm.RepoUpdate(c.ctx, c.logger, c.repoName, c.duration/2); err != nil {
-		c.logger.Error(err, "Failed to update repository")
-		return
-	}
-	entryName := utils.GetOCIEntryName(c.instance.Spec.URL)
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
 		c.logger.Error(err, "Cannot get config")
@@ -127,83 +125,166 @@ func (c *OCIWatcher) Poll() {
 		Namespace:   &ns,
 	}
 
-	latest, all, err := helm.GetOCIRepoCharts(c.ctx, &getter, c.c, c.logger, ns, c.instance)
+	if err = c.fetchOCIComponent(c.ctx, &getter, c.c, c.logger, ns, c.instance); err != nil {
+		c.logger.Error(err, "failed to get diff")
+		syncCond.Status = v1.ConditionFalse
+		syncCond.Message = fmt.Sprintf("failed to get component synchronization information. %s", err.Error())
+		syncCond.Reason = v1alpha1.ReasonUnavailable
+	} else {
+		syncCond.LastSuccessfulTime = now
+	}
+	updateRepository(c.ctx, c.instance, c.c, c.logger, readyCond, syncCond)
+}
+
+func (c *OCIWatcher) fetchOCIComponent(ctx context.Context, getter genericclioptions.RESTClientGetter, cli client.Client, logger logr.Logger, ns string, repo *v1alpha1.Repository) (err error) {
+	repositoryURLs, err := helm.GetOCIRepoList(ctx, repo)
 	if err != nil {
-		c.logger.Error(err, "Cannot get oci repo charts")
-		return
+		return err
 	}
-
-	item := v1alpha1.Component{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s.%s", c.instance.GetName(), entryName),
-			Namespace: c.instance.GetNamespace(),
-			Labels: map[string]string{
-				v1alpha1.ComponentRepositoryLabel: c.instance.GetName(),
-			},
-		},
-		Status: v1alpha1.ComponentStatus{
-			RepositoryRef: &v1.ObjectReference{
-				Kind:       c.instance.Kind,
-				Name:       c.instance.GetName(),
-				Namespace:  c.instance.GetNamespace(),
-				UID:        c.instance.GetUID(),
-				APIVersion: c.instance.APIVersion,
-			},
-			Name:        entryName,
-			DisplayName: latest.Annotations[v1alpha1.DisplayNameAnnotationKey],
-			Versions:    make([]v1alpha1.ComponentVersion, 0),
-			Maintainers: make([]v1alpha1.Maintainer, 0),
-		},
+	componentList := &v1alpha1.ComponentList{}
+	if err := cli.List(ctx, componentList, &client.ListOptions{LabelSelector: labels.SelectorFromSet(map[string]string{v1alpha1.ComponentRepositoryLabel: repo.GetName()}), Namespace: repo.GetNamespace()}); err != nil {
+		return err
 	}
-
-	maintainers := make(map[string]v1alpha1.Maintainer)
-	for _, m := range latest.Maintainers {
-		if _, ok := maintainers[m.Name]; !ok {
-			maintainers[m.Name] = v1alpha1.Maintainer{
-				Name:  m.Name,
-				Email: m.Email,
-				URL:   m.URL,
+	hasTag := make(map[string]map[string]bool) // Map[name]map[tag]
+	existComponents := make(map[string]v1alpha1.Component)
+	for _, component := range componentList.Items {
+		name := component.Status.Name
+		if _, ok := hasTag[name]; !ok {
+			hasTag[name] = make(map[string]bool)
+		}
+		for _, version := range component.Status.Versions {
+			hasTag[name][version.Version] = true
+		}
+		existComponents[name] = component
+	}
+	workers, err := env.GetInt("OCI_PULL_WORKER", 5) // Increase this number will download faster, but also more likely to trigger '429 Too Many Requests' error.
+	if err != nil {
+		return err
+	}
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(workers)
+	for i, pullURL := range repositoryURLs {
+		i, pullURL := i, pullURL // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			start := time.Now()
+			defer func() {
+				logger.V(1).Info(fmt.Sprintf("finish handling %d/%d cost:%s", i, len(repositoryURLs), time.Since(start)), "url", pullURL)
+			}()
+			logger.V(1).Info(fmt.Sprintf("start handling %d/%d", i, len(repositoryURLs)), "url", pullURL)
+			entryName := utils.GetOCIEntryName(pullURL)
+			skip, exist := hasTag[entryName]
+			latest, all, err := helm.GetOCIRepoCharts(ctx, getter, cli, logger, ns, pullURL, repo, skip)
+			if err != nil {
+				return err
 			}
-		}
+			if latest == nil && len(all) == 0 {
+				return nil
+			}
+			var component v1alpha1.Component
+			if !exist {
+				component = v1alpha1.Component{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fmt.Sprintf("%s.%s", c.instance.GetName(), entryName),
+						Namespace: c.instance.GetNamespace(),
+						Labels: map[string]string{
+							v1alpha1.ComponentRepositoryLabel: c.instance.GetName(),
+						},
+						Annotations: map[string]string{
+							v1alpha1.OCIPullURLAnnotation: pullURL,
+						},
+					},
+					Status: v1alpha1.ComponentStatus{
+						RepositoryRef: &v1.ObjectReference{
+							Kind:       c.instance.Kind,
+							Name:       c.instance.GetName(),
+							Namespace:  c.instance.GetNamespace(),
+							UID:        c.instance.GetUID(),
+							APIVersion: c.instance.APIVersion,
+						},
+						Name:        entryName,
+						DisplayName: latest.Annotations[v1alpha1.DisplayNameAnnotationKey],
+						Versions:    make([]v1alpha1.ComponentVersion, 0),
+						Maintainers: make([]v1alpha1.Maintainer, 0),
+					},
+				}
+				_ = controllerutil.SetOwnerReference(c.instance, &component, c.scheme)
+			} else {
+				component = existComponents[entryName]
+			}
+			maintainers := make(map[string]v1alpha1.Maintainer)
+			for _, m := range latest.Maintainers {
+				if _, ok := maintainers[m.Name]; !ok {
+					maintainers[m.Name] = v1alpha1.Maintainer{
+						Name:  m.Name,
+						Email: m.Email,
+						URL:   m.URL,
+					}
+				}
+			}
+			filterVersionIndices, keep := v1alpha1.Match(c.filterMap, v1alpha1.Filter{Name: entryName, Versions: all})
+			if keep {
+				for _, idx := range filterVersionIndices {
+					version := all[idx]
+					component.Status.Versions = append(component.Status.Versions, v1alpha1.ComponentVersion{
+						Annotations: version.Annotations,
+						Version:     version.Version,
+						AppVersion:  version.AppVersion,
+						CreatedAt:   metav1.NewTime(version.Created),
+						Digest:      version.Digest,
+						UpdatedAt:   metav1.Now(),
+						Deprecated:  version.Deprecated,
+					})
+				}
+			}
+			keywords := latest.Keywords
+			if r := c.instance.Spec.KeywordLenLimit; r > 0 && len(keywords) > r {
+				keywords = keywords[:r]
+			}
+			component.Status.Description = latest.Description
+			component.Status.Home = latest.Home
+			component.Status.Icon = latest.Icon
+			component.Status.Keywords = keywords
+			component.Status.Sources = latest.Sources
+			for _, m := range maintainers {
+				component.Status.Maintainers = append(component.Status.Maintainers, m)
+			}
+			if exist {
+				c.updateComponent(component)
+				delete(existComponents, component.Name)
+			} else {
+				c.createComponent(component)
+			}
+			return nil
+		})
 	}
-	item.Status.Versions = make([]v1alpha1.ComponentVersion, 0)
-	filterVersionIndices, keep := v1alpha1.Match(c.filterMap, v1alpha1.Filter{Name: entryName, Versions: all})
-	if keep {
-		for _, idx := range filterVersionIndices {
-			version := all[idx]
-			item.Status.Versions = append(item.Status.Versions, v1alpha1.ComponentVersion{
-				Annotations: version.Annotations,
-				Version:     version.Version,
-				AppVersion:  version.AppVersion,
-				CreatedAt:   metav1.NewTime(version.Created),
-				Digest:      version.Digest,
-				UpdatedAt:   metav1.Now(),
-				Deprecated:  version.Deprecated,
-			})
-		}
+	if err := g.Wait(); err != nil {
+		return err
 	}
-	keywords := latest.Keywords
-	if r := c.instance.Spec.KeywordLenLimit; r > 0 && len(keywords) > r {
-		keywords = keywords[:r]
+	for _, component := range existComponents {
+		c.removeComponent(component)
 	}
-	item.Status.Description = latest.Description
-	item.Status.Home = latest.Home
-	item.Status.Icon = latest.Icon
-	item.Status.Keywords = keywords
-	item.Status.Sources = latest.Sources
+	return nil
+}
 
-	for _, m := range maintainers {
-		item.Status.Maintainers = append(item.Status.Maintainers, m)
-	}
-
-	_ = controllerutil.SetOwnerReference(c.instance, &item, c.scheme)
-
-	c.logger.Info("create component", "info", item)
+func (c *OCIWatcher) createComponent(item v1alpha1.Component) {
+	c.logger.Info("create component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
 	if err := c.Create(&item); err != nil && !errors.IsAlreadyExists(err) {
 		c.logger.Error(err, "failed to create component")
 	} else {
 		c.logger.Info("Successfully created component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
 	}
+}
 
-	updateRepository(c.ctx, c.instance, c.c, c.logger, readyCond, syncCond)
+func (c *OCIWatcher) updateComponent(item v1alpha1.Component) {
+	c.logger.Info("update component", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
+	if err := c.Update(&item); err != nil {
+		c.logger.Error(err, "failed to update component status")
+	}
+}
+
+func (c *OCIWatcher) removeComponent(item v1alpha1.Component) {
+	c.logger.Info("component is marked as deprecated", "Component.Name", item.GetName(), "Component.Namespace", item.GetNamespace())
+	if err := c.Delete(&item); err != nil {
+		c.logger.Error(err, "mark the component status as deprecated has failed.")
+	}
 }

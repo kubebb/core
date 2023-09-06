@@ -202,6 +202,13 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info(fmt.Sprintf("Failed to get Component's chart name in status.name, wait %s for another try", waitSmaller), "Component", klog.KObj(component))
 		return ctrl.Result{Requeue: true, RequeueAfter: waitSmaller}, nil
 	}
+	if repo.IsOCI() {
+		if pullURL := component.Annotations[corev1alpha1.OCIPullURLAnnotation]; pullURL != "" {
+			chartName = pullURL
+		} else {
+			chartName = repo.Spec.URL
+		}
+	}
 
 	// Check its helm template configmap exist
 	manifest := &corev1.ConfigMap{}

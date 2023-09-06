@@ -22,6 +22,7 @@ const (
 	AddEventMsgTemplate    = "add new component %s"
 	DelEventMsgTemplate    = "delete component %s"
 	UpdateEventMsgTemplate = "update component %s. %d new,  %d deleted,  %d deprecated"
+	OCIPullURLAnnotation   = Group + "/oci-pull-url"
 )
 
 // ComponentVersionDiff When the version of a component changes,

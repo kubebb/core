@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +47,7 @@ func NewWatcher(
 ) IWatcher {
 	duration, fm := getWatcherValues(logger, instance)
 	logger.Info("Create watcher with " + instance.Spec.URL)
-	if registry.IsOCI(instance.Spec.URL) {
+	if instance.IsOCI() {
 		return NewOCIWatcher(instance, c, ctx, logger, duration, cancel, scheme, fm)
 	} else {
 		return NewHTTPWatcher(instance, c, ctx, logger, duration, cancel, scheme, fm)
