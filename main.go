@@ -182,6 +182,10 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Portal")
 			os.Exit(1)
 		}
+		if err = (&corev1alpha1.Component{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Component")
+			os.Exit(1)
+		}
 	}
 	if corev1alpha1.RatingEnabled() {
 		if err = (&controllers.RatingReconciler{
