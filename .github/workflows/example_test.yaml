@@ -1,4 +1,4 @@
-name: Kubebb Core Example Test
+name: Kubebb Core E2E Tests
 
 on:
   push:
@@ -49,6 +49,7 @@ jobs:
     needs:
       - build-image
     runs-on: ubuntu-latest
+    environment: Dev
     strategy:
       fail-fast: true
       matrix:
@@ -80,12 +81,6 @@ jobs:
         run: config/samples/rating_test.sh
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      - name: Upload logs if test fail
-        if: failure()
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ github.sha }}-${{ matrix.no }}.logs
-          path: ${{ env.LOG_DIR }}
 
   example-test:
     needs:

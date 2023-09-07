@@ -284,30 +284,30 @@ EOF
 kubectl -nkubebb-system patch deployment kubebb-controller-manager --patch-file patch.yaml
 kubectl wait deploy -n kubebb-system kubebb-controller-manager --for condition=Available=True
 
-info "4 create tasks and pipeline"
+info "3 create tasks and pipeline"
 info "3.1 craete reliability tasks and pipelines"
 kubectl apply -f pipeline/rating/reliability/
 info "3.2 create security tasks and pipelines"
 kubectl apply -f pipeline/rating/security/
 
-info "3.6 add kubebb repository"
+info "4 add kubebb repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
 waitComponentStatus "kubebb-system" "repository-kubebb.kubebb-core"
 
-info "4 create rating with one dimension"
+info "5 create kubeagi/arcadia llm with auth secret"
 if [ -n "$LLM_API_KEY" ]; then
-	cat config/samples/core_v1alpha1_rating_1.yaml | sed -e "s/apiKey:.*/apiKey: \"$LLM_API_KEY\"/" >config/samples/core_v1alpha1_rating_1.yaml
+	kubectl apply -f config/samples/core_v1alpha1_rating_llm.yaml
+	kubectl patch secret zhipuai -n kubebb-system --type=json -p="[{\"op\": \"replace\", \"path\": \"/data/apiKey\", \"value\": \"$LLM_API_KEY\"}]"
 fi
+
+info "6 verify rating with one dimension"
 kubectl apply -f config/samples/core_v1alpha1_rating_1.yaml
 waitRatingDone "kubebb-system" "one-dimension-rating"
 if [ -n "$LLM_API_KEY" ]; then
 	waitEvaluationsDone "kubebb-system" "one-dimension-rating" "reliability"
 fi
 
-info "5 create rating with two dimension"
-if [ -n "$LLM_API_KEY" ]; then
-	cat config/samples/core_v1alpha1_rating_2.yaml | sed -e "s/apiKey:.*/apiKey: \"$LLM_API_KEY\"/" >config/samples/core_v1alpha1_rating_2.yaml
-fi
+info "7 verfiy rating with two dimension"
 kubectl apply -f config/samples/core_v1alpha1_rating_2.yaml
 waitRatingDone "kubebb-system" "two-dimension-rating"
 checkCm "kubebb-system" "repository-kubebb.kubebb-core.v0.1.10"
