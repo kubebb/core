@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -166,6 +167,17 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 		instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel] = string(corev1alpha1.Unknown)
 		changedLabels = true
 	}
+	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositoryRestartWatcher]; !ok || changedLabels {
+		changedLabels = true
+		if v == "" {
+			v = "1"
+		} else {
+			x, _ := strconv.Atoi(v)
+			x++
+			v = fmt.Sprintf("%d", x)
+		}
+		instanceDeepCopy.Labels[corev1alpha1.RepositoryRestartWatcher] = v
+	}
 	if changedLabels {
 		err := r.Client.Update(ctx, instanceDeepCopy)
 		if err != nil {
@@ -202,7 +214,7 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 		len(oldRepo.Finalizers) != len(newRepo.Finalizers) ||
 		newRepo.DeletionTimestamp != nil ||
 		!reflect.DeepEqual(oldRepo.Spec.Filter, newRepo.Spec.Filter) ||
-		!reflect.DeepEqual(oldRepo.Labels, newRepo.Labels)
+		corev1alpha1.RepoLabelChecker(oldRepo.Labels, newRepo.Labels, corev1alpha1.RepositoryRestartWatcher)
 }
 
 // SetupWithManager sets up the controller with the Manager.

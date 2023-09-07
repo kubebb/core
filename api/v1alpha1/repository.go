@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"helm.sh/helm/v3/pkg/registry"
@@ -44,6 +45,7 @@ const (
 	ComponentRepositoryLabel = "kubebb.component.repository"
 	RepositoryTypeLabel      = "kubebb.repository.type"
 	RepositorySourceLabel    = "kubebb.repository.source"
+	RepositoryRestartWatcher = "kubebb.repository.restart"
 
 	RatingServiceAccountEnv     = "RATING_SERVICEACCOUNT"
 	RatingClusterRoleEnv        = "RATING_CLUSTERROLE"
@@ -214,4 +216,21 @@ func ParseRepoSecret(c client.Client, instance *Repository) (username, password,
 // IsOCI determines whether the repository is to be treated as an OCI repo
 func (repo *Repository) IsOCI() bool {
 	return registry.IsOCI(repo.Spec.URL)
+}
+
+func RepoLabelChecker(o, n map[string]string, keys ...string) bool {
+	if len(keys) == 0 {
+		return !reflect.DeepEqual(o, n)
+	}
+
+	for _, key := range keys {
+		ov, ok1 := o[key]
+		nv, ok2 := n[key]
+
+		if ok2 != ok1 || (ok2 && ok1 && ov != nv) {
+			return true
+		}
+	}
+
+	return false
 }
