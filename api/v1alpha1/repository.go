@@ -45,6 +45,9 @@ const (
 	RepositoryTypeLabel      = "kubebb.repository.type"
 	RepositorySourceLabel    = "kubebb.repository.source"
 
+	// RepositoryRestartLabel change should trigger a restart of the repository
+	RepositoryRestartLabel = "kubebb.repository.restart"
+
 	RatingServiceAccountEnv     = "RATING_SERVICEACCOUNT"
 	RatingClusterRoleEnv        = "RATING_CLUSTERROLE"
 	RatingClusterRoleBindingEnv = "RATING_CLUSTERROLEBINDING"

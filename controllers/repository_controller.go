@@ -99,41 +99,68 @@ func (r *RepositoryReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return reconcile.Result{}, err
 	}
 
-	done, err := r.UpdateRepository(ctx, logger, repo)
-	if !done {
+	err := r.checkInitial(ctx, logger, repo)
+	if err != nil {
+		logger.Error(err, "Failed to check initiali settings")
 		return reconcile.Result{}, err
 	}
 
-	w, ok := r.C[key]
-	if ok {
-		logger.Info("Repository update, stop and recreate goroutine")
-		w.Stop()
-	}
-	_ctx, _cancel := context.WithCancel(ctx)
-	r.C[key] = repository.NewWatcher(_ctx, logger, r.Client, r.Scheme, repo, _cancel)
-	if err := r.C[key].Start(); err != nil {
-		r.Recorder.Event(repo, v1.EventTypeWarning, "StartFail", fmt.Sprintf("start %s fail", key))
+	if err := r.syncURL(ctx, logger, repo); err != nil {
+		logger.Error(err, "Failed to sync url history")
 		return reconcile.Result{}, err
 	}
 
-	logger.Info("Synchronized repository successfully")
+	if err := r.ensureRatingServiceAccount(ctx, repo.GetNamespace()); err != nil {
+		logger.Error(err, "Failed to ensure rating service accounts")
+		return reconcile.Result{}, err
+	}
+
+	if err := r.restart(ctx, logger, repo, key); err != nil {
+		logger.Error(err, "Failed to start repository watcher")
+		return reconcile.Result{}, err
+	}
+
+	logger.Info("Reconciled repository successfully")
+
 	return reconcile.Result{}, nil
 }
 
-func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Repository) (bool, error) {
+func (r *RepositoryReconciler) checkInitial(ctx context.Context, logger logr.Logger, instance *corev1alpha1.Repository) error {
 	instanceDeepCopy := instance.DeepCopy()
 	l := len(instanceDeepCopy.Finalizers)
+
+	var update bool
 
 	instanceDeepCopy.Finalizers = utils.AddString(instanceDeepCopy.Finalizers, corev1alpha1.Finalizer)
 	if l != len(instanceDeepCopy.Finalizers) {
 		logger.V(1).Info("Add Finalizer for repository", "Finalizer", corev1alpha1.Finalizer)
+		update = true
+	}
+
+	if instanceDeepCopy.Labels == nil {
+		instanceDeepCopy.Labels = make(map[string]string)
+	}
+
+	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
+		instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
+		update = true
+	}
+	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel]; !ok || (v != string(corev1alpha1.Official) && v != string(corev1alpha1.Unknown)) {
+		instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel] = string(corev1alpha1.Unknown)
+		update = true
+	}
+	if update {
 		err := r.Client.Update(ctx, instanceDeepCopy)
 		if err != nil {
 			logger.Error(err, "")
 		}
-		return false, err
+		return err
 	}
 
+	return nil
+}
+func (r *RepositoryReconciler) syncURL(ctx context.Context, logger logr.Logger, repo *corev1alpha1.Repository) error {
+	instanceDeepCopy := repo.DeepCopy()
 	cond := corev1alpha1.Condition{
 		Status:             v1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
@@ -143,41 +170,34 @@ func (r *RepositoryReconciler) UpdateRepository(ctx context.Context, logger logr
 	}
 
 	if changed, history := utils.AddOrSwapString(instanceDeepCopy.Status.URLHistory, instanceDeepCopy.Spec.URL); changed {
-		logger.V(1).Info("Add URL for repository", "URL", instance.Spec.URL)
+		logger.V(1).Info("Add URL for repository", "URL", repo.Spec.URL)
 		instanceDeepCopy.Status.URLHistory = history
 		instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
 			Conditions: []corev1alpha1.Condition{cond},
 		}
-		err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance))
+		err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(repo))
 		if err != nil {
 			logger.Error(err, "")
 		}
-		return false, err
-	}
-	if instanceDeepCopy.Labels == nil {
-		instanceDeepCopy.Labels = make(map[string]string)
-	}
-	changedLabels := false
-	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
-		instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
-		changedLabels = true
-	}
-	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel]; !ok || (v != string(corev1alpha1.Official) && v != string(corev1alpha1.Unknown)) {
-		instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel] = string(corev1alpha1.Unknown)
-		changedLabels = true
-	}
-	if changedLabels {
-		err := r.Client.Update(ctx, instanceDeepCopy)
-		if err != nil {
-			logger.Error(err, "")
-		}
-		return false, err
-	}
-	if err := r.EnsureRatingServiceAccount(ctx, instance.GetNamespace()); err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
+}
+
+func (r *RepositoryReconciler) restart(ctx context.Context, logger logr.Logger, repo *corev1alpha1.Repository, key string) error {
+	w, ok := r.C[key]
+	if ok {
+		logger.Info("Repository update, stop and recreate goroutine")
+		w.Stop()
+	}
+	_ctx, _cancel := context.WithCancel(ctx)
+	r.C[key] = repository.NewWatcher(_ctx, logger, r.Client, r.Scheme, repo, _cancel)
+	if err := r.C[key].Start(); err != nil {
+		r.Recorder.Event(repo, v1.EventTypeWarning, "StartFail", fmt.Sprintf("start %s fail", key))
+		return err
+	}
+	return nil
 }
 
 func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
@@ -195,14 +215,9 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 		r.Recorder.Event(newRepo, v1.EventTypeNormal, "Update", str)
 	}
 
-	return oldRepo.Spec.URL != newRepo.Spec.URL ||
-		oldRepo.Spec.AuthSecret != newRepo.Spec.AuthSecret ||
-		!corev1alpha1.IsPullStrategySame(oldRepo.Spec.PullStategy, newRepo.Spec.PullStategy) ||
-		!reflect.DeepEqual(oldRepo.Status.URLHistory, newRepo.Status.URLHistory) ||
-		len(oldRepo.Finalizers) != len(newRepo.Finalizers) ||
-		newRepo.DeletionTimestamp != nil ||
-		!reflect.DeepEqual(oldRepo.Spec.Filter, newRepo.Spec.Filter) ||
-		!reflect.DeepEqual(oldRepo.Labels, newRepo.Labels)
+	// only spec changes or lable `repository restart label` changes
+	return !reflect.DeepEqual(oldRepo.Spec, newRepo.Spec) ||
+		oldRepo.ObjectMeta.Labels[corev1alpha1.RepositoryRestartLabel] != newRepo.ObjectMeta.Labels[corev1alpha1.RepositoryRestartLabel]
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -242,7 +257,7 @@ func (r *RepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					repoList := corev1alpha1.RepositoryList{}
 					if err := r.List(context.Background(), &repoList, client.InNamespace(sa.GetNamespace())); err == nil {
 						if len(repoList.Items) > 0 {
-							_ = r.EnsureRatingServiceAccount(context.Background(), sa.GetNamespace())
+							_ = r.ensureRatingServiceAccount(context.Background(), sa.GetNamespace())
 						} else {
 							_ = corev1alpha1.RemoveSubjectFromClusterRoleBinding(context.Background(), r.Client, sa.GetNamespace())
 						}
@@ -254,7 +269,7 @@ func (r *RepositoryReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return manager.Complete(r)
 }
 
-func (r RepositoryReconciler) EnsureRatingServiceAccount(ctx context.Context, namespace string) error {
+func (r RepositoryReconciler) ensureRatingServiceAccount(ctx context.Context, namespace string) error {
 	if !corev1alpha1.RatingEnabled() {
 		return nil
 	}
