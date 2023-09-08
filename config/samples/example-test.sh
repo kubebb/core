@@ -677,4 +677,52 @@ while true; do
 	sleep 5
 done
 
+function get_last_successful_time() {
+	namespace=$1
+	repository=$2
+	kubectl get repository -n$1 $2 -o jsonpath='{.status.conditions[?(@.type=="Synced")].lastSuccessfulTime}'
+}
+
+function compare_last_successful_time() {
+	namespace=$1
+	repository=$2
+	previous_synced_time=$3
+	# timeout should be the pull interval
+	timeout=$4
+
+	START_TIME=$(date +%s)
+	while true; do
+		current_synced_time=$(get_last_successful_time $namespace $repository)
+		if [[ $current_synced_time != $previous_synced_time ]]; then
+			info "Repository $2's watcher restart successful."
+			break
+		fi
+
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $timeout ]; then
+			info "Timeout reached. Repository $2's watcher restart failed."
+			exit 1
+		fi
+		sleep 5
+	done
+}
+
+info "10 try to verify that repository restart works correctly"
+
+info "10.1 prepare a new repository repository-grafana-sample"
+kubectl apply -f config/samples/core_v1alpha1_repository_grafana.yaml
+
+info "10.2 update restart label to 1,so that trigger a watcher restart "
+previous_time=$(get_last_successful_time "kubebb-system" "repository-grafana-sample")
+kubectl patch repository repository-grafana-sample -n kubebb-system --type merge -p '{"metadata":{"labels":{"kubebb.repository.restart":"1"}}}'
+compare_last_successful_time "kubebb-system" "repository-grafana-sample" $previous_time 120
+
+sleep 3
+
+info "10.3 update restart label to 2,so that trigger another watcher restart"
+previous_time=$(get_last_successful_time "kubebb-system" "repository-grafana-sample")
+kubectl patch repository repository-grafana-sample -n kubebb-system --type merge -p '{"metadata":{"labels":{"kubebb.repository.restart":"2"}}}'
+compare_last_successful_time "kubebb-system" "repository-grafana-sample" $previous_time 120
+
 info "all finished! ✅"
