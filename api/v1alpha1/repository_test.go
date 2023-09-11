@@ -17,12 +17,18 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
 	"testing"
 
+	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 // TestNamespacedName tests Repository.NamespacedName
@@ -258,4 +264,178 @@ func TestRepository_IsOCI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRatingEnabled(t *testing.T) {
+	os.Setenv(RatingEnableEnv, "true")
+	if !RatingEnabled() {
+		t.Fatalf("Test Failed. expect true get false")
+	}
+	os.Unsetenv(RatingEnableEnv)
+	if RatingEnabled() {
+		t.Fatalf("Test Failed. expect false get true")
+	}
+}
+
+func TestGetRatingServiceAccount(t *testing.T) {
+	setSA := "serviceaccount"
+	os.Setenv(RatingServiceAccountEnv, setSA)
+	if r := GetRatingServiceAccount(); r != setSA {
+		t.Fatalf("Test Failed. expect '%s' get '%s'", setSA, r)
+	}
+	os.Unsetenv(RatingServiceAccountEnv)
+	if r := GetRatingServiceAccount(); r != DefaultRatingServiaceAccount {
+		t.Fatalf("Test Failed. expect '%s' get '%s'", DefaultRatingServiaceAccount, r)
+	}
+}
+
+func TestGetRatingClusterRole(t *testing.T) {
+	setRole := "clustrrole"
+	os.Setenv(RatingClusterRoleEnv, setRole)
+	if r := GetRatingClusterRole(); r != setRole {
+		t.Fatalf("Test Failed. expec '%s' get '%s'", setRole, r)
+	}
+	os.Unsetenv(RatingClusterRoleEnv)
+	if r := GetRatingClusterRole(); r != DefaultRatingClusterRole {
+		t.Fatalf("Test Failed. expec '%s' get '%s'", DefaultRatingClusterRole, r)
+	}
+}
+
+func TestGetRatingClusterRoleBinding(t *testing.T) {
+	setRolebinding := "clusterrolebinding"
+	os.Setenv(RatingClusterRoleBindingEnv, setRolebinding)
+	if r := GetRatingClusterRoleBinding(); r != setRolebinding {
+		t.Fatalf("Test Failed. expect '%s' get '%s'", setRolebinding, r)
+	}
+	os.Unsetenv(RatingClusterRoleBindingEnv)
+	if r := GetRatingClusterRoleBinding(); r != DefaultRatingClusterRoleBinding {
+		t.Fatalf("Test Failed. expect '%s' get '%s'", DefaultRatingClusterRoleBinding, r)
+	}
+}
+
+func TestAddSubjectToClusterRoleBinding(t *testing.T) {
+	c := fake.NewClientBuilder()
+	namespace := "default"
+	expectSubject := []v1.Subject{
+		{
+			Kind:      "ServiceAccount",
+			Name:      GetRatingServiceAccount(),
+			Namespace: namespace,
+		},
+	}
+
+	addSubjectCLB := &v1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: DefaultRatingClusterRoleBinding,
+		},
+	}
+
+	subjectCLB := &v1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default",
+		},
+		Subjects: expectSubject,
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(v1.AddToScheme(scheme))
+	c.WithObjects(addSubjectCLB, subjectCLB)
+	c.WithScheme(scheme)
+	// first test not enable
+	client := c.Build()
+	if err := AddSubjectToClusterRoleBinding(context.TODO(), client, namespace); err != nil {
+		t.Fatalf("Test Failed. rating is not enabled and no error should be returned.")
+	}
+	// set rating
+	os.Setenv(RatingEnableEnv, "true")
+	if err := AddSubjectToClusterRoleBinding(context.TODO(), client, namespace); err != nil {
+		t.Fatalf("Test Failed. rating is enabled, but serviceaccount is not set properly. with error: %v", err)
+	}
+	// checkt clusterrolebinding
+	clb := &v1.ClusterRoleBinding{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: GetRatingClusterRoleBinding()}, clb); err != nil {
+		t.Fatalf("Test Failed. after setting clusterrolebinding %s's subject, getobject erorr: %v", GetRatingClusterRoleBinding(), err)
+	}
+	if !reflect.DeepEqual(clb.Subjects, expectSubject) {
+		t.Fatalf("Test Failed. for clusterrolebinding %s, the expected subject is %v but got %v", GetRatingClusterRoleBinding(), expectSubject, clb.Subjects)
+	}
+
+	// set clusterrolebinding to default
+	os.Setenv(RatingClusterRoleBindingEnv, "default")
+	if err := AddSubjectToClusterRoleBinding(context.TODO(), client, namespace); err != nil {
+		t.Fatalf("Test Failed. rating is enabled, but serviceaccount is not set properly. with error: %v", err)
+	}
+	clb = &v1.ClusterRoleBinding{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: GetRatingClusterRoleBinding()}, clb); err != nil {
+		t.Fatalf("Test Failed. after setting clusterrolebinding %s's subject, getobject erorr: %v", GetRatingClusterRoleBinding(), err)
+	}
+	if !reflect.DeepEqual(clb.Subjects, expectSubject) {
+		t.Fatalf("Test Failed. for clusterrolebinding %s, the expected subject is %v but got %v", GetRatingClusterRoleBinding(), expectSubject, clb.Subjects)
+	}
+
+	os.Unsetenv(RatingClusterRoleBindingEnv)
+	os.Unsetenv(RatingEnableEnv)
+}
+
+func TestRemoveSubjectFromClusterRoleBinding(t *testing.T) {
+	c := fake.NewClientBuilder()
+	namespace := "default"
+
+	clb1 := &v1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: DefaultRatingClusterRoleBinding,
+		},
+	}
+
+	clb2 := &v1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default",
+		},
+		Subjects: []v1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      GetRatingServiceAccount(),
+				Namespace: namespace,
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(v1.AddToScheme(scheme))
+	c.WithObjects(clb1, clb2)
+	c.WithScheme(scheme)
+	// first test not enable
+	client := c.Build()
+	if err := RemoveSubjectFromClusterRoleBinding(context.TODO(), client, namespace); err != nil {
+		t.Fatalf("Test Failed. rating is not enabled and no error should be returned.")
+	}
+
+	os.Setenv(RatingEnableEnv, "true")
+	// remove serviceaccount from clusterrolebinding rating-clusterrolebinding
+	if err := RemoveSubjectFromClusterRoleBinding(context.TODO(), client, namespace); err != nil {
+		t.Fatalf("Test Failed. rating is enabled, but the serviceaccount is not removed normally. with error: %v", err)
+	}
+	// checkt clusterrolebinding
+	clb := &v1.ClusterRoleBinding{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: GetRatingClusterRoleBinding()}, clb); err != nil {
+		t.Fatalf("Test Failed. after setting clusterrolebinding %s's subject, getobject erorr: %v", GetRatingClusterRoleBinding(), err)
+	}
+	if len(clb.Subjects) != 0 {
+		t.Fatalf("Test Failed. for clusterrolebinding %s, the expected subject is nil but got %v", GetRatingClusterRoleBinding(), clb.Subjects)
+	}
+
+	os.Setenv(RatingClusterRoleBindingEnv, "default")
+	// remove serviceaccount from clustrrolebinding default
+	if err := RemoveSubjectFromClusterRoleBinding(context.TODO(), client, namespace); err != nil {
+		t.Fatalf("Test Failed. rating is enabled, but the serviceaccount is not removed normally. with error: %v", err)
+	}
+	clb = &v1.ClusterRoleBinding{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: GetRatingClusterRoleBinding()}, clb); err != nil {
+		t.Fatalf("Test Failed. after setting clusterrolebinding %s's subject, getobject erorr: %v", GetRatingClusterRoleBinding(), err)
+	}
+	if len(clb.Subjects) != 0 {
+		t.Fatalf("Test Failed. for clusterrolebinding %s, the expected subject is nil but got %v", GetRatingClusterRoleBinding(), clb.Subjects)
+	}
+	os.Unsetenv(RatingClusterRoleBindingEnv)
+	os.Unsetenv(RatingEnableEnv)
 }
