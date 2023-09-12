@@ -190,6 +190,10 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Component")
 			os.Exit(1)
 		}
+		if err = (&corev1alpha1.Repository{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Repository")
+			os.Exit(1)
+		}
 	}
 	if corev1alpha1.RatingEnabled() {
 		if err = (&controllers.RatingReconciler{
@@ -200,8 +204,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
-
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

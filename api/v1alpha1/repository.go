@@ -59,8 +59,8 @@ const (
 )
 
 // NamespacedName return the namespaced name of the repository in string format
-func (repo *Repository) NamespacedName() string {
-	return fmt.Sprintf("%s.%s", repo.GetNamespace(), repo.GetName())
+func (r *Repository) NamespacedName() string {
+	return fmt.Sprintf("%s.%s", r.GetNamespace(), r.GetName())
 }
 
 // IsPullStrategySame Determine whether the contents of two structures are the same
@@ -215,6 +215,6 @@ func ParseRepoSecret(c client.Client, instance *Repository) (username, password,
 }
 
 // IsOCI determines whether the repository is to be treated as an OCI repo
-func (repo *Repository) IsOCI() bool {
-	return registry.IsOCI(repo.Spec.URL)
+func (r *Repository) IsOCI() bool {
+	return registry.IsOCI(r.Spec.URL)
 }
