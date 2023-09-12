@@ -85,6 +85,26 @@ webhooks:
     resources:
     - subscriptions
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-core-kubebb-k8s-com-cn-v1alpha1-repository
+  failurePolicy: Fail
+  name: mrepository.kb.io
+  rules:
+  - apiGroups:
+    - core.kubebb.k8s.com.cn
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - repositories
+  sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration

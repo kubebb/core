@@ -20,6 +20,9 @@ resources:
   kind: Repository
   path: github.com/kubebb/core/api/v1alpha1
   version: v1alpha1
+  webhooks:
+    defaulting: true
+    webhookVersion: v1
 - api:
     crdVersion: v1
   controller: true

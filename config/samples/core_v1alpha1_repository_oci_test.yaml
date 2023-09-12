@@ -4,7 +4,7 @@ metadata:
   name: repository-oci-sample
   namespace: kubebb-system
 spec:
-  url: oci://registry-1.docker.io/abirdcfly
+  url: oci://registry-1.docker.io/Abirdcfly
   pullStategy:
     intervalSeconds: 600
     retry: 5

@@ -571,6 +571,12 @@ info "7 try to verify that the common steps are valid to oci types"
 info "7.1 create oci repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_oci_test.yaml
 waitComponentStatus "kubebb-system" "repository-oci-sample.nginx"
+oldurl="oci://registry-1.docker.io/Abirdcfly"
+newurl=$(kubectl get repo repository-oci-sample -nkubebb-system -ojson | jq -r '.spec.url')
+if [[ ${oldurl} == ${newurl} ]]; then
+	echo "invalid repository url"
+	exit 1
+fi
 oci_digest=$(kubectl -nkubebb-system get components repository-oci-sample.nginx -ojson | jq -r '.status.versions[] | select(.version == "15.1.0") | .digest')
 fixed_nginx_digest="d9459e1206a4f5a8e0d7c5da8a306ab9b1ba5d7182ae671610b5699250ea45f8"
 echo "digest: ${oci_digest}"
