@@ -195,7 +195,8 @@ func GetResourcesAndImages(ctx context.Context, logger logr.Logger, c client.Cli
 		obj := manifest
 		if len(obj.GetNamespace()) == 0 {
 			if rs, err := c.RESTMapper().RESTMapping(obj.GroupVersionKind().GroupKind()); err != nil {
-				logger.Error(err, "get RESTMapping err, just ignore", "obj", klog.KObj(obj))
+				logger.Error(err, "get RESTMapping err, just ignore and continue", "obj", klog.KObj(obj))
+				continue
 			} else {
 				if rs.Scope.Name() == meta.RESTScopeNameNamespace {
 					obj.SetNamespace(namespace)

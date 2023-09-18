@@ -81,18 +81,6 @@ type OCIWatcher struct {
 }
 
 func (c *OCIWatcher) Start() error {
-	entry, err := Start(c.ctx, c.instance, c.duration, c.repoName, c.c, c.logger)
-	if err != nil {
-		return err
-	}
-	entry.Name = c.repoName
-	entry.URL = c.instance.Spec.URL
-
-	if err := helm.RepoAdd(c.ctx, c.logger, entry, c.duration/2); err != nil {
-		c.logger.Error(err, "Failed to add repository")
-		return err
-	}
-
 	go wait.Until(c.Poll, c.duration, c.ctx.Done())
 	return nil
 }
@@ -173,7 +161,11 @@ func (c *OCIWatcher) fetchOCIComponent(ctx context.Context, getter genericcliopt
 			logger.V(1).Info(fmt.Sprintf("start handling %d/%d", i, len(repositoryURLs)), "url", pullURL)
 			entryName := utils.GetOCIEntryName(pullURL)
 			skip, exist := hasTag[entryName]
-			latest, all, err := helm.GetOCIRepoCharts(ctx, getter, cli, logger, ns, pullURL, repo, skip)
+			warpper, err := helm.NewCoreHelmWrapper(getter, ns, logger, cli, nil, repo, nil)
+			if err != nil {
+				return err
+			}
+			latest, all, err := warpper.GetOCIRepoCharts(ctx, pullURL, skip)
 			if err != nil {
 				return err
 			}

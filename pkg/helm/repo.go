@@ -84,6 +84,9 @@ func allProviders(settings *cli.EnvSettings, httpRequestTimeout time.Duration) g
 // 1. when the same repo name is added, it will overwrite
 // 2. many options we do not need now are not supported yet.
 func RepoAdd(ctx context.Context, logger logr.Logger, entry repo.Entry, httpRequestTimeout time.Duration) (err error) {
+	if registry.IsOCI(entry.URL) {
+		return
+	}
 	repoFile := settings.RepositoryConfig
 	repoCache := settings.RepositoryCache
 
@@ -134,10 +137,8 @@ func RepoAdd(ctx context.Context, logger logr.Logger, entry repo.Entry, httpRequ
 	if repoCache != "" {
 		r.CachePath = repoCache
 	}
-	if !registry.IsOCI(entry.URL) {
-		if _, err := r.DownloadIndexFile(); err != nil {
-			return errors.Wrapf(err, "looks like %q is not a valid chart repository or cannot be reached", entry.URL)
-		}
+	if _, err := r.DownloadIndexFile(); err != nil {
+		return errors.Wrapf(err, "looks like %q is not a valid chart repository or cannot be reached", entry.URL)
 	}
 
 	f.Update(&entry)

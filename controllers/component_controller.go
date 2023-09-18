@@ -22,6 +22,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"golang.org/x/sync/errgroup"
@@ -35,6 +36,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -97,7 +99,7 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return reconcile.Result{}, err
 		}
 		if err := r.UpdateValuesConfigmap(ctx, logger, instance, repo); err != nil {
-			return reconcile.Result{}, err
+			return reconcile.Result{RequeueAfter: time.Second * 3}, nil
 		}
 	}
 
@@ -183,10 +185,6 @@ func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger 
 		BearerToken: &cfg.BearerToken,
 		Namespace:   &component.Namespace,
 	}
-	h, err := helm.NewHelmWrapper(getter, component.Namespace, logger)
-	if err != nil {
-		return err
-	}
 	g := new(errgroup.Group)
 	workers, err := env.GetInt("OCI_PULL_WORKER", 5) // Increase this number will download faster, but also more likely to trigger '429 Too Many Requests' error.
 	if err != nil {
@@ -240,25 +238,37 @@ func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger 
 				}
 			}
 
-			dir, entryName, err := h.Pull(ctx, logger, r.Client, repo, pullURL, versionStr)
+			h, err := helm.NewCoreHelmWrapper(getter, component.Namespace, logger, r.Client, nil, repo, component)
 			if err != nil {
-				return err
+				logger.Error(err, "failed to NewCoreHelmWrapper")
+				return nil
+			}
+			_, dir, entryName, err := h.Pull(ctx, pullURL, versionStr)
+			if err != nil {
+				logger.Error(err, "failed to Pull")
+				return nil
 			}
 			defer os.Remove(dir)
 			b, err := os.ReadFile(dir + "/" + entryName + "/values.yaml")
 			if err != nil {
-				return err
+				logger.Error(err, "failed to read values.yaml")
+				return nil
 			}
 			cm.Data[corev1alpha1.ValuesConfigMapKey] = string(b)
-			rel, err := h.Template(ctx, logger, r.Client, component, repo, versionStr, dir+"/"+entryName)
+			rel, err := h.Template(ctx, versionStr, dir+"/"+entryName)
 			if err != nil {
-				return err
+				logger.Error(err, "failed to Template")
+				return nil
 			}
 			_, images, err := corev1alpha1.GetResourcesAndImages(ctx, logger, r.Client, rel.Manifest, component.Namespace)
 			if err != nil {
-				return err
+				logger.Error(err, "failed to GetResourcesAndImages")
+				return nil
 			}
 			cm.Data[corev1alpha1.ImagesConfigMapKey] = strings.Join(images, ",")
+			if err := controllerutil.SetOwnerReference(component, cm, r.Scheme); err != nil {
+				return err
+			}
 			if createCm {
 				return r.Client.Create(ctx, cm)
 			}
