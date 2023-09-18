@@ -95,7 +95,11 @@ func (r *WorkerPool) GetLastRelease(plan *v1alpha1.ComponentPlan) (rel *release.
 	if err != nil {
 		return nil, err
 	}
-	return GetLastRelease(getter, r.logger, plan)
+	c, err := NewCoreHelmWrapper(getter, plan.Namespace, r.logger, r.cli, plan, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetLastRelease()
 }
 
 func (r *WorkerPool) GetManifests(ctx context.Context, plan *v1alpha1.ComponentPlan, repo *v1alpha1.Repository, chartName string) (data string, err error) {
@@ -103,7 +107,11 @@ func (r *WorkerPool) GetManifests(ctx context.Context, plan *v1alpha1.ComponentP
 	if err != nil {
 		return "", err
 	}
-	return GetManifests(ctx, getter, r.cli, r.logger, plan, repo, chartName)
+	c, err := NewCoreHelmWrapper(getter, plan.Namespace, r.logger, r.cli, plan, repo, nil)
+	if err != nil {
+		return "", err
+	}
+	return c.GetManifestsByDryRun(ctx, chartName)
 }
 
 func (r *WorkerPool) InstallOrUpgrade(ctx context.Context, plan *v1alpha1.ComponentPlan, repo *v1alpha1.Repository, chartName string) (rel *release.Release, isRunning bool, err error) {
@@ -254,7 +262,13 @@ func newInstallWorker(ctx context.Context, name, chartName string, logger logr.L
 			w.isRunning = false
 		}()
 		w.status = release.StatusPendingInstall
-		w.release, w.err = InstallOrUpgrade(subCtx, getter, cli, w.logger, w.plan, w.repo, w.chartName)
+		c, err := NewCoreHelmWrapper(getter, plan.Namespace, w.logger, cli, plan, w.repo, nil)
+		if err != nil {
+			w.status = release.StatusFailed
+			w.err = err
+			return
+		}
+		w.release, w.err = c.InstallOrUpgrade(subCtx, w.chartName)
 		if w.err != nil {
 			w.status = release.StatusFailed
 		} else {
@@ -307,7 +321,13 @@ func newUnInstallWorker(ctx context.Context, name string, logger logr.Logger, pl
 			w.isRunning = false
 		}()
 		w.status = release.StatusUninstalling
-		w.err = Uninstall(subCtx, getter, w.logger, w.plan)
+		c, err := NewCoreHelmWrapper(getter, plan.Namespace, w.logger, cli, plan, nil, nil)
+		if err != nil {
+			w.status = release.StatusFailed
+			w.err = err
+			return
+		}
+		w.err = c.Uninstall(subCtx)
 		if w.err != nil {
 			w.status = release.StatusFailed
 		} else {
@@ -349,12 +369,19 @@ func newRollBackWorker(ctx context.Context, name string, logger logr.Logger, pla
 			w.isRunning = false
 		}()
 		w.status = release.StatusUninstalling
-		w.err = RollBack(subCtx, getter, w.logger, w.plan)
+		c, err := NewCoreHelmWrapper(getter, plan.Namespace, w.logger, nil, plan, nil, nil)
+		if err != nil {
+			w.status = release.StatusFailed
+			w.err = err
+			return
+		}
+
+		w.err = c.Rollback(subCtx)
 		if w.err != nil {
 			w.status = release.StatusFailed
 			return
 		}
-		rel, err := GetLastRelease(getter, w.logger, w.plan)
+		rel, err := c.GetLastRelease()
 		if rel != nil && rel.Info != nil && strings.HasPrefix(rel.Info.Description, "Rollback to ") {
 			w.release = rel
 		}

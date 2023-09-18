@@ -183,10 +183,6 @@ func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger 
 		BearerToken: &cfg.BearerToken,
 		Namespace:   &component.Namespace,
 	}
-	h, err := helm.NewHelmWrapper(getter, component.Namespace, logger)
-	if err != nil {
-		return err
-	}
 	g := new(errgroup.Group)
 	workers, err := env.GetInt("OCI_PULL_WORKER", 5) // Increase this number will download faster, but also more likely to trigger '429 Too Many Requests' error.
 	if err != nil {
@@ -240,7 +236,11 @@ func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger 
 				}
 			}
 
-			dir, entryName, err := h.Pull(ctx, logger, r.Client, repo, pullURL, versionStr)
+			h, err := helm.NewCoreHelmWrapper(getter, component.Namespace, logger, r.Client, nil, repo, component)
+			if err != nil {
+				return err
+			}
+			_, dir, entryName, err := h.Pull(ctx, pullURL, versionStr)
 			if err != nil {
 				return err
 			}
@@ -250,7 +250,7 @@ func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger 
 				return err
 			}
 			cm.Data[corev1alpha1.ValuesConfigMapKey] = string(b)
-			rel, err := h.Template(ctx, logger, r.Client, component, repo, versionStr, dir+"/"+entryName)
+			rel, err := h.Template(ctx, versionStr, dir+"/"+entryName)
 			if err != nil {
 				return err
 			}

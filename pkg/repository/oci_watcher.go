@@ -163,6 +163,7 @@ func (c *OCIWatcher) fetchOCIComponent(ctx context.Context, getter genericcliopt
 	}
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(workers)
+
 	for i, pullURL := range repositoryURLs {
 		i, pullURL := i, pullURL // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
@@ -173,7 +174,11 @@ func (c *OCIWatcher) fetchOCIComponent(ctx context.Context, getter genericcliopt
 			logger.V(1).Info(fmt.Sprintf("start handling %d/%d", i, len(repositoryURLs)), "url", pullURL)
 			entryName := utils.GetOCIEntryName(pullURL)
 			skip, exist := hasTag[entryName]
-			latest, all, err := helm.GetOCIRepoCharts(ctx, getter, cli, logger, ns, pullURL, repo, skip)
+			warpper, err := helm.NewCoreHelmWrapper(getter, ns, logger, cli, nil, repo, nil)
+			if err != nil {
+				return err
+			}
+			latest, all, err := warpper.GetOCIRepoCharts(ctx, pullURL, skip)
 			if err != nil {
 				return err
 			}
