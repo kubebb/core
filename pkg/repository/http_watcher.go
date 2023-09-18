@@ -258,6 +258,7 @@ func (c *HTTPWatcher) indexFileToComponent(indexFile *hrepo.IndexFile) []v1alpha
 				Digest:      version.Digest,
 				UpdatedAt:   metav1.Now(),
 				Deprecated:  version.Deprecated,
+				URLs:        version.URLs,
 			})
 
 			if latest {
