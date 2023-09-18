@@ -126,18 +126,43 @@ function info() {
 function waitComponentStatus() {
 	namespace=$1
 	componentName=$2
+	checkConfigMap=$3
 	START_TIME=$(date +%s)
+	infoshow=0
 	while true; do
 		versions=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} --ignore-not-found=true -ojson | jq -r '.status.versions|length')
 		if [[ $versions -ne 0 ]]; then
-			echo "component ${componentName} already have version information and can be installed"
-			break
+			if [[ infoshow -eq 0 ]]; then
+				echo "component:${componentName} already have version information and can be installed"
+				infoshow=1
+			else
+				echo -n "."
+			fi
+			if [[ $checkConfigMap == "false" ]]; then
+				break
+			fi
+			latest_version=$(kubectl -n${namespace} get components.core.kubebb.k8s.com.cn ${componentName} --ignore-not-found=true -ojson | jq -r '.status.versions[0].version')
+			if [[ $latest_version != "" ]]; then
+				if [[ $infoshow -eq 1 ]]; then
+					echo -n "component:${componentName} already have version:${latest_version}, try to get image info and values.yaml info for this version"
+					infoshow=2
+				else
+					echo -n "."
+				fi
+				images=$(kubectl -n${namespace} get cm ${componentName}-${latest_version} --ignore-not-found=true -o json | jq -r '.data.images')
+				value=$(kubectl -n${namespace} get cm ${componentName}-${latest_version} --ignore-not-found=true -o json | jq -r '.data."values.yaml"')
+				if [[ $images != "" ]] && [[ $value != "" ]]; then
+					info "component:${componentName} version:${latest_version}, has image info:${images}, and values.yaml info:${value:0:10}"
+					break
+				fi
+			fi
 		fi
 		CURRENT_TIME=$(date +%s)
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
 			error "Timeout reached"
 			kubectl -n${namespace} get components
+			kubectl -n${namespace} get cm
 			exit 1
 		fi
 		sleep 5
@@ -151,7 +176,7 @@ function waitComponentPlanDone() {
 	while true; do
 		doneConds=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.status.conditions' | jq 'map(select(.type == "Succeeded"))|map(select(.status == "True"))|length')
 		if [[ $doneConds -ne 0 ]]; then
-			echo "componentPlan ${componentPlanName} done"
+			info "componentPlan:${componentPlanName} done"
 			break
 		fi
 
@@ -173,7 +198,7 @@ function waitPodReady() {
 	while true; do
 		readStatus=$(kubectl -n${namespace} get po -l ${podLabel} --ignore-not-found=true -o json | jq -r '.items[0].status.conditions[] | select(."type"=="Ready") | .status')
 		if [[ $readStatus == "True" ]]; then
-			echo "Pod ${podLabel} ready"
+			info "Pod:${podLabel} ready"
 			kubectl -n${namespace} get po -l ${podLabel}
 			break
 		fi
@@ -197,14 +222,14 @@ function deleteComponentPlan() {
 	START_TIME=$(date +%s)
 	helmReleaseName=$(kubectl get ComponentPlan -n${namespace} ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.spec.name')
 	if [[ $helmReleaseName == "" ]]; then
-		echo "componentPlan ${componentPlanName} has no release name"
+		info "componentPlan:${componentPlanName} has no release name"
 		kubectl get ComponentPlan -n${namespace} ${componentPlanName} -oyaml
 		exit 1
 	fi
 	while true; do
 		kubectl -n${namespace} delete ComponentPlan ${componentPlanName} --wait --ignore-not-found=true
 		if [[ $? -eq 0 ]]; then
-			echo "delete componentPlan ${componentPlanName} done"
+			info "delete componentPlan:${componentPlanName} done"
 			break
 		fi
 
@@ -219,10 +244,10 @@ function deleteComponentPlan() {
 	while true; do
 		results=$(helm status -n ${namespace} ${helmReleaseName})
 		if [[ $helmReleaseShouldDelete == "true" ]] && [[ $results == "" ]]; then
-			echo "helm release should remove, and helm status also show componentplan:${componentPlanName} 's release:${helmReleaseName} removed"
+			info "helm release should remove, and helm status also show componentplan:${componentPlanName} 's release:${helmReleaseName} removed"
 			break
 		elif [[ $helmReleaseShouldDelete == "false" ]] && [[ $results != "" ]]; then
-			echo "helm release should not remove, and helm status also show componentplan:${componentPlanName} 's release:${helmReleaseName} not removed"
+			info "helm release should not remove, and helm status also show componentplan:${componentPlanName} 's release:${helmReleaseName} not removed"
 			break
 		fi
 
@@ -246,7 +271,7 @@ function getPodImage() {
 	while true; do
 		images=$(kubectl -n${namespace} get po -l ${podLabel} --ignore-not-found=true -o json | jq -r '.items[0].status.containerStatuses[].image')
 		if [[ $images =~ $want ]]; then
-			echo "$want found."
+			info "$want found."
 			break
 		fi
 
@@ -271,10 +296,10 @@ function getHelmRevision() {
 	while true; do
 		get=$(helm status -n ${namespace} ${releaseName} -o json | jq '.version')
 		if [[ $get == $wantRevision ]]; then
-			echo "${releaseName} revision:${wantRevision} found."
+			info "${releaseName} revision:${wantRevision} found."
 			break
 		fi
-		echo "${releaseName} revision:${get} found.but want:${wantRevision}"
+		info "${releaseName} revision:${get} found.but want:${wantRevision}"
 
 		CURRENT_TIME=$(date +%s)
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
@@ -295,7 +320,7 @@ function getDeployReplicas() {
 	while true; do
 		images=$(kubectl -n${namespace} get deploy ${deployName} --ignore-not-found=true -o json | jq -r '.spec.replicas')
 		if [[ $images == $want ]]; then
-			echo "replicas $want found."
+			info "replicas:$want found."
 			break
 		fi
 
@@ -318,14 +343,14 @@ function validateComponentPlanStatusLatestValue() {
 	while true; do
 		latestValue=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.status.latest')
 		if [[ $latestValue == $want ]]; then
-			echo "componentPlan ${componentPlanName} status.latest is $latestValue"
+			info "componentPlan ${componentPlanName} status.latest is $latestValue"
 			break
 		fi
 
 		CURRENT_TIME=$(date +%s)
 		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
-			echo "Timeout reached. componentPlan ${componentPlanName} status.latest is $latestValue, not $want"
+			echo "Timeout reached. componentPlan:${componentPlanName} status.latest is $latestValue, not $want"
 			kubectl -n${namespace} get ComponentPlan ${componentPlanName} -o yaml
 			exit 1
 		fi
@@ -341,7 +366,7 @@ function waitComponentPlanRetryTime() {
 	while true; do
 		anno=$(kubectl -n${namespace} get ComponentPlan ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.metadata.annotations["core.kubebb.k8s.com.cn/componentplan-retry"]')
 		if [[ $anno == $retryTimeWant ]]; then
-			echo "componentPlan ${componentPlanName} retry time match"
+			info "componentPlan:${componentPlanName} retry time match"
 			break
 		fi
 
@@ -401,12 +426,17 @@ info "2.2 deploy kubebb/core"
 docker tag kubebb/core:latest kubebb/core:example-e2e
 kind load docker-image kubebb/core:example-e2e --name=$KindName
 make deploy IMG="kubebb/core:example-e2e"
-kubectl wait deploy -n kubebb-system kubebb-controller-manager --for condition=Available=True
+kubectl wait deploy -n kubebb-system kubebb-controller-manager --for condition=Available=True --timeout=$Timeout
 
 info "3 try to verify that the common steps are valid"
+
+info "3.0 create two repositories(one oci, one http) prepare for later component configmap test"
+kubectl apply -f config/samples/core_v1alpha1_repository_oci_test.yaml
+kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
+
 info "3.1 create bitnami repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_bitnami.yaml
-waitComponentStatus "kubebb-system" "repository-bitnami-sample.nginx"
+waitComponentStatus "kubebb-system" "repository-bitnami-sample.nginx" "false"
 
 info "3.2 create nginx componentplan"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan.yaml
@@ -440,7 +470,7 @@ deleteComponentPlan "kubebb-system" "nginx-replicas-example-2" "true"
 info "4 try to verify that the repository imageOverride steps are valid"
 info "4.1 create repository-grafana-sample-image repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_grafana_image_repo_override.yaml
-waitComponentStatus "kubebb-system" "repository-grafana-sample-image.grafana"
+waitComponentStatus "kubebb-system" "repository-grafana-sample-image.grafana" "false"
 
 info "4.2 create grafana subscription"
 kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml
@@ -546,7 +576,7 @@ kubectl get cpl do-once-nginx-sample-15.0.2 '--output=jsonpath={.status.conditio
 info "6 Verify that helm repo with basic auth"
 info "6.1 Verify that helm repo add with basic auth"
 kubectl apply -f config/samples/core_v1alpha1_repository_kubebb.yaml
-waitComponentStatus "kubebb-system" "repository-kubebb.chartmuseum"
+waitComponentStatus "kubebb-system" "repository-kubebb.chartmuseum" "true"
 info "6.1.1 Plan a private repository with chartmuseum"
 kubectl apply -f config/samples/core_v1alpha1_componentplan_chartmuseum.yaml
 waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-chartmuseum"
@@ -562,7 +592,7 @@ curl --silent --retry 3 --retry-delay 5 -u admin:password --data-binary "@nginx-
 echo "\n"
 info "6.2.2 Add this private chartmuseum repository(basic auth enabled) to kubebb"
 kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
-waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx"
+waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx" "false"
 info "6.2.3 Plan a nignx with private chartmuseum(basic auth enabled) "
 kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
 waitComponentPlanDone "kubebb-system" "mynginx"
@@ -570,7 +600,7 @@ waitComponentPlanDone "kubebb-system" "mynginx"
 info "7 try to verify that the common steps are valid to oci types"
 info "7.1 create oci repository"
 kubectl apply -f config/samples/core_v1alpha1_repository_oci_test.yaml
-waitComponentStatus "kubebb-system" "repository-oci-sample.nginx"
+waitComponentStatus "kubebb-system" "repository-oci-sample.nginx" "true"
 oldurl="oci://registry-1.docker.io/Abirdcfly"
 newurl=$(kubectl get repo repository-oci-sample -nkubebb-system -ojson | jq -r '.spec.url')
 if [[ ${oldurl} == ${newurl} ]]; then
