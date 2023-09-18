@@ -23,6 +23,9 @@ const (
 	DelEventMsgTemplate    = "delete component %s"
 	UpdateEventMsgTemplate = "update component %s. %d new,  %d deleted,  %d deprecated"
 	OCIPullURLAnnotation   = Group + "/oci-pull-url"
+	ValuesConfigMapLabel   = Group + "/component-name"
+	ValuesConfigMapKey     = "values.yaml"
+	ImagesConfigMapKey     = "images"
 )
 
 // ComponentVersionDiff When the version of a component changes,
@@ -68,4 +71,8 @@ func ComponentVersionDiff(o, n Component) ([]string, []string, []string) {
 		added = append(added, n.Status.Versions[i].Version)
 	}
 	return added, deleted, deprecated
+}
+
+func GetComponentChartValuesConfigmapName(componentName, version string) string {
+	return componentName + "-" + version
 }

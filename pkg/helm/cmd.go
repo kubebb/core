@@ -151,7 +151,7 @@ func GetOCIRepoCharts(ctx context.Context, getter genericclioptions.RESTClientGe
 		if skipTags[tag] {
 			continue // It is ok for deprecated chart. Because once a chart is deprecated the expectation is the chart will see no further development. The Version will increase. All charts are immutable.
 		}
-		out, c, err := h.Pull(ctx, logger, cli, repo, pullURL, tag)
+		out, c, err := h.PullAndParse(ctx, logger, cli, repo, pullURL, tag)
 		if err != nil {
 			return nil, nil, err
 		}

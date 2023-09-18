@@ -19,13 +19,19 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
+	"github.com/kubebb/core/pkg/helm"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/env"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -83,7 +89,9 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	} else if !done {
 		return reconcile.Result{}, nil
 	}
-
+	if err := r.UpdateValuesConfigmap(ctx, logger, instance); err != nil {
+		return reconcile.Result{}, err
+	}
 	logger.Info("Synchronized component successfully")
 	return ctrl.Result{}, nil
 }
@@ -153,4 +161,71 @@ func (r *ComponentReconciler) OnComponentDel(event event.DeleteEvent) bool {
 	o := event.Object.(*corev1alpha1.Component)
 	r.Recorder.Event(o, v1.EventTypeNormal, "Delete", fmt.Sprintf(corev1alpha1.DelEventMsgTemplate, o.GetName()))
 	return true
+}
+
+func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger logr.Logger, component *corev1alpha1.Component) (err error) {
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get config for in-cluster REST client: %w", err)
+	}
+	getter := &genericclioptions.ConfigFlags{
+		APIServer:   &cfg.Host,
+		CAFile:      &cfg.CAFile,
+		BearerToken: &cfg.BearerToken,
+		Namespace:   &component.Namespace,
+	}
+	h, err := helm.NewHelmWrapper(getter, component.Namespace, logger)
+	if err != nil {
+		return err
+	}
+	g := new(errgroup.Group)
+	var repo *corev1alpha1.Repository
+	repositoryURLs, err := helm.GetOCIRepoList(ctx, repo)
+	if err != nil {
+		return err
+	}
+	if repo.IsOCI() {
+		workers, err := env.GetInt("OCI_PULL_WORKER", 5) // Increase this number will download faster, but also more likely to trigger '429 Too Many Requests' error.
+		if err != nil {
+			return err
+		}
+		g.SetLimit(workers)
+	}
+	for _, version := range component.Status.Versions {
+		versionStr := version.Version // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			cm := &v1.ConfigMap{}
+			cm.Name = corev1alpha1.GetComponentChartValuesConfigmapName(component.Name, versionStr)
+			cm.Namespace = component.Namespace
+			err := r.Client.Get(ctx, client.ObjectKeyFromObject(cm), cm)
+			if err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+			if _, exist := cm.Data[corev1alpha1.ValuesConfigMapKey]; exist {
+				return nil
+			}
+
+			dir, entryName, err := h.Pull(ctx, logger, r.Client, repo, pullURL, versionStr)
+			if err != nil {
+				return err
+			}
+			defer os.Remove(dir)
+			b, err := os.ReadFile(dir + "/" + entryName + "/values.yaml")
+			if err != nil {
+				return err
+			}
+			cm.Data[corev1alpha1.ValuesConfigMapKey] = string(b)
+			rel, err := h.Template(ctx, logger, r.Client, component, repo, version.Version, dir+"/"+entryName)
+			if err != nil {
+				return err
+			}
+			_, images, err := corev1alpha1.GetResourcesAndImages(ctx, logger, r.Client, rel.Manifest, component.Namespace)
+			if err != nil {
+				return err
+			}
+			cm.Data[corev1alpha1.ImagesConfigMapKey] = strings.Join(images, "/")
+			return r.Client.Create(ctx, cm)
+		})
+	}
+	return g.Wait()
 }

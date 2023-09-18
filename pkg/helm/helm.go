@@ -81,16 +81,32 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 	}, nil
 }
 
+func (h *HelmWrapper) PullAndParse(ctx context.Context, logger logr.Logger, cli client.Client, repo *corev1alpha1.Repository, pullURL, version string) (out string, chartRequested *chart.Chart, err error) {
+	untarDir, entryName, err := h.Pull(ctx, logger, cli, repo, pullURL, version)
+	if err != nil {
+		return "", nil, err
+	}
+	chartRequested, err = loader.Load(untarDir + "/" + entryName)
+	if err != nil {
+		logger.Error(err, "Cannot load chart")
+		return "", nil, err
+	}
+
+	out = h.buf.String()
+	h.buf.Reset()
+	return out, chartRequested, nil
+}
+
 // Pull
-// inspire by https://github.com/helm/helm/blob/main/cmd/helm/pull.go
-func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.Client, repo *corev1alpha1.Repository, pullURL, version string) (out string, chartRequested *chart.Chart, err error) {
-	entryName := utils.GetOCIEntryName(pullURL)
+// inspired by https://github.com/helm/helm/blob/main/cmd/helm/pull.go
+func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.Client, repo *corev1alpha1.Repository, pullURL, version string) (dir, entryName string, err error) {
+	entryName = utils.GetOCIEntryName(pullURL)
 	i := action.NewPullWithOpts(action.WithConfig(h.config))
 
 	if repo.Spec.AuthSecret != "" {
 		i.Username, i.Password, i.CaFile, i.CertFile, i.KeyFile, err = corev1alpha1.ParseRepoSecret(cli, repo)
 		if err != nil {
-			return "", nil, err
+			return "", "", err
 		}
 	}
 
@@ -102,25 +118,105 @@ func (h *HelmWrapper) Pull(ctx context.Context, logger logr.Logger, cli client.C
 	i.UntarDir, err = os.MkdirTemp(i.UntarDir, "kubebb-*")
 	if err != nil {
 		logger.Error(err, "Failed to create a new dir")
-		return "", nil, err
+		return "", "", err
 	}
-	defer os.RemoveAll(i.UntarDir)
+	if _, err = i.Run(pullURL); err != nil {
+		defer os.RemoveAll(i.UntarDir)
+		return "", "", err
+	}
+	return i.UntarDir, entryName, nil
+}
 
-	_, err = i.Run(pullURL)
+// template
+// inspire by https://github.com/helm/helm/blob/main/cmd/helm/install.go
+func (h *HelmWrapper) Template(ctx context.Context, logger logr.Logger, cli client.Client, component *corev1alpha1.Component, repo *corev1alpha1.Repository, version, localPath string) (rel *release.Release, err error) {
+	log := logger.WithValues("Component", klog.KObj(component))
+	if repo.IsOCI() {
+		log.Info("template OCI Component")
+	} else {
+		log.Info("template non-OCI Component")
+	}
+
+	i := action.NewInstall(h.config)
+	i.DryRun = true
+	i.ReleaseName = "release-name"
+	i.Replace = true      // skip the name check
+	i.ClientOnly = true   // do not validate
+	i.IncludeCRDs = false // we just want images info, no crd
+
+	i.CreateNamespace = false // installed in the same namespace with ComponentPlan
+	i.DisableHooks = true     // we just want images info, no crd
+	i.Replace = false         // reuse the given name is not safe in production
+	i.Devel = false           // just set `>0.0.0-0` to ComponentPlan.Spec.Version is enough
+	i.DependencyUpdate = true
+	i.DisableOpenAPIValidation = true // we just want images info, no crd
+	i.SkipCRDs = true                 // we just want images info, no crd
+	i.SubNotes = false                // we cant see notes or subnotes
+	i.Version = version
+	i.Verify = false // TODO enable these args after we can config keyring
+	i.RepoURL = ""   // We only support adding a repo and then installing it, not installing it directly via an url.
+	i.Keyring = ""   // TODO enable these args after we can config keyring
+	if repo.Spec.AuthSecret != "" {
+		i.Username, i.Password, i.CaFile, i.CertFile, i.KeyFile, err = corev1alpha1.ParseRepoSecret(cli, repo)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	i.InsecureSkipTLSverify = repo.Spec.Insecure
+	i.PassCredentialsAll = false // TODO do we need add this args to override?
+	log.V(1).Info(fmt.Sprintf("Original chart version: %q", i.Version))
+
+	chartRequested, err := loader.Load(localPath)
 	if err != nil {
-		logger.Error(err, "cannot download chart")
-		return "", nil, err
+		return nil, err
 	}
 
-	chartRequested, err = loader.Load(i.UntarDir + "/" + entryName)
+	if chartRequested.Metadata.Type != "" && chartRequested.Metadata.Type != "application" {
+		return nil, errors.Errorf("%s charts are not installable", chartRequested.Metadata.Type)
+	}
+
+	if chartRequested.Metadata.Deprecated {
+		logger.V(1).Info("This chart is deprecated")
+	}
+
+	if req := chartRequested.Metadata.Dependencies; req != nil {
+		if err := action.CheckDependencies(chartRequested, req); err != nil {
+			buf := new(strings.Builder)
+			man := &downloader.Manager{
+				Out:              buf,
+				ChartPath:        localPath,
+				Keyring:          "", // todo
+				SkipUpdate:       false,
+				Getters:          getter.All(settings),
+				RepositoryConfig: settings.RepositoryConfig,
+				RepositoryCache:  settings.RepositoryCache,
+				Debug:            settings.Debug,
+			}
+			printLog := func() {
+				for _, l := range strings.Split(buf.String(), "\n") {
+					logger.V(1).Info(l)
+				}
+			}
+			if err := man.Update(); err != nil {
+				printLog()
+				return nil, err
+			}
+			printLog()
+			// Reload the chart with the updated Chart.lock file.
+			if chartRequested, err = loader.Load(localPath); err != nil {
+				return nil, errors.Wrap(err, "failed reloading chart after repo update")
+			}
+		}
+	}
+	valueOpts := &values.Options{}
+	p := getter.All(settings)
+	vals, err := valueOpts.MergeValues(p)
 	if err != nil {
-		logger.Error(err, "Cannot load chart")
-		return "", nil, err
+		return nil, err
 	}
 
-	out = h.buf.String()
-	h.buf.Reset()
-	return out, chartRequested, nil
+	return i.RunWithContext(ctx, chartRequested, vals)
 }
 
 // install
