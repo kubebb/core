@@ -52,6 +52,7 @@ type ComponentVersion struct {
 	CreatedAt   metav1.Time       `json:"createdAt"`
 	Digest      string            `json:"digest"`
 	Deprecated  bool              `json:"deprecated"`
+	URLs        []string          `json:"urls,omitempty"`
 }
 
 // Equal compares two ComponetVersions, ignoring UpdatedAt and CreatedAt fields

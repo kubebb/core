@@ -19,13 +19,19 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/env"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	corev1alpha1 "github.com/kubebb/core/api/v1alpha1"
+	"github.com/kubebb/core/pkg/helm"
 )
 
 // ComponentReconciler reconciles a Component object
@@ -82,6 +89,16 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return reconcile.Result{}, err
 	} else if !done {
 		return reconcile.Result{}, nil
+	}
+	if name, ok := instance.Labels[corev1alpha1.ComponentRepositoryLabel]; ok {
+		repo := &corev1alpha1.Repository{}
+		if err = r.Client.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: name}, repo); err != nil {
+			logger.Error(err, "")
+			return reconcile.Result{}, err
+		}
+		if err := r.UpdateValuesConfigmap(ctx, logger, instance, repo); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	logger.Info("Synchronized component successfully")
@@ -153,4 +170,100 @@ func (r *ComponentReconciler) OnComponentDel(event event.DeleteEvent) bool {
 	o := event.Object.(*corev1alpha1.Component)
 	r.Recorder.Event(o, v1.EventTypeNormal, "Delete", fmt.Sprintf(corev1alpha1.DelEventMsgTemplate, o.GetName()))
 	return true
+}
+
+func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger logr.Logger, component *corev1alpha1.Component, repo *corev1alpha1.Repository) (err error) {
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get config for in-cluster REST client: %w", err)
+	}
+	getter := &genericclioptions.ConfigFlags{
+		APIServer:   &cfg.Host,
+		CAFile:      &cfg.CAFile,
+		BearerToken: &cfg.BearerToken,
+		Namespace:   &component.Namespace,
+	}
+	h, err := helm.NewHelmWrapper(getter, component.Namespace, logger)
+	if err != nil {
+		return err
+	}
+	g := new(errgroup.Group)
+	workers, err := env.GetInt("OCI_PULL_WORKER", 5) // Increase this number will download faster, but also more likely to trigger '429 Too Many Requests' error.
+	if err != nil {
+		workers = 5
+	}
+	g.SetLimit(workers)
+	for _, version := range component.Status.Versions {
+		versionStr := version.Version // https://golang.org/doc/faq#closures_and_goroutines
+		httpDonwloadURLs := version.URLs
+		g.Go(func() error {
+			cm := &v1.ConfigMap{}
+			cm.Name = corev1alpha1.GetComponentChartValuesConfigmapName(component.Name, versionStr)
+			cm.Namespace = component.Namespace
+			err := r.Client.Get(ctx, client.ObjectKeyFromObject(cm), cm)
+			createCm := false
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					return err
+				}
+				createCm = true
+			}
+
+			_, ok1 := cm.Data[corev1alpha1.ValuesConfigMapKey]
+			_, ok2 := cm.Data[corev1alpha1.ImagesConfigMapKey]
+			if ok1 && ok2 {
+				return nil
+			}
+
+			if cm.Data == nil {
+				cm.Data = make(map[string]string)
+			}
+			var pullURL string
+			u := strings.TrimSuffix(repo.Spec.URL, "/")
+			if repo.IsOCI() {
+				if v, ok := component.Annotations[corev1alpha1.OCIPullURLAnnotation]; ok {
+					pullURL = v
+				} else {
+					pullURL = u + "/" + component.Status.Name
+				}
+			} else {
+				if len(httpDonwloadURLs) == 0 {
+					logger.Error(fmt.Errorf("not found %s's urls", component.Status.Name), "")
+					return nil
+				}
+				if strings.HasPrefix(httpDonwloadURLs[0], "http") {
+					pullURL = httpDonwloadURLs[0]
+				} else {
+					// chartmuseum charts/weaviate-16.3.0.tgz
+					// github https://github.com/kubebb/components/releases/download/bc-apis-0.0.3/bc-apis-0.0.3.tgz
+					pullURL = u + "/" + httpDonwloadURLs[0]
+				}
+			}
+
+			dir, entryName, err := h.Pull(ctx, logger, r.Client, repo, pullURL, versionStr)
+			if err != nil {
+				return err
+			}
+			defer os.Remove(dir)
+			b, err := os.ReadFile(dir + "/" + entryName + "/values.yaml")
+			if err != nil {
+				return err
+			}
+			cm.Data[corev1alpha1.ValuesConfigMapKey] = string(b)
+			rel, err := h.Template(ctx, logger, r.Client, component, repo, versionStr, dir+"/"+entryName)
+			if err != nil {
+				return err
+			}
+			_, images, err := corev1alpha1.GetResourcesAndImages(ctx, logger, r.Client, rel.Manifest, component.Namespace)
+			if err != nil {
+				return err
+			}
+			cm.Data[corev1alpha1.ImagesConfigMapKey] = strings.Join(images, ",")
+			if createCm {
+				return r.Client.Create(ctx, cm)
+			}
+			return r.Update(ctx, cm)
+		})
+	}
+	return g.Wait()
 }

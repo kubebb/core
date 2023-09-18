@@ -56,3 +56,17 @@ func GetOCIEntryName(url string) string {
 	entryName := nameSegments[len(nameSegments)-1]
 	return entryName
 }
+
+func GetHTTPEntryName(url string) string {
+	tmp := GetOCIEntryName(url)
+	index := len(tmp) - 1
+
+	// https://github.com/kubebb/components/releases/download/bc-apis-0.0.3/bc-apis-0.0.3.tgz
+	for ; index >= 0 && tmp[index] != '-'; index-- {
+	}
+
+	if index <= 0 {
+		return ""
+	}
+	return tmp[:index]
+}
