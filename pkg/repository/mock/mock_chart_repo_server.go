@@ -17,6 +17,7 @@ limitations under the License.
 package mock
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
@@ -217,6 +218,46 @@ func NewMockChartServer(port int) *http.Server {
 		w.Header().Set("Content-Type", "text/yaml")
 		_, _ = w.Write([]byte(yaml3))
 	})
+	srv.Handler = http.DefaultServeMux
+	return srv
+}
+
+func NewMockChartServerWithBasicAuth(port int, username, password string) *http.Server {
+	srv := &http.Server{
+		Addr: fmt.Sprintf(":%d", port),
+	}
+	uu := base64.StdEncoding.EncodeToString([]byte(username))
+	pp := base64.StdEncoding.EncodeToString([]byte(password))
+	now := time.Now()
+	http.HandleFunc("/a/index.yaml", func(w http.ResponseWriter, r *http.Request) {
+		u, p, ok := r.BasicAuth()
+		if !ok || u != uu || p != pp {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("unauthorized"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/yaml")
+		diff := time.Since(now).Seconds()
+		if diff >= 120 {
+			// Simulate adding a new chart package
+			_, _ = w.Write([]byte(yaml2))
+			return
+		}
+		_, _ = w.Write([]byte(yaml1))
+	})
+	http.HandleFunc("/b/index.yaml", func(w http.ResponseWriter, r *http.Request) {
+		u, p, ok := r.BasicAuth()
+		if !ok || u != uu || p != pp {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("unaut=orized"))
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/yaml")
+		_, _ = w.Write([]byte(yaml3))
+	})
+
 	srv.Handler = http.DefaultServeMux
 	return srv
 }
