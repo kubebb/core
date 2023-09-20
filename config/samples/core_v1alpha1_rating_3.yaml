@@ -1,0 +1,31 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Rating
+metadata:
+  name: disable-rating
+  namespace: kubebb-system
+spec:
+  evaluator:
+    llm: zhipuai
+  componentName: repository-kubebb-disablerating.kubebb-core
+  pipelineParams:
+    - pipelineName: component-reliability
+      dimension: "reliability"
+      params:
+        - name: URL
+          value:
+            type: string
+            stringVal: https://github.com/kubebb/components/releases/download/kubebb-core-v0.1.10/kubebb-core-v0.1.10.tgz
+            arrayVal: []
+            objectVal: {}
+        - name: COMPONENT_NAME
+          value:
+            stringVal: kubebb-core
+            type: string
+        - name: VERSION
+          value:
+            stringVal: v0.1.10
+            type: string
+        - name: REPOSITORY_NAME
+          value:
+            stringVal: repository-kubebb-disablerating
+            type: string

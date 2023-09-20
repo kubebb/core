@@ -90,6 +90,9 @@ type RepositorySpec struct {
 
 	// KeywordLenLimit the keyword array length limit
 	KeywordLenLimit int `json:"keywordLenLimit,omitempty"`
+
+	// EnableRating enable component rating
+	EnableRating bool `json:"enableRating,omitempty"`
 }
 
 type PathOverride struct {

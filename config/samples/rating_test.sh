@@ -147,7 +147,7 @@ function waitRatingDone() {
 	namespace=$1
 	ratingName=$2
 	START_TIME=$(date +%s)
-	sleep 2 # wait for operator patch status. avoid 0=0 situations
+	sleep 2 # wait for operator patch status. avoid 0=0 situationss
 	while true; do
 		complete=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq '.status.pipelineRuns' | jq '{l:length,o:map(select(.conditions[0].type=="Succeeded" and .conditions[0].status=="True"))|length}' | jq '.l == .o')
 		if [[ $complete == "true" ]]; then
@@ -162,6 +162,30 @@ function waitRatingDone() {
 		fi
 		sleep 5
 	done
+}
+
+function waitRatingFail() {
+	namespace=$1
+	ratingName=$2
+	START_TIME=$(date +%s)
+	sleep 2 # wait for operator patch status. avoid 0=0 situations
+	while true; do
+		status=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq -r '.status.conditions[0].status')
+		type=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq -r '.status.conditions[0].type')
+		message=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq -r '.status.conditions[0].message')
+		if [[ $status == "False" && $type == "Ready" && $message == "Rating disabled in component's repository" ]]; then
+			echo "rating ${ratingName} task incompleted"
+			break
+		fi
+		CURRENT_TIME=$(date +%s)
+		ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
+			error "Timeout reached"
+			exit 1
+		fi
+		sleep 5
+	done
+
 }
 
 function waitEvaluationsDone() {
@@ -315,5 +339,14 @@ if [ -n "$LLM_API_KEY" ]; then
 	waitEvaluationsDone "kubebb-system" "two-dimension-rating" "reliability"
 	waitEvaluationsDone "kubebb-system" "two-dimension-rating" "security"
 fi
+
+info "8 verify repository with disabled rating"
+info "8.1 add kubebb repository with enableRating false"
+kubectl apply -f config/samples/core_v1alpha1_repository_kubebb_2.yaml
+waitComponentStatus "kubebb-system" "repository-kubebb-disablerating.kubebb-core"
+
+info "8.2 verify rating"
+kubectl apply -f config/samples/core_v1alpha1_rating_3.yaml
+waitRatingFail "kubebb-system" "disable-rating"
 
 info "all finished! ✅"
