@@ -217,7 +217,8 @@ func (r *RepositoryReconciler) OnRepositryUpdate(u event.UpdateEvent) bool {
 
 	// only spec changes or lable `repository restart label` changes
 	return !reflect.DeepEqual(oldRepo.Spec, newRepo.Spec) ||
-		oldRepo.ObjectMeta.Labels[corev1alpha1.RepositoryRestartLabel] != newRepo.ObjectMeta.Labels[corev1alpha1.RepositoryRestartLabel]
+		oldRepo.ObjectMeta.Labels[corev1alpha1.RepositoryRestartLabel] != newRepo.ObjectMeta.Labels[corev1alpha1.RepositoryRestartLabel] ||
+		newRepo.DeletionTimestamp != nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
