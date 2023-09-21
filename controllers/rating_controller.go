@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	arcadiav1 "github.com/kubeagi/arcadia/api/v1alpha1"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -110,6 +111,30 @@ func (r RatingReconciler) ratingChecker(ctx context.Context, instance *corev1alp
 	if err := r.Client.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.ComponentName}, &component); err != nil {
 		return false, err
 	}
+
+	repository := corev1alpha1.Repository{}
+	if err := r.Client.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: component.Status.RepositoryRef.Name}, &repository); err != nil {
+		return false, err
+	}
+	if !repository.Spec.EnableRating {
+		instanceDeepCopy := instance.DeepCopy()
+		cond := corev1alpha1.Condition{
+			Status:             v1.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             corev1alpha1.ReasonReconcileError,
+			Message:            "Rating disabled in component's repository",
+			Type:               corev1alpha1.TypeReady,
+		}
+		instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
+			Conditions: []corev1alpha1.Condition{cond},
+		}
+		if err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance)); err != nil {
+			return false, err
+		}
+
+		return false, errors.NewResourceExpired("Rating disabled in component's repository")
+	}
+
 	if v, ok := instance.Labels[corev1alpha1.RatingRepositoryLabel]; !ok || v != component.Labels[corev1alpha1.ComponentRepositoryLabel] {
 		instance.Labels[corev1alpha1.RatingRepositoryLabel] = component.Labels[corev1alpha1.ComponentRepositoryLabel]
 		updateLabel = true

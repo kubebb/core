@@ -95,6 +95,8 @@ type RatingStatus struct {
 	PipelineRuns map[string]PipelineRunStatus `json:"pipelineRuns,omitempty"`
 	// Evaluations contains the evaluator status with the `Dimension` as the key
 	Evaluations map[string]EvaluatorStatus `json:"evaluations,omitempty"`
+
+	ConditionedStatus `json:",inline"`
 }
 
 type EvaluatorStatus struct {

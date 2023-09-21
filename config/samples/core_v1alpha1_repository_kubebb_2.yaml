@@ -1,11 +1,11 @@
 apiVersion: core.kubebb.k8s.com.cn/v1alpha1
 kind: Repository
 metadata:
-  name: repository-kubebb
+  name: repository-kubebb-disablerating
   namespace: kubebb-system
 spec:
   url: https://kubebb.github.io/components
-  enableRating: true
+  enableRating: false
   pullStategy:
     intervalSeconds: 120
     retry: 5

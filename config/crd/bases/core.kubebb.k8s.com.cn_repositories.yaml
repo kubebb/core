@@ -43,6 +43,9 @@ spec:
                   set the username and password to secret, with the fields user and
                   password respectively.
                 type: string
+              enableRating:
+                description: EnableRating enable component rating
+                type: boolean
               filter:
                 items:
                   properties:
