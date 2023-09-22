@@ -158,9 +158,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controllers.ComponentReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("component-reconcile"),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("component-reconcile"),
+		ChartWork: helm.NewChartWorker(helm.WithContext(ctx), helm.WithK8sClient(mgr.GetClient())),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Component")
 		os.Exit(1)
