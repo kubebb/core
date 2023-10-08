@@ -7,3 +7,4 @@ coverage:
     patch: false
 ignore:
   - "**/zz_generated.deepcopy.go"
+  - "**/*_webhook.go"
