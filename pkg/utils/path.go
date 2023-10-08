@@ -53,7 +53,11 @@ func ParseValues(dir string, reference *apiextensionsv1.JSON) (fileName string, 
 
 func GetOCIEntryName(url string) string {
 	nameSegments := strings.Split(url, "/")
-	entryName := nameSegments[len(nameSegments)-1]
+	l := len(nameSegments)
+	if l <= 3 {
+		return ""
+	}
+	entryName := nameSegments[l-1]
 	return entryName
 }
 

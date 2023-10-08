@@ -105,3 +105,51 @@ func TestParseValues(t *testing.T) {
 		})
 	}
 }
+
+func TestGetOCIEntryName(t *testing.T) {
+	type input struct {
+		url, expectName string
+	}
+	for _, tc := range []input{
+		{
+			url:        "oci://a.com/abc/def",
+			expectName: "def",
+		},
+		{
+			url:        "oci://a.com/aa",
+			expectName: "aa",
+		},
+		{
+			url:        "oci://a.com",
+			expectName: "",
+		},
+	} {
+		if r := GetOCIEntryName(tc.url); r != tc.expectName {
+			t.Fatalf("Test Failed. expect %s, actual: %s", tc.expectName, r)
+		}
+	}
+}
+
+func TestGetHTTPEntryName(t *testing.T) {
+	type input struct {
+		url, expectName string
+	}
+	for _, tc := range []input{
+		{
+			url:        "https://github.com/kubebb/components/releases/download/bc-apis-0.0.3/bc-apis-0.0.3.tgz ",
+			expectName: "bc-apis",
+		},
+		{
+			url:        "https://github.com/kubebb/components/releases/download/bc-apis-0.0.3/bc-apis0.0.3.tgz",
+			expectName: "bc",
+		},
+		{
+			url:        "https://github.com/kubebb/components/releases/download/bc-apis-0.0.3/bcapis",
+			expectName: "",
+		},
+	} {
+		if r := GetHTTPEntryName(tc.url); r != tc.expectName {
+			t.Fatalf("Test Failed. expect %s, actual: %s", tc.expectName, r)
+		}
+	}
+}
