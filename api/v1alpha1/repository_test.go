@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -438,4 +440,98 @@ func TestRemoveSubjectFromClusterRoleBinding(t *testing.T) {
 	}
 	os.Unsetenv(RatingClusterRoleBindingEnv)
 	os.Unsetenv(RatingEnableEnv)
+}
+
+const (
+	username = "username"
+	password = "password"
+	ca       = "ca"
+	cert     = "cert"
+	key      = "key"
+)
+
+func TestParseRepoSecret(t *testing.T) {
+	builder := fake.NewClientBuilder()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "secret",
+			Namespace: "default",
+		},
+		Data: map[string][]byte{
+			Username: []byte(username),
+			Password: []byte(password),
+			CAData:   []byte(ca),
+			CertData: []byte(cert),
+			KeyData:  []byte(key),
+		},
+	}
+	repo := &Repository{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "repo",
+			Namespace: "default",
+		},
+		Spec: RepositorySpec{
+			AuthSecret: "secret",
+		},
+	}
+
+	builder.WithScheme(scheme)
+	c := builder.Build()
+	t.Logf("not found secret")
+	if _, _, _, _, _, err := ParseRepoSecret(c, repo); err == nil {
+		t.Fatalf("not found secret, should return err")
+	}
+
+	builder.WithObjects(&secret)
+	c = builder.Build()
+
+	u1, p1, ca1, cert1, key1, err := ParseRepoSecret(c, repo)
+	if err != nil {
+		t.Fatalf("Tet Failed. should not return err: %s", err)
+	}
+	defer func() {
+		if len(ca1) > 0 {
+			if index := strings.LastIndex(ca1, repo.Namespace); index != -1 {
+				baseDir := ca1[:index] + repo.Namespace
+				t.Logf("Remove Dir: %s", baseDir)
+				os.RemoveAll(baseDir)
+				return
+			}
+		}
+		if len(cert1) > 0 {
+			if index := strings.LastIndex(cert1, repo.Namespace); index != -1 {
+				baseDir := cert1[:index] + repo.Namespace
+
+				t.Logf("Remove Dir: %s", baseDir)
+				os.RemoveAll(baseDir)
+				return
+			}
+		}
+		if len(key1) > 0 {
+			if index := strings.LastIndex(key1, repo.Namespace); index != -1 {
+				baseDir := key1[:index] + repo.Namespace
+				t.Logf("Remove Dir: %s", baseDir)
+				os.RemoveAll(baseDir)
+				return
+			}
+		}
+	}()
+	if u1 != username {
+		t.Fatalf("Test Failed. expect username: %s, got %s", username, u1)
+	}
+	if p1 != password {
+		t.Fatalf("Test Failed. expect password: %s, got %s", password, p1)
+	}
+
+	if ca1data, err := os.ReadFile(ca1); err != nil || string(ca1data) != ca {
+		t.Fatalf("Test Failed. expect ca: %s, got %s", ca, ca1data)
+	}
+	if cert1data, err := os.ReadFile(cert1); err != nil || string(cert1data) != cert {
+		t.Fatalf("Test Failed. expect cert: %s, got %s", cert, cert1data)
+	}
+	if key1data, err := os.ReadFile(key1); err != nil || string(key1data) != key {
+		t.Fatalf("Test Failed. expect key: %s, got %s", key, key1data)
+	}
 }
