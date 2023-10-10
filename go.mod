@@ -33,6 +33,7 @@ require (
 	github.com/goharbor/go-client v0.26.2
 	github.com/google/go-github/v54 v54.0.1-0.20230830144129-e3cda7864bce
 	github.com/kubeagi/arcadia v0.0.0-20230830103051-8e48dde112e2
+	github.com/spf13/cobra v1.6.1
 	github.com/tektoncd/pipeline v0.40.2
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
 	golang.org/x/sync v0.2.0
@@ -191,7 +192,6 @@ require (
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
-	github.com/spf13/cobra v1.6.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
