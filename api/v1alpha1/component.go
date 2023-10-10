@@ -26,6 +26,7 @@ const (
 	ValuesConfigMapLabel   = Group + "/component-name"
 	ValuesConfigMapKey     = "values.yaml"
 	ImagesConfigMapKey     = "images"
+	READMEConfigMapKey     = "readme"
 )
 
 // ComponentVersionDiff When the version of a component changes,
