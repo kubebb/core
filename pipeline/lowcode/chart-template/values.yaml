@@ -1,0 +1,16 @@
+image: TEMPLATE_IMAGE
+imagePullPolicy: IfNotPresent
+resources:
+  limits:
+    cpu: 5000m
+    memory: 1280Mi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# ingress configurations for component
+ingress:
+  # set enable to `true` to enable ingress
+  enable: false
+  ingressClassName: portal-ingress
+  ingressDomain: 172.18.0.2.nip.io

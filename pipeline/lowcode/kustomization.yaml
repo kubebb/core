@@ -1,0 +1,8 @@
+# Adds namespace to all resources.
+namespace: yunti-system
+
+bases:
+  - ./pipeline.yaml
+  - ./task-fetch-source.yaml
+  - ./task-build-image.yaml
+  - ./task-build-chart.yaml

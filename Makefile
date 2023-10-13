@@ -264,3 +264,12 @@ catalog-push: ## Push a catalog image.
 .PHONY: verify
 verify:
 	@hack/verify-all.sh
+
+.PHONY: deploy-lowcode
+deploy-lowcode: kustomize
+	mkdir -p out && cd pipeline/lowcode && tar -zcf ../../out/template.tgz chart-template
+	kubectl create -nyunti-system --dry-run=client configmap chart-template-cm --from-file=./out/template.tgz -oyaml | kubectl apply -f -
+	$(KUSTOMIZE) build pipeline/lowcode | kubectl apply -f -	
+rerun: 
+	kubectl delete -f pipeline/lowcode/sample/publish.yaml
+	kubectl apply -f pipeline/lowcode/sample/publish.yaml
