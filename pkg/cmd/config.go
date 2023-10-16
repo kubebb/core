@@ -17,102 +17,87 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"time"
 
-	"github.com/spf13/cobra"
-	"k8s.io/client-go/rest"
+	"github.com/go-logr/logr"
+	"helm.sh/helm/v3/pkg/cli/values"
+	"helm.sh/helm/v3/pkg/repo"
+
+	"github.com/kubebb/core/pkg/helm"
 )
 
-type config struct {
-	// {"core": []string{"webhook.enalbe=true"}}
-	installers map[string][]string
-	// maybe for helm client
-	cfg *rest.Config // nolint
-	// If necessary, define other parameters here
+func init() {
+	EnsureRepo()
 }
 
-type InstallerFunc func(*config) Installer
+type Config struct {
+	Install      bool
+	Upgrade      bool
+	RegisterName string
+	Namespace    string
+	Version      string
+	NodeName     string // for ingress
+	NodeIP       string // for ingress
+	Args         values.Options
+}
+
+func NewConf(registerName string) Config {
+	return Config{
+		Install:      true,
+		Upgrade:      false,
+		RegisterName: registerName,
+		Args:         values.Options{},
+	}
+}
 
 var (
-	store map[string]InstallerFunc
+	store = map[string]InstallFunc{}
 )
 
 const (
-	CORE             = "core"
+	CORE             = "kubebb-core"
 	CLUSTERCOMPONENT = "cluster-component"
-	U4A              = "u4a"
+	U4A              = "u4a-component"
 	COMPONENTSTORE   = "component-store"
+
+	KUBEBBOFFICIALREPO = "kubebb-official-repo"
+	// TODO set as flag param
+	KUBEBBOFFICIALREPOADDRESS = "https://kubebb.github.io/components"
+	DEFAULTINSTALLREPO        = "kubebb"
 )
 
+type InstallFunc func(*Config) Installer
+
 // Enroll Only name conflicts will return an error
-func Enroll(name string, instance InstallerFunc) {
-	store[name] = instance
+func Enroll(name string, i InstallFunc) {
+	store[name] = i
 }
 
-func GetInstaller(name string) InstallerFunc {
+func GetInstaller(name string) InstallFunc {
 	return store[name]
 }
 
 type Installer interface {
 	Description() string
-	Install() error
-	Uninstall()
+	Install(context.Context) error
+	Upgrade(context.Context) error
+	Uninstall(context.Context)
 }
 
-func NewInstallCmd() *cobra.Command {
-	var (
-		installClusterComponent, installU4A, installComponentStore bool
-	)
-	cmd := &cobra.Command{
-		Use:  "install",
-		Long: "install core, cluster-component",
-		Run: func(cmd *cobra.Command, args []string) {
-			initConf := config{
-				// Must install core
-				installers: map[string][]string{
-					CORE:             {},
-					CLUSTERCOMPONENT: {},
-					U4A:              {},
-					COMPONENTSTORE:   {},
-				},
-			}
-			if installClusterComponent { // nolint
-				// if install cluster-component, we will upgrade core
-				// TODO
-			}
-			if installU4A { // nolint
-				// make sure cluster-component is set
-				// TODO
-			}
-			if installComponentStore { // nolint
-				// TODO
-			}
-
-			// get complete config
-			installTasks := []string{CORE, CLUSTERCOMPONENT, U4A, COMPONENTSTORE}
-			tasks := make([]Installer, 0)
-			for _, task := range installTasks {
-				if _, ok := initConf.installers[task]; ok {
-					if fn := GetInstaller(task); fn != nil {
-						tasks = append(tasks, fn(&initConf))
-					}
-				}
-			}
-
-			for idx, installer := range tasks {
-				fmt.Printf("Step %d: %s\n", idx+1, installer.Description())
-				if err := installer.Install(); err != nil {
-					// uninstall
-					for i := idx; i >= 0; i-- {
-						tasks[i].Uninstall()
-					}
-				}
-			}
-		},
+func EnsureRepo() {
+	entry := repo.Entry{
+		Name: KUBEBBOFFICIALREPO,
+		URL:  KUBEBBOFFICIALREPOADDRESS,
 	}
-
-	cmd.Flags().BoolVar(&installClusterComponent, "cluster-component", false, "install cluster-component?")
-	cmd.Flags().BoolVar(&installU4A, "u4a", false, "install u4a?")
-	cmd.Flags().BoolVar(&installComponentStore, "component-store", false, "install component-store?")
-	return cmd
+	logger := logr.Logger{}
+	ctx := context.Background()
+	if err := helm.RepoRemove(ctx, logger, entry.Name); err != nil && !(err.Error() == "no repositories configured" || err.Error() == "no repo named \"kubebb-official-repo\" found") {
+		fmt.Fprintf(os.Stderr, "failed to add repo %s", err)
+		return
+	}
+	fmt.Println("try to add repo")
+	_ = helm.RepoAdd(ctx, logger, entry, 5*time.Second)
 }
