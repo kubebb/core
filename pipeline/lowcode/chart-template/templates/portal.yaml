@@ -1,0 +1,7 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: Portal
+metadata:
+  name: TEMPLATE_NAMESPACE
+spec:
+  entry: /TEMPLATE_NAMESPACE-public/index.html
+  path: /TEMPLATE_NAMESPACE

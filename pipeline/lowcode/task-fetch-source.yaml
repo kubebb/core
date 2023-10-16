@@ -1,0 +1,50 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: fetch-source
+  annotations:
+    tekton.dev/categories: Minio
+    tekton.dev/tags: minio
+    tekton.dev/displayName: "fetch sourcecode"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    The fetch-source Task will fetch a object from the provided minio host and credentials into the
+    output Workspace.
+
+  workspaces:
+    - name: output
+      description: The minio fetch will be stored onto the volume backing this workspace
+
+  params:
+    - name: path
+      type: string
+      description: minio's path which wraps bucket/object along with sub-path
+    - name: scheme
+      type: string
+      description: minio server scheme (http or https)
+      default: "http"
+    - name: host
+      type: string
+      description: minio host/domain to fetch (my-minio.default.svc.cluster.local)
+      default: my-minio.default.svc.cluster.local
+    - name: accessKey
+      type: string
+      description: the accessKey used to fetch minio object
+    - name: secretKey
+      type: string
+      description: the secretKey used to fetch minio object
+    - name: minioClientImage
+      type: string
+      default: "kubebb/minio-mc:RELEASE.2023-01-28T20-29-38Z"
+      description: the image used where the fetch-source(built from https://github.com/minio/mc)
+  steps:
+    - name: fetch
+      image: $(params.minioClientImage)
+      env:
+        - name: MC_HOST_minio
+          value: $(params.scheme)://$(params.accessKey):$(params.secretKey)@$(params.host)
+        - name: WORKSPACE_OUTPUT_PATH
+          value: $(workspaces.output.path)
+      args:
+        ["cp", --recursive, minio/$(params.path)/, $(workspaces.output.path)]

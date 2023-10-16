@@ -1,0 +1,94 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-image
+  labels:
+    app.kubernetes.io/version: "0.6"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/categories: Image Build
+    tekton.dev/tags: build-image
+    tekton.dev/displayName: "Build and upload container image using Kaniko"
+    tekton.dev/platforms: "linux/amd64,linux/arm64,linux/ppc64le"
+spec:
+  description: >-
+    This Task builds a simple Dockerfile with kaniko and pushes to a registry.
+    This Task stores the image name and digest as results, allowing Tekton Chains to pick up
+    that an image was built & sign it.
+  params:
+    - name: CONTEXT
+      description: The build context used by Kaniko.
+      default: ./
+    - name: SCHEMA_PATH
+      description: The relative path fo schema json to CONTEXT
+    - name: IMAGE
+      description: Name (reference) of the image to build.
+    - name: EXTRA_ARGS
+      type: array
+      default: []
+    - name: BUILDER_IMAGE
+      description: The name of the image containing the Docker tool
+      default: "kubebb/kaniko-executor:v1.9.1"
+  workspaces:
+    - name: source
+      description: Holds the context and Dockerfile
+    - name: dockerfile
+      description: Holds the Dockerfile
+      mountPath: /kaniko/.dockerfile/
+    - name: dockerconfig
+      description: Includes a docker `config.json`
+      optional: true
+      mountPath: /kaniko/.docker
+  results:
+    - name: IMAGE_DIGEST
+      description: Digest of the image just built.
+  steps:
+    - name: extract-files-as-needed
+      image: kubebb/bash:5.1.4
+      workingDir: $(workspaces.source.path)
+      script: |
+        ls -ltrha
+        compress_files=$(find . -maxdepth 1 -type f -name "*.tar*" -o -name "*.zip")
+        if [ -z "$compress_files" ]; then
+          echo "There are no compressed files in the directory. Skip extract."
+          exit 0
+        fi
+        for file in $compress_files; do
+          filename=$(basename -- "$file")
+          extension="${filename##*.}"
+          case "$extension" in
+              "tar") tar -xf "$file";;
+              "tar.gz"|"tgz") tar -xzf "$file" ;;
+              "tar.bz2"|"tbz2") tar -xjf "$file" ;;
+              "zip") unzip -q "$file"  ;;
+              *) echo "Unknown compressed file format!" $file ;;
+          esac
+        done
+        echo "All compressed files have been extracted!"
+        ls -ltrha
+        exit 0
+    - name: prepare-schema
+      workingDir: $(workspaces.source.path)
+      image: kubebb/bash:5.1.4
+      script: |
+        set -e
+        src=$(workspaces.source.path)/$(params.CONTEXT)/$(params.SCHEMA_PATH)
+        dst=$(workspaces.source.path)/$(params.CONTEXT)/schema.json
+
+        echo "Copying $src to $dst"
+        cp $src $(workspaces.source.path)/schema.json.bak
+        cp $(workspaces.source.path)/schema.json.bak $dst
+    - name: build-and-push
+      workingDir: $(workspaces.source.path)
+      image: $(params.BUILDER_IMAGE)
+      args:
+        - $(params.EXTRA_ARGS)
+        - --dockerfile=/kaniko/.dockerfile/Dockerfile
+        - --context=$(workspaces.source.path)/$(params.CONTEXT) # The user does not need to care the workspace and the source.
+        - --destination=$(params.IMAGE)
+        - --digest-file=$(results.IMAGE_DIGEST.path)
+      # kaniko assumes it is running as root, which means this example fails on platforms
+      # that default to run containers as random uid (like OpenShift). Adding this securityContext
+      # makes it explicit thatget po it needs to run as root.
+      securityContext:
+        runAsUser: 0

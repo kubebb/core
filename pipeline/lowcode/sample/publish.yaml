@@ -1,0 +1,48 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: sample-publish
+  namespace: yunti-system
+  labels:
+    description: "A_PipelineRun_For_LowcodePublish"
+spec:
+  pipelineRef:
+    name: lowcode-publish
+  params:
+    - name: SOURCE_PATH
+      value: yunti/hello-world
+    - name: SCHEMA_PATH
+      value: schema.json
+    - name: SOURCE_MINIO_HOST
+      value: my-minio.kubebb-addons.svc.cluster.local:9000
+    - name: SOURCE_MINIO_ACCESS_KEY
+      value: "nthU72RLoo5WnkKb"
+    - name: SOURCE_MINIO_SECRET_KEY
+      value: "UvKHPGAVOMViNzedF2eiq4aeADyfDrSz"
+    - name: APP_IMAGE
+      value: kubebb/hello-world:0.0.1
+    - name: REPOSITORY_URL
+      value: "http://chartmuseum.kubebb-addons.svc.cluster.local:8080"
+    - name: REPOSITORY_USER
+      value: "admin"
+    - name: REPOSITORY_PASSWORD
+      value: "password"
+  workspaces:
+    - name: source-ws
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "" # openebs-hostpath
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 500Mi
+    - name: dockerconfig-ws
+      secret:
+        secretName: dockerconfig-secret
+    - name: dockerfile-ws
+      configmap:
+        name: dockerfile-cm
+    - name: charttemplate-ws
+      configMap:
+        name: chart-template-cm

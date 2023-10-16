@@ -1,0 +1,109 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: lowcode-publish
+  annotations:
+    tekton.dev/tags: lowcode-publish
+    tekton.dev/displayName: "LowcodePublish"
+    tekton.dev/platforms: "linux/amd64"
+spec:
+  description: >-
+    The pipeline used for publish a lowcode component
+
+  workspaces:
+    - name: source-ws
+      description: Location where source is stored.
+    - name: dockerfile-ws
+      description: Location where dockerfile is stored.=
+    - name: dockerconfig-ws
+      description: Location where docker push credentail is stored.
+    - name: charttemplate-ws
+      description: Location where component's chart templates are stored.
+
+  params:
+    - name: SOURCE_PATH
+      description: minio's soruce path which is BUCKET
+    - name: SCHEMA_PATH
+      description: relative path to `SOURCE_PATH` of the component's schema
+    - name: SOURCE_MINIO_HOST
+      description: minio host/domain to fetch (my-minio.default.svc.cluster.local)
+      # minio deployed with https://github.com/kubebb/components/tree/main/examples/minio
+      default: "my-minio.default.svc.cluster.local"
+    - name: SOURCE_MINIO_ACCESS_KEY
+      type: string
+      description: the accessKey used to fetch minio object
+    - name: SOURCE_MINIO_SECRET_KEY
+      type: string
+      description: the secretKey used to fetch minio object
+    - name: APP_IMAGE
+      description: The name of the image to build (required)
+    - name: REPOSITORY_URL
+      description: The url for the component repository
+      # chartmuseum deployed with https://github.com/kubebb/components/tree/main/examples/chartmuseum
+      default: "http://chartmuseum.kubebb-system.svc.cluster.local:8080"
+    - name: REPOSITORY_USER
+      description: The username for the component repository
+    - name: REPOSITORY_PASSWORD
+      description: The password for the component repository
+  tasks:
+    - name: fetch-source
+      retries: 3
+      taskRef:
+        name: fetch-source
+      params:
+        - name: path
+          value: $(params.SOURCE_PATH)
+        - name: host
+          value: $(params.SOURCE_MINIO_HOST)
+        - name: accessKey
+          value: $(params.SOURCE_MINIO_ACCESS_KEY)
+        - name: secretKey
+          value: $(params.SOURCE_MINIO_SECRET_KEY)
+      workspaces:
+        - name: output
+          workspace: source-ws
+    - name: build-image
+      retries: 3
+      runAfter:
+        - fetch-source
+      taskRef:
+        name: build-image
+      workspaces:
+        - name: source
+          workspace: source-ws
+        - name: dockerfile
+          workspace: dockerfile-ws
+        - name: dockerconfig
+          workspace: dockerconfig-ws
+      params:
+        - name: SCHEMA_PATH
+          value: $(params.SCHEMA_PATH)
+        - name: IMAGE
+          value: $(params.APP_IMAGE)
+        - name: EXTRA_ARGS
+          value:
+            - --skip-tls-verify
+            - --insecure
+            - --ignore-path=/product_uuid
+    - name: build-chart
+      retries: 3
+      runAfter:
+        - build-image
+      taskRef:
+        name: build-chart
+      workspaces:
+        - name: source
+          workspace: source-ws
+        - name: charttemplate
+          workspace: charttemplate-ws
+      params:
+        - name: SCHEMA_PATH
+          value: $(params.SCHEMA_PATH)
+        - name: IMAGE
+          value: $(params.APP_IMAGE)@$(tasks.build-image.results.IMAGE_DIGEST)
+        - name: REPOSITORY_URL
+          value: $(params.REPOSITORY_URL)
+        - name: REPOSITORY_USER
+          value: $(params.REPOSITORY_USER)
+        - name: REPOSITORY_PASSWORD
+          value: $(params.REPOSITORY_PASSWORD)

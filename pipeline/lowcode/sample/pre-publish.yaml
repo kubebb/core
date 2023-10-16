@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dockerconfig-secret
+  namespace: yunti-system
+data:
+  # echo -n '{"auths":{"https://index.docker.io/v1/":{"auth":"a3ViZWJiOmRja3JfcGF0X1VpMGtvajNFR0taT0JUZ2tFTzBDNmxGcS1mbw=="}}}' | base64
+  # auth的值是 echo -n "testuser:testpassword" | base64
+  config.json: eyJhdXRocyI6eyJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOnsiYXV0aCI6ImEzVmlaV0ppT21SamEzSmZjR0YwWDFWcE1HdHZhak5GUjB0YVQwSlVaMnRGVHpCRE5teEdjUzFtYnc9PSJ9fX0=
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dockerfile-cm
+  namespace: yunti-system
+data:
+  Dockerfile: |
+    FROM yuntihub/lowcode-code-generator:2.2.1 as builder
+
+    COPY ./schema.json /usr/src/app/
+
+    RUN lowcode-code-generator -i schema.json -o /usr/src/app/ -s umi 
+    RUN ni
+
+    # package files
+    RUN cp config/api.sample.ts config/api.ts && npm run build
+    # generate menu
+    RUN cd dist/*/ && /menu-generator --from=menu.json > /usr/src/app/menu.yaml
+
+    FROM yuntihub/nginx:stable
+    COPY --from=builder /usr/src/app/dist /usr/share/nginx/static
+    COPY --from=builder /usr/src/app/menu.yaml /usr/share/nginx/static/menu.yaml
+    COPY --from=builder /usr/src/app/default.conf /etc/nginx/conf.d/

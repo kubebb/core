@@ -1,0 +1,12 @@
+apiVersion: core.kubebb.k8s.com.cn/v1alpha1
+kind: ComponentPlan
+metadata:
+  name: hello-world
+  namespace: default
+spec:
+  approved: true
+  name: hello-world
+  version: 0.0.2
+  component:
+    name: chartmuseum.hello-world
+    namespace: kubebb-system

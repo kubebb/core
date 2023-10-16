@@ -1,0 +1,118 @@
+{
+    "version": "1.0.0",
+    "meta": {
+        "name": "示例组件",
+        "namespace": "hello-world",
+        "version": "0.0.1",
+        "description": "demo portal init by @yunti/lowcode-code-generator with umijs template",
+        "port": "8168",
+        "basename": "/umi-demo",
+        "git_url": "https://gitlab.dev.21vianet.com/sbg2-tenxcloud/contrib/tenx-ui/demos/umi-demo-portal.git"
+    },
+    "config": {
+        "antd": {
+            "configProvider": {
+                "theme": {
+                    "token": {
+                        "colorPrimary": "#00b96b"
+                    }
+                }
+            }
+        }
+    },
+    "componentsMap": [
+        {
+            "componentName": "Page",
+            "destructuring": true,
+            "exportName": "Page",
+            "package": "@tenx-ui/materials",
+            "version": "1.5.11-beta.3"
+        }
+    ],
+    "componentsTree": [
+        {
+            "componentName": "Page",
+            "condition": true,
+            "fileName": "Test",
+            "id": "page-dgf1j",
+            "isLocked": false,
+            "meta": {
+                "title": "test",
+                "router": "/test"
+            },
+            "children": [
+                {
+                    "componentName": "h1",
+                    "id": "node_ocljxuh74e1",
+                    "props": {
+                        "children": "Hello World!"
+                    }
+                }
+            ]
+        }
+    ],
+    "constants": {
+        "IS_PROD": {
+            "builtin": true,
+            "description": "是否为生产环境",
+            "mock": "false",
+            "type": "JSExpression",
+            "value": "process.env.NODE_ENV === 'production'"
+        },
+        "IS_QIAN_KUN": {
+            "builtin": true,
+            "description": "是否为乾坤微前端环境",
+            "mock": "true",
+            "type": "JSExpression",
+            "value": "window.__POWERED_BY_QIANKUN__"
+        },
+        "basename": {
+            "builtin": true,
+            "description": "应用路由前缀",
+            "type": "JSExpression",
+            "value": "'/umi-demo'"
+        }
+    },
+    "utils": [
+        {
+            "builtin": true,
+            "content": {
+                "componentName": "getAuthData",
+                "destructuring": true,
+                "exportName": "getAuthData",
+                "package": "@tenx-ui/auth-utils",
+                "subName": "",
+                "version": "0.0.1"
+            },
+            "description": "获取认证数据",
+            "name": "getAuthData",
+            "type": "npm"
+        },
+        {
+            "builtin": true,
+            "content": {
+                "componentName": "setAuthData",
+                "destructuring": true,
+                "exportName": "setAuthData",
+                "package": "@tenx-ui/auth-utils",
+                "version": "0.0.1"
+            },
+            "description": "设置认证数据",
+            "name": "setAuthData",
+            "type": "npm"
+        },
+        {
+            "builtin": true,
+            "content": {
+                "componentName": "removeAuthData",
+                "destructuring": true,
+                "exportName": "removeAuthData",
+                "package": "@tenx-ui/auth-utils",
+                "version": "0.0.1"
+            },
+            "description": "移除认证数据",
+            "name": "removeAuthData",
+            "type": "npm"
+        }
+    ]
+}

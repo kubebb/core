@@ -1,0 +1,99 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-chart
+  annotations:
+    tekton.dev/categories: "Helm Build"
+    tekton.dev/tags: build-chart
+    tekton.dev/displayName: "Build helm charts for component"
+    tekton.dev/platforms: "linux/amd64,linux/arm64,linux/ppc64le"
+spec:
+  description: >-
+    This Task build helm charts for component with pre-defined helm templates.
+  params:
+    - name: SCHEMA_PATH
+      description: The relative path of the component schema json to workspace source
+    - name: IMAGE
+      description: The image for this component.
+    - name: REPOSITORY_URL
+      description: The url for the component repository
+    - name: REPOSITORY_USER
+      description: The username for the component repository
+      default: "admin"
+    - name: REPOSITORY_PASSWORD
+      description: The password for the component repository
+      default: "passw0rd"
+  workspaces:
+    - name: source
+      description: Holds the content and artifiacts
+    - name: charttemplate
+      description: Holds the chart template
+
+  results:
+    - name: CHART_PACKAGE
+      description: The chart package name
+
+  steps:
+    - name: extract-menus-as-needed
+      image: $(params.IMAGE)
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env sh
+        set -e
+        echo "extract menu.yaml"
+        cp /usr/share/nginx/static/menu.yaml $(workspaces.source.path)/menu.yaml
+
+    - name: build-and-push-chart
+      image: kubebb/rating:v0.1.3
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env sh
+        set -e
+
+        echo "extract chart template"
+        tar -zxf "$(workspaces.charttemplate.path)/template.tgz"
+
+        ls -tlr
+
+        echo "copy menu.yaml to chart template"
+        cp $(workspaces.source.path)/menu.yaml $(workspaces.source.path)/chart-template/templates/menu.yaml
+
+        schema_json=$(workspaces.source.path)/$(params.SCHEMA_PATH)
+        echo "read values from $schema_json using jq"
+        meta=$(jq -r '.meta' $schema_json)
+
+        template_namespace=$(echo $meta | jq -r '.namespace')
+        template_name=$(echo $meta | jq -r '.name')
+        tempalte_version=$(echo $meta | jq -r '.version')
+        template_description=$(echo $meta | jq -r '.description')
+        template_basename=$(echo $meta | jq -r '.basename')
+        template_git_url=$(echo $meta | jq -r '.git_url')
+
+        echo "use the extracted values as needed"
+        find "$(workspaces.source.path)/chart-template" -type f -name "*.yaml" -o -name "*.yml" | while read -r file; do
+          # Replace TEMPLATE_NAMESPACE with the new value in each file
+          sed -i "s#TEMPLATE_NAMESPACE#$template_namespace#g" "$file"
+          # Replace TEMPLATE_NAME with the new value in each file
+          sed -i "s#TEMPLATE_NAME#$template_name#g" "$file"
+          # Replace TEMPLATE_DESCRIPTION with the new value in each file
+          sed -i "s#TEMPLATE_DESCRIPTION#$template_description#g" "$file"
+          # Replace TEMPLATE_BASENAME with the new value in each file
+          sed -i "s#TEMPLATE_BASENAME#$template_basename#g" "$file"
+          # Replace TEMPLATE_GIT_URL with the new value in each file
+          sed -i "s#TEMPLATE_GIT_URL#$template_git_url#g" "$file"
+          # Replace TEMPLATE_VERSION with the new value in each file
+          sed -i "s#TEMPLATE_VERSION#$tempalte_version#g" "$file"
+          # Replace TEMPLATE_IMAGE with the new value in each file
+          sed -i "s#TEMPLATE_IMAGE#$(params.IMAGE)#g" "$file"
+        done
+
+        echo "package this chart with helm"
+        helm package "$(workspaces.source.path)/chart-template"
+
+        echo "push this chart with helm registry(chartmuseum)"
+        package_name="@${template_namespace}-${tempalte_version}.tgz"
+        curl -u $(params.REPOSITORY_USER):$(params.REPOSITORY_PASSWORD) \
+          --data-binary "$package_name" \
+          $(params.REPOSITORY_URL)/api/charts
+
+        echo -n "${template_namespace}-${tempalte_version}.tgz" | tee "$(results.CHART_PACKAGE.path)"
