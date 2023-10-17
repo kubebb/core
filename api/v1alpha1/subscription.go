@@ -27,7 +27,9 @@ import (
 )
 
 const (
-	SubscriptionNameLabel = Group + "/subscription-name"
+	SubscriptionNameLabel   = Group + "/subscription-name"
+	ComponentNameLabel      = Group + "/component-name"
+	ComponentNamespaceLabel = Group + "/component-namespace"
 )
 
 // IsAuto returns true if InstallMethod is Auto, case-insensitivity.

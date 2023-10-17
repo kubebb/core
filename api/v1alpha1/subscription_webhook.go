@@ -58,6 +58,11 @@ func (r *Subscription) Default(ctx context.Context, obj runtime.Object) error {
 	if !isSuperUser(user) {
 		p.Spec.Creator = user.Username
 	}
+	if p.Labels == nil {
+		p.Labels = make(map[string]string, 1)
+	}
+	p.Labels[ComponentNameLabel] = p.Spec.ComponentRef.Name
+	p.Labels[ComponentNamespaceLabel] = p.Spec.ComponentRef.Namespace
 	log.Info("set default value done")
 	return nil
 }
