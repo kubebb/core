@@ -88,6 +88,7 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 	}); err != nil {
 		return nil, err
 	}
+	settings.SetNamespace(namespace)
 	buf := new(bytes.Buffer)
 	registryClient, err := registry.NewClient(
 		registry.ClientOptDebug(settings.Debug),
@@ -234,7 +235,7 @@ func (h *HelmWrapper) Install(ctx context.Context, logger logr.Logger, client *a
 		}
 	}
 
-	// client.Namespace = settings.Namespace()
+	client.Namespace = settings.Namespace()
 
 	// Create context and prepare the handle of SIGTERM
 	// ctx := context.Background()
