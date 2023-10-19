@@ -209,6 +209,7 @@ function waitPodReady() {
 			error "Timeout reached"
 			kubectl describe po -n${namespace} -l ${podLabel}
 			kubectl get po -n${namespace} --show-labels
+			helm list -A -a
 			exit 1
 		fi
 		sleep 5
