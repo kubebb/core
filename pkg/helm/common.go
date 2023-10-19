@@ -76,8 +76,9 @@ var settings = cli.New()
 
 // HelmWrapper is a wrapper for helm command
 type HelmWrapper struct {
-	config *action.Configuration
-	buf    *bytes.Buffer
+	config    *action.Configuration
+	buf       *bytes.Buffer
+	namespace string
 }
 
 // NewHelmWrapper returns a new helmWrapper instance
@@ -88,7 +89,7 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 	}); err != nil {
 		return nil, err
 	}
-	settings.SetNamespace(namespace)
+	// settings.SetNamespace(namespace)
 	buf := new(bytes.Buffer)
 	registryClient, err := registry.NewClient(
 		registry.ClientOptDebug(settings.Debug),
@@ -102,13 +103,15 @@ func NewHelmWrapper(getter genericclioptions.RESTClientGetter, namespace string,
 	cfg.RegistryClient = registryClient
 
 	return &HelmWrapper{
-		config: cfg,
-		buf:    buf,
+		config:    cfg,
+		buf:       buf,
+		namespace: namespace,
 	}, nil
 }
 
 func (h *HelmWrapper) GetDefaultInstallCfg() *action.Install {
 	client := action.NewInstall(h.config)
+	client.Namespace = h.namespace
 	client.CreateNamespace = false          // helm install --create-namespace
 	client.DryRun = false                   // helm install --dry-run
 	client.DisableHooks = false             // helm install --no-hooks
@@ -235,8 +238,11 @@ func (h *HelmWrapper) Install(ctx context.Context, logger logr.Logger, client *a
 		}
 	}
 
-	client.Namespace = settings.Namespace()
+	if client.Namespace == "" {
+		client.Namespace = "default"
+	}
 
+	// client.Namespace = settings.Namespace()
 	// Create context and prepare the handle of SIGTERM
 	// ctx := context.Background()
 	// ctx, cancel := context.WithCancel(ctx)
@@ -279,6 +285,7 @@ func checkIfInstallable(ch *chart.Chart) error {
 
 func (h *HelmWrapper) GetDefaultUpgradeCfg() (upgradeCfg *action.Upgrade, createNamespace bool) {
 	client := action.NewUpgrade(h.config)
+	client.Namespace = h.namespace
 	client.Install = false                  // helm upgrade --install
 	client.Devel = false                    // helm upgrade --devel
 	client.DryRun = false                   // helm upgrade --dry-run
@@ -306,7 +313,10 @@ func (h *HelmWrapper) GetDefaultUpgradeCfg() (upgradeCfg *action.Upgrade, create
 // Upgrade [RELEASE] [CHART]
 // createNamespace: helm upgrade --create-namespace
 func (h *HelmWrapper) Upgrade(ctx context.Context, logger logr.Logger, client *action.Upgrade, valueOpts *values.Options, releaseName, chart string, createNamespace bool) (rel *release.Release, out string, err error) {
-	client.Namespace = settings.Namespace()
+	if client.Namespace == "" {
+		client.Namespace = "default"
+	}
+	// client.Namespace = settings.Namespace()
 	// Fixes #7002 - Support reading values from STDIN for `upgrade` command
 	// Must load values AFTER determining if we have to call install so that values loaded from stdin are not read twice
 	if client.Install {

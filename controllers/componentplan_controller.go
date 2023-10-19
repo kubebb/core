@@ -88,6 +88,52 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	logger = logger.WithValues("Generation", plan.GetGeneration(), "ObservedGeneration", plan.Status.ObservedGeneration, "creator", plan.Spec.Creator)
 	logger.V(1).Info("Get ComponentPlan instance")
 
+	// Add a finalizer. Then, we can define some operations which should
+	// occur before the ComponentPlan to be deleted.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
+	if newAdded := controllerutil.AddFinalizer(plan, corev1alpha1.Finalizer); newAdded {
+		logger.Info("Try to add Finalizer for ComponentPlan")
+		if err = r.Update(ctx, plan); err != nil {
+			logger.Error(err, "Failed to update ComponentPlan to add finalizer, will try again later")
+			return ctrl.Result{}, err
+		}
+		logger.Info("Adding Finalizer for ComponentPlan done")
+		return ctrl.Result{}, nil
+	}
+
+	// Check if the ComponentPlan instance is marked to be deleted, which is
+	// indicated by the deletion timestamp being set.
+	isPlanMarkedToBeDeleted := plan.GetDeletionTimestamp() != nil
+	if isPlanMarkedToBeDeleted && controllerutil.ContainsFinalizer(plan, corev1alpha1.Finalizer) {
+		logger.Info("Performing Finalizer Operations for Plan before delete CR")
+		// Note: In the original Helm source code, when helm is uninstalling, there is no check to
+		// see if the current helm release is in installing or any other state, just uninstall.
+		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstallFailed) {
+			logger.Info("the last one is uninstall failed, just skip this one")
+			return ctrl.Result{}, nil
+		}
+		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstallSuccess) {
+			logger.Info("Removing Finalizer for ComponentPlan after successfully performing the operations")
+			controllerutil.RemoveFinalizer(plan, corev1alpha1.Finalizer)
+			if err = r.Update(ctx, plan); err != nil {
+				logger.Error(err, "Failed to remove finalizer for ComponentPlan")
+				return ctrl.Result{}, err
+			}
+			logger.Info("Remove ComponentPlan done")
+			return ctrl.Result{}, nil
+		}
+		doing, err := r.WorkerPool.Uninstall(ctx, plan)
+		if doing {
+			return ctrl.Result{RequeueAfter: waitSmaller}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanUninstalling())
+		}
+		if err != nil {
+			logger.Error(err, "Failed to uninstall ComponentPlan")
+			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, true, corev1alpha1.ComponentPlanUninstallFailed(err))
+		}
+		logger.Info("Uninstall ComponentPlan succeeded")
+		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanUninstallSuccess())
+	}
+
 	if plan.Spec.ComponentRef == nil || plan.Spec.ComponentRef.Namespace == "" || plan.Spec.ComponentRef.Name == "" {
 		logger.Info("Failed to get Componentplan's Component ref, stop")
 		return reconcile.Result{}, nil
@@ -129,54 +175,8 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, plan.InitCondition()...)
 	}
 
-	// Add a finalizer. Then, we can define some operations which should
-	// occur before the ComponentPlan to be deleted.
-	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
-	if newAdded := controllerutil.AddFinalizer(plan, corev1alpha1.Finalizer); newAdded {
-		logger.Info("Try to add Finalizer for ComponentPlan")
-		if err = r.Update(ctx, plan); err != nil {
-			logger.Error(err, "Failed to update ComponentPlan to add finalizer, will try again later")
-			return ctrl.Result{}, err
-		}
-		logger.Info("Adding Finalizer for ComponentPlan done")
-		return ctrl.Result{}, nil
-	}
-
 	// updateLatest try to update all componentplan's status.Latest
 	go r.updateLatest(ctx, logger, plan)
-
-	// Check if the ComponentPlan instance is marked to be deleted, which is
-	// indicated by the deletion timestamp being set.
-	isPlanMarkedToBeDeleted := plan.GetDeletionTimestamp() != nil
-	if isPlanMarkedToBeDeleted && controllerutil.ContainsFinalizer(plan, corev1alpha1.Finalizer) {
-		logger.Info("Performing Finalizer Operations for Plan before delete CR")
-		// Note: In the original Helm source code, when helm is uninstalling, there is no check to
-		// see if the current helm release is in installing or any other state, just uninstall.
-		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstallFailed) {
-			logger.Info("the last one is uninstall failed, just skip this one")
-			return ctrl.Result{}, nil
-		}
-		if plan.IsActionedReason(corev1alpha1.ComponentPlanReasonUninstallSuccess) {
-			logger.Info("Removing Finalizer for ComponentPlan after successfully performing the operations")
-			controllerutil.RemoveFinalizer(plan, corev1alpha1.Finalizer)
-			if err = r.Update(ctx, plan); err != nil {
-				logger.Error(err, "Failed to remove finalizer for ComponentPlan")
-				return ctrl.Result{}, err
-			}
-			logger.Info("Remove ComponentPlan done")
-			return ctrl.Result{}, nil
-		}
-		doing, err := r.WorkerPool.Uninstall(ctx, plan)
-		if doing {
-			return ctrl.Result{RequeueAfter: waitSmaller}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, corev1alpha1.ComponentPlanUninstalling())
-		}
-		if err != nil {
-			logger.Error(err, "Failed to uninstall ComponentPlan")
-			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, true, corev1alpha1.ComponentPlanUninstallFailed(err))
-		}
-		logger.Info("Uninstall ComponentPlan succeeded")
-		return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, true, false, corev1alpha1.ComponentPlanUninstallSuccess())
-	}
 
 	if plan.Status.GetCondition(corev1alpha1.ComponentPlanTypeSucceeded).Status == corev1.ConditionTrue {
 		switch {
@@ -184,7 +184,7 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Info("ComponentPlan.Spec is changed, need to install or upgrade ...")
 			return ctrl.Result{}, r.PatchCondition(ctx, plan, logger, revisionNoExist, false, false, plan.InitCondition()...)
 		case r.needRetry(plan):
-			logger.Info("ComponentPlan need to rollback...")
+			logger.Info("ComponentPlan need to retry...")
 		default:
 			logger.Info("ComponentPlan is unchanged and has been successful, no need to reconcile")
 			return ctrl.Result{}, nil
