@@ -239,8 +239,9 @@ func (r *ComponentPlanReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			logger.Error(err, "Failed to update ComponentPlan status.Resources")
 		}
 		logger.Info("Update ComponentPlan status.Resources")
-
-		res, err := controllerutil.CreateOrUpdate(ctx, r.Client, manifest, func() error {
+		cm := manifest.DeepCopy()
+		res, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
+			cm.Data = manifest.Data
 			return nil
 		})
 		if err != nil {
