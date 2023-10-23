@@ -17,8 +17,11 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -140,8 +143,34 @@ func (r *RepositoryReconciler) checkInitial(ctx context.Context, logger logr.Log
 	if instanceDeepCopy.Labels == nil {
 		instanceDeepCopy.Labels = make(map[string]string)
 	}
+	url := instanceDeepCopy.Spec.URL + "/api/charts"
+	data := []byte(``)
+
+	req, err := http.NewRequest("GET", url, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	if instanceDeepCopy.Spec.AuthSecret != "" {
+		secret := v1.Secret{}
+		if err := r.Client.Get(context.TODO(), types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.AuthSecret}, &secret); err != nil {
+			return err
+		}
+		username := string(secret.Data["username"])
+		password := string(secret.Data["password"])
+		req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(username+":"+password)))
+	}
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
 	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
+		if resp.StatusCode == http.StatusOK {
+			instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = "chartmuseum"
+		}
 		instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
 		update = true
 	}
