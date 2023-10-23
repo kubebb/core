@@ -27,6 +27,7 @@ import (
 	arcadiav1 "github.com/kubeagi/arcadia/api/v1alpha1"
 	"github.com/kubeagi/arcadia/pkg/llms"
 	"github.com/kubeagi/arcadia/pkg/llms/zhipuai"
+	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -242,6 +243,17 @@ func OnPromptUpdate(logger logr.Logger, c client.Client) func(event.UpdateEvent,
 		// 	}
 		// }
 
+		deepCopyRating.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
+			Conditions: []corev1alpha1.Condition{
+				{
+					Status:             v1.ConditionTrue,
+					LastTransitionTime: metav1.Now(),
+					Reason:             corev1alpha1.EvaluationSucceeded,
+					Message:            "Evaluation succeeded",
+					Type:               corev1alpha1.TypeReady,
+				},
+			},
+		}
 		deepCopyRating.Status.Evaluations[dimension] = evaluationStatus
 		err = c.Status().Patch(context.TODO(), deepCopyRating, client.MergeFrom(rating))
 		if err != nil {

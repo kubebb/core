@@ -50,6 +50,7 @@ const (
 	ReasonAvailable        ConditionReason = "Available"
 	ReasonUnavailable      ConditionReason = "Unavailable"
 	ReasonCreating         ConditionReason = "Creating"
+	ReasonCreated          ConditionReason = "Created"
 	ReasonDeleting         ConditionReason = "Deleting"
 	ReasonReconcileSuccess ConditionReason = "ReconcileSuccess"
 	ReasonReconcileError   ConditionReason = "ReconcileError"
@@ -59,6 +60,14 @@ const (
 	RatingResolvingTaskRef     ConditionReason = "ResolvingTaskRef"
 	RatingRunning              ConditionReason = "Running"
 	RatingSucceeded            ConditionReason = "Succeeded"
+	RatingDidabled             ConditionReason = "Disabled"
+
+	PipelineRunning      ConditionReason = "PipelineRunning"
+	PipelineRunFailed    ConditionReason = "PipelineRunFailed"
+	PipelineRunSucceeded ConditionReason = "PipelineRunSucceeded"
+	EvaluationRunning    ConditionReason = "EvaluationRunning"
+	EvaluationFailed     ConditionReason = "EvaluationFailed"
+	EvaluationSucceeded  ConditionReason = "EvaluationSucceeded"
 )
 
 // A Condition that may apply to a resource.

@@ -147,7 +147,7 @@ function waitRatingDone() {
 	namespace=$1
 	ratingName=$2
 	START_TIME=$(date +%s)
-	sleep 2 # wait for operator patch status. avoid 0=0 situationss
+	sleep 2 # wait for operator patch status. avoid 0=0 situations
 	while true; do
 		complete=$(kubectl -n${namespace} get rating ${ratingName} -ojson --ignore-not-found=true | jq '.status.pipelineRuns' | jq '{l:length,o:map(select(.conditions[0].type=="Succeeded" and .conditions[0].status=="True"))|length}' | jq '.l == .o')
 		if [[ $complete == "true" ]]; then

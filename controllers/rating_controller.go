@@ -82,21 +82,58 @@ func (r *RatingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		return reconcile.Result{}, err
 	}
-
-	done, err := r.ratingChecker(ctx, &instance)
-	if !done {
-		return reconcile.Result{Requeue: true}, err
+	component := corev1alpha1.Component{}
+	if err := r.Client.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.ComponentName}, &component); err != nil {
+		logger.Error(err, "unable to fetch component")
+		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if err := r.CreatePipelineRun(logger, ctx, &instance); err != nil {
-		logger.Error(err, "")
+	repository := corev1alpha1.Repository{}
+	if err := r.Client.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: component.Status.RepositoryRef.Name}, &repository); err != nil {
+		logger.Error(err, "unable to fetch repository")
+		return reconcile.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// update labels
+	requeue, err := r.updateLabels(ctx, &instance, &component)
+	if err != nil {
 		return reconcile.Result{}, err
+	}
+	if requeue {
+		return reconcile.Result{Requeue: true}, nil
+	}
+
+	// update status to false when rating is disabled
+	if !repository.Spec.EnableRating {
+		instanceDeepCopy := instance.DeepCopy()
+		if instanceDeepCopy.Status.ConditionedStatus.Conditions[0].Reason != corev1alpha1.RatingDidabled {
+			instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
+				Conditions: []corev1alpha1.Condition{
+					{
+						Status:             v1.ConditionFalse,
+						LastTransitionTime: metav1.Now(),
+						Reason:             corev1alpha1.RatingDidabled,
+						Message:            "Rating disabled in component's repository",
+						Type:               corev1alpha1.TypeReady,
+					},
+				},
+			}
+			err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(&instance))
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+	} else {
+		if err := r.CreatePipelineRun(logger, ctx, &instance); err != nil {
+			logger.Error(err, "")
+			return reconcile.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r RatingReconciler) ratingChecker(ctx context.Context, instance *corev1alpha1.Rating) (bool, error) {
+func (r RatingReconciler) updateLabels(ctx context.Context, instance *corev1alpha1.Rating, component *corev1alpha1.Component) (bool, error) {
 	if instance.Labels == nil {
 		instance.Labels = make(map[string]string)
 	}
@@ -107,44 +144,32 @@ func (r RatingReconciler) ratingChecker(ctx context.Context, instance *corev1alp
 		updateLabel = true
 	}
 
-	component := corev1alpha1.Component{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.ComponentName}, &component); err != nil {
-		return false, err
-	}
-
-	repository := corev1alpha1.Repository{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Namespace: instance.Namespace, Name: component.Status.RepositoryRef.Name}, &repository); err != nil {
-		return false, err
-	}
-	if !repository.Spec.EnableRating {
-		instanceDeepCopy := instance.DeepCopy()
-		cond := corev1alpha1.Condition{
-			Status:             v1.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             corev1alpha1.ReasonReconcileError,
-			Message:            "Rating disabled in component's repository",
-			Type:               corev1alpha1.TypeReady,
-		}
-		instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
-			Conditions: []corev1alpha1.Condition{cond},
-		}
-		if err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance)); err != nil {
-			return false, err
-		}
-
-		return false, errors.NewResourceExpired("Rating disabled in component's repository")
-	}
-
 	if v, ok := instance.Labels[corev1alpha1.RatingRepositoryLabel]; !ok || v != component.Labels[corev1alpha1.ComponentRepositoryLabel] {
 		instance.Labels[corev1alpha1.RatingRepositoryLabel] = component.Labels[corev1alpha1.ComponentRepositoryLabel]
 		updateLabel = true
 	}
-	if updateLabel {
-		return false, r.Client.Update(ctx, instance)
+
+	if !updateLabel {
+		return false, nil
 	}
 
-	// add other checker
-	return true, nil
+	if err := r.Client.Update(ctx, instance); err != nil {
+		return false, err
+	}
+	// when update labels, we should patch a initial status
+	instanceDeepCopy := instance.DeepCopy()
+	instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
+		Conditions: []corev1alpha1.Condition{
+			{
+				Status:             v1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             corev1alpha1.ReasonCreated,
+				Message:            "Rating is created.",
+				Type:               corev1alpha1.TypeReady,
+			},
+		},
+	}
+	return true, r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance))
 }
 
 func (r *RatingReconciler) CreatePipelineRun(logger logr.Logger, ctx context.Context, instance *corev1alpha1.Rating) error {
@@ -216,6 +241,17 @@ func (r *RatingReconciler) CreatePipelineRun(logger logr.Logger, ctx context.Con
 
 	instanceDeepCopy := instance.DeepCopy()
 	instanceDeepCopy.Status.PipelineRuns = pipelineRunStatus
+	instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
+		Conditions: []corev1alpha1.Condition{
+			{
+				Status:             v1.ConditionFalse,
+				LastTransitionTime: metav1.Now(),
+				Reason:             corev1alpha1.PipelineRunning,
+				Message:            "Rating enabled in component's repository",
+				Type:               corev1alpha1.TypeReady,
+			},
+		},
+	}
 	if err := r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance)); err != nil {
 		return err
 	}
