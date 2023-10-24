@@ -474,7 +474,9 @@ kubectl apply -f config/samples/core_v1alpha1_repository_grafana_image_repo_over
 waitComponentStatus "kubebb-system" "repository-grafana-sample-image.grafana" "false"
 
 info "4.2 create grafana subscription"
-kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml
+kubectl apply -f config/samples/core_v1alpha1_grafana_subscription.yaml --dry-run=client -o json | jq '.spec.componentPlanInstallMethod="manual"' | kubectl apply -f -
+sleep 10
+kubectl patch subscription -n kubebb-system grafana-sample --type='json' -p='[{"op": "replace", "path": "/spec/componentPlanInstallMethod", "value": "auto"}]'
 getPodImage "kubebb-system" "app.kubernetes.io/instance=grafana-sample,app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana"
 getHelmRevision "kubebb-system" "grafana-sample" "1"
 kubectl delete -f config/samples/core_v1alpha1_grafana_subscription.yaml

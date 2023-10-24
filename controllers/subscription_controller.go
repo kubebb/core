@@ -33,6 +33,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -134,11 +135,18 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileSuccess(corev1alpha1.SubscriptionTypeReady).WithMessage(msg))
 	}
 	logger.V(1).Info("get component latest fetch version")
+	plan := &corev1alpha1.ComponentPlan{}
+	var latestPlanApproved *bool
 	if plans := sub.Status.Installed; len(plans) > 0 {
-		latestVersionInstalled = plans[0].InstalledVersion
+		latestPlan := plans[0]
+		latestVersionInstalled = latestPlan.InstalledVersion
+		if err = r.Get(ctx, types.NamespacedName{Namespace: latestPlan.ComponentPlanRef.Namespace, Name: latestPlan.ComponentPlanRef.Name}, plan); err == nil {
+			latestPlanApproved = &plan.Spec.Approved
+		}
 	}
 	logger.V(1).Info("get component latest installed version")
-	if latestVersionFetch.Equal(&latestVersionInstalled) {
+	// If component's the latest version is the same as installed and sub's approved is same with the latest plan, skip
+	if latestVersionFetch.Equal(&latestVersionInstalled) && (latestPlanApproved != nil && sub.Spec.ComponentPlanInstallMethod.IsAuto() == *latestPlanApproved) {
 		msg := "component latest version is the same as installed, skip"
 		logger.Info(msg)
 		return ctrl.Result{}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileSuccess(corev1alpha1.SubscriptionTypeReady).WithMessage(msg))
@@ -178,16 +186,22 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			}
 		}
 	}
-	// create componentplan
+	// create or update componentplan
 	componentPlanName := corev1alpha1.GenerateComponentPlanName(sub, latestVersionFetch.Version)
-	if err = r.CreateComponentPlan(ctx, sub, latestVersionFetch); err != nil {
-		logger.Error(err, "Failed to create component plan")
-		r.Recorder.Eventf(sub, corev1.EventTypeWarning, "Fail", "failed to create componentPlan %s with error: %s", componentPlanName, err)
+	if err = r.CreateOrUpdateComponentPlan(ctx, sub, latestVersionFetch); err != nil {
+		logger.Error(err, "Failed to create or update component plan")
+		r.Recorder.Eventf(sub, corev1.EventTypeWarning, "Fail", "failed to create or update componentPlan %s with error: %s", componentPlanName, err)
 		return ctrl.Result{Requeue: true, RequeueAfter: 3 * time.Second}, r.PatchCondition(ctx, sub, corev1alpha1.SubscriptionReconcileError(corev1alpha1.SubscriptionTypePlanSynce, err))
 	}
-	r.Recorder.Eventf(sub, corev1.EventTypeNormal, "Success", "componentPlan %s create successfully", componentPlanName)
+	r.Recorder.Eventf(sub, corev1.EventTypeNormal, "Success", "componentPlan %s create or update successfully", componentPlanName)
 	logger.V(1).Info("create component plan")
 
+	if len(sub.Status.Installed) > 0 {
+		latest := sub.Status.Installed[0]
+		if latest.InstalledVersion.Version == latestVersionFetch.Version {
+			return ctrl.Result{}, nil
+		}
+	}
 	// update status.Installed
 	if err = r.UpdateStatusInstalled(ctx, logger, sub, latestVersionFetch); err != nil {
 		logger.Error(err, "Failed to update subscription status installed")
@@ -295,23 +309,22 @@ func (r *SubscriptionReconciler) UpdateStatusRepositoryHealth(ctx context.Contex
 	return nil
 }
 
-// CreateComponentPlan create component plan if not exists or update component plan if exists
-func (r *SubscriptionReconciler) CreateComponentPlan(ctx context.Context, sub *corev1alpha1.Subscription, fetch corev1alpha1.ComponentVersion) error {
+// CreateOrUpdateComponentPlan create component plan if not exists or update component plan if exists
+func (r *SubscriptionReconciler) CreateOrUpdateComponentPlan(ctx context.Context, sub *corev1alpha1.Subscription, fetch corev1alpha1.ComponentVersion) (err error) {
 	plan := &corev1alpha1.ComponentPlan{}
-	metav1.SetMetaDataLabel(&plan.ObjectMeta, corev1alpha1.SubscriptionNameLabel, sub.Name)
 	plan.Name = corev1alpha1.GenerateComponentPlanName(sub, fetch.Version)
 	plan.Namespace = sub.Namespace
-	if err := r.Get(ctx, types.NamespacedName{Namespace: plan.Namespace, Name: plan.Name}, plan); err == nil {
-		// already exists
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, plan, func() error {
+		metav1.SetMetaDataLabel(&plan.ObjectMeta, corev1alpha1.SubscriptionNameLabel, sub.Name)
+		plan.Spec.Config = sub.Spec.Config
+		plan.Spec.ComponentRef = sub.Spec.ComponentRef
+		plan.Spec.InstallVersion = fetch.Version
+		if sub.Spec.ComponentPlanInstallMethod.IsAuto() {
+			plan.Spec.Approved = true
+		}
 		return nil
-	}
-	plan.Spec.Config = sub.Spec.Config
-	plan.Spec.ComponentRef = sub.Spec.ComponentRef
-	plan.Spec.InstallVersion = fetch.Version
-	if sub.Spec.ComponentPlanInstallMethod.IsAuto() {
-		plan.Spec.Approved = true
-	}
-	return r.Create(ctx, plan)
+	})
+	return err
 }
 
 // UpdateStatusInstalled update subscription status installed
