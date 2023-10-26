@@ -141,10 +141,12 @@ func (r *RepositoryReconciler) checkInitial(ctx context.Context, logger logr.Log
 		instanceDeepCopy.Labels = make(map[string]string)
 	}
 
-	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel]; !ok || v != instanceDeepCopy.Spec.RepositoryType {
-		instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = instanceDeepCopy.Spec.RepositoryType
+	currentType := string(instanceDeepCopy.GetRepoType(r.Client))
+	if v := instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel]; v != currentType {
+		instanceDeepCopy.Labels[corev1alpha1.RepositoryTypeLabel] = currentType
 		update = true
 	}
+
 	if v, ok := instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel]; !ok || (v != string(corev1alpha1.Official) && v != string(corev1alpha1.Unknown)) {
 		instanceDeepCopy.Labels[corev1alpha1.RepositorySourceLabel] = string(corev1alpha1.Unknown)
 		update = true
