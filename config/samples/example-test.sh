@@ -596,6 +596,11 @@ echo "\n"
 info "6.2.2 Add this private chartmuseum repository(basic auth enabled) to kubebb"
 kubectl apply -f config/samples/core_v1alpha1_repository_chartmuseum.yaml
 waitComponentStatus "kubebb-system" "repository-chartmuseum.nginx" "false"
+repoType=$(kubectl get repo repository-chartmuseum -nkubebb-system -ojson | jq -r '.metadata.labels."kubebb.repository.type"')
+if [[ ${repoType} != "chartmuseum" ]]; then
+	echo "get repotype failed"
+	exit 1
+fi
 info "6.2.3 Plan a nignx with private chartmuseum(basic auth enabled) "
 kubectl apply -f config/samples/core_v1alpha1_componentplan_mynginx.yaml
 waitComponentPlanDone "kubebb-system" "mynginx"

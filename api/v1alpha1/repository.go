@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,6 +33,14 @@ import (
 	"k8s.io/utils/env"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+)
+
+type RepositoryType string
+
+const (
+	RepositoryTypeOCI         RepositoryType = "oci"
+	RepositoryTypeChartmuseum RepositoryType = "chartmuseum"
+	RepositoryUnknown         RepositoryType = "unknown"
 )
 
 const (
@@ -217,4 +226,39 @@ func ParseRepoSecret(c client.Client, instance *Repository) (username, password,
 // IsOCI determines whether the repository is to be treated as an OCI repo
 func (r *Repository) IsOCI() bool {
 	return registry.IsOCI(r.Spec.URL)
+}
+
+func (r *Repository) GetRepoType(c client.Client) RepositoryType {
+	if r.IsOCI() {
+		return RepositoryTypeOCI
+	}
+	if r.IsChartmuseum(c) {
+		return RepositoryTypeChartmuseum
+	}
+	return RepositoryUnknown
+}
+
+// IsChartmuseum determines whether the repository is to be treated as a chartmuseum
+func (r *Repository) IsChartmuseum(c client.Client) bool {
+	// reference apis: https://github.com/helm/chartmuseum#chart-manipulation
+	req, err := http.NewRequest("POST", r.Spec.URL+"/api/charts", nil)
+	if err != nil {
+		return false
+	}
+
+	// set auth info if needed
+	if r.Spec.AuthSecret != "" {
+		username, password, _, _, _, _ := ParseRepoSecret(c, r)
+		req.SetBasicAuth(username, password)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil || resp == nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// when api exists and authorized, it is `chartmuseum` which can be used to push charts
+	return resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusUnauthorized
 }
