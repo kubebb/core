@@ -18,7 +18,14 @@ spec:
     singular: componentplan
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.name
+      name: cpl-name
+      type: string
+    - jsonPath: .spec.component.name
+      name: cp-name
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: ComponentPlan is the Schema for the componentplans API

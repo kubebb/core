@@ -85,6 +85,8 @@ type Resource struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Namespaced,shortName=cpl;cpls
+//+kubebuilder:printcolumn:name="cpl-name",type=string,JSONPath=`.spec.name`
+//+kubebuilder:printcolumn:name="cp-name",type=string,JSONPath=`.spec.component.name`
 
 // ComponentPlan is the Schema for the componentplans API
 type ComponentPlan struct {
