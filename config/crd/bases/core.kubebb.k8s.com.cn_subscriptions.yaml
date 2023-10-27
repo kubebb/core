@@ -18,7 +18,14 @@ spec:
     singular: subscription
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.name
+      name: sub-name
+      type: string
+    - jsonPath: .spec.component.name
+      name: cp-name
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Subscription is the Schema for the subscriptions API
