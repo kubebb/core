@@ -221,7 +221,7 @@ function deleteComponentPlan() {
 	componentPlanName=$2
 	helmReleaseShouldDelete=$3
 	START_TIME=$(date +%s)
-	helmReleaseName=$(kubectl get ComponentPlan -n${namespace} ${componentPlanName} --ignore-not-found=true -ojson | jq -r '.spec.name')
+	helmReleaseName=$(kubectl get ComponentPlan -n${namespace} ${componentPlanName%% *} --ignore-not-found=true -ojson | jq -r '.spec.name')
 	if [[ $helmReleaseName == "" ]]; then
 		info "componentPlan:${componentPlanName} has no release name"
 		kubectl get ComponentPlan -n${namespace} ${componentPlanName} -oyaml
@@ -257,7 +257,7 @@ function deleteComponentPlan() {
 		if [ $ELAPSED_TIME -gt $TimeoutSeconds ]; then
 			error "Timeout reached"
 			helm list -A -a
-			helm status -n ${namespace} ${componentPlanName}
+			helm status -n ${namespace} ${helmReleaseName}
 			exit 1
 		fi
 		sleep 30
@@ -428,6 +428,7 @@ docker tag kubebb/core:latest kubebb/core:example-e2e
 kind load docker-image kubebb/core:example-e2e --name=$KindName
 make deploy IMG="kubebb/core:example-e2e"
 kubectl wait deploy -n kubebb-system kubebb-controller-manager --for condition=Available=True --timeout=$Timeout
+sleep 10
 
 info "3 try to verify that the common steps are valid"
 
@@ -479,6 +480,8 @@ sleep 10
 kubectl patch subscription -n kubebb-system grafana-sample --type='json' -p='[{"op": "replace", "path": "/spec/componentPlanInstallMethod", "value": "auto"}]'
 getPodImage "kubebb-system" "app.kubernetes.io/instance=grafana-sample,app.kubernetes.io/name=grafana" "192.168.1.1:5000/grafana-local/grafana"
 getHelmRevision "kubebb-system" "grafana-sample" "1"
+cplName=$(kubectl get cpl -n kubebb-system --no-headers=true | awk '{print $1}')
+deleteComponentPlan "kubebb-system" $cplName "true"
 kubectl delete -f config/samples/core_v1alpha1_grafana_subscription.yaml
 
 info "5 try to verify that common use of componentPlan are valid"
@@ -510,8 +513,19 @@ waitPodReady "kubebb-system" "app.kubernetes.io/instance=my-nginx,app.kubernetes
 getHelmRevision "kubebb-system" "my-nginx" "4"
 validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.1.0" "false"
 validateComponentPlanStatusLatestValue "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
-deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0" "false"
-deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
+rand=$(awk 'BEGIN{srand(); print rand()}')
+if [ $(echo "$rand < 0.33" | bc) -eq 1 ]; then
+	info "remove older cpl first"
+	deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
+	deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0" "true"
+elif [ $(echo "$rand < 0.66" | bc) -eq 1 ]; then
+	info "remove newer cpl first"
+	deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0" "false"
+	deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.0.2" "true"
+else
+	info "remove these cpl both"
+	deleteComponentPlan "kubebb-system" "do-once-nginx-sample-15.1.0 do-once-nginx-sample-15.0.2" "true"
+fi
 
 info "5.5 Verify long running componentPlan install don not block others to install"
 kubectl apply -f config/samples/core_v1alpha1_nginx_componentplan_long_ready.yaml

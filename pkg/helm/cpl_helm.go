@@ -86,6 +86,13 @@ func (c *CoreHelmWrapper) InstallOrUpgrade(ctx context.Context, chartName string
 
 // Uninstall installs a helm chart to the cluster
 func (c *CoreHelmWrapper) Uninstall(ctx context.Context) (err error) {
+	defer func() {
+		if err != nil {
+			if strings.HasPrefix(err.Error(), "uninstallation completed with 1 error(s): uninstall: Failed to purge the release: release: not found") { //nolint:dupword
+				err = nil
+			}
+		}
+	}()
 	rel, err := c.GetLastRelease()
 	if err != nil {
 		return err
