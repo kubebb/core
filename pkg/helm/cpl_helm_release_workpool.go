@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -236,6 +237,15 @@ func (w *baseWorker) GetResult() (rel *release.Release, isRuuing bool, err error
 	return w.release, w.isRunning, w.err
 }
 
+func (w *baseWorker) logKV() []interface{} {
+	res := []interface{}{"workername", w.name}
+	if w.plan != nil {
+		res = append(res, "planUID", string(w.plan.UID))
+		res = append(res, "planGeneration", strconv.FormatInt(w.plan.Generation, 10))
+	}
+	return res
+}
+
 type installWorker struct {
 	baseWorker
 }
@@ -254,11 +264,11 @@ func newInstallWorker(ctx context.Context, name, chartName string, logger logr.L
 	subCtx, cancel := context.WithCancel(ctx)
 	w.cancel = cancel
 	go func() {
-		w.logger.V(1).Info("start install worker", "workername", w.name)
+		w.logger.V(1).Info("start install worker", w.logKV()...)
 		w.startTime = metav1.Now()
 		defer func() {
 			cost := time.Since(w.startTime.Time)
-			w.logger.V(1).Info(fmt.Sprintf("stop install worker, cost %s", cost), "workername", w.name)
+			w.logger.V(1).Info(fmt.Sprintf("stop install worker, cost %s", cost), w.logKV()...)
 			w.isRunning = false
 		}()
 		w.status = release.StatusPendingInstall
@@ -314,10 +324,10 @@ func newUnInstallWorker(ctx context.Context, name string, logger logr.Logger, pl
 	subCtx, cancel := context.WithCancel(ctx)
 	w.cancel = cancel
 	go func() {
-		w.logger.V(1).Info("start uninstall worker", "workername", w.name)
+		w.logger.V(1).Info("start uninstall worker", w.logKV()...)
 		startTime := metav1.Now()
 		defer func() {
-			w.logger.V(1).Info(fmt.Sprintf("stop uninstall worker, cost %s", time.Since(startTime.Time)), "workername", w.name)
+			w.logger.V(1).Info(fmt.Sprintf("stop uninstall worker, cost %s", time.Since(startTime.Time)), w.logKV()...)
 			w.isRunning = false
 		}()
 		w.status = release.StatusUninstalling
@@ -362,10 +372,10 @@ func newRollBackWorker(ctx context.Context, name string, logger logr.Logger, pla
 	subCtx, cancel := context.WithCancel(ctx)
 	w.cancel = cancel
 	go func() {
-		w.logger.V(1).Info("start rollback worker", "workername", w.name)
+		w.logger.V(1).Info("start rollback worker", w.logKV()...)
 		startTime := metav1.Now()
 		defer func() {
-			w.logger.V(1).Info(fmt.Sprintf("stop rollback worker, cost %s", time.Since(startTime.Time)), "workername", w.name)
+			w.logger.V(1).Info(fmt.Sprintf("stop rollback worker, cost %s", time.Since(startTime.Time)), w.logKV()...)
 			w.isRunning = false
 		}()
 		w.status = release.StatusUninstalling
