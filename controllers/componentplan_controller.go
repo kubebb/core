@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -482,12 +483,30 @@ func (r *ComponentPlanReconciler) updateLatest(ctx context.Context, logger logr.
 		logger.Error(err, "Failed to get last release")
 		return
 	}
+	relVersion := -1
+	var parseDescription bool
+	var relNs, relName, relUID string
 	if rel == nil {
-		logger.Info("no release found, just skip update latest")
-		return
+		logger.Info("no release found")
+	} else {
+		relVersion = rel.Version
+		if rel.Info != nil && rel.Info.Status == release.StatusDeployed && !strings.HasPrefix(rel.Info.Description, "Rollback ") {
+			// descrpiton match, the chart is exactly installed by this componentplan
+			relNs, relName, relUID, _, _ = helm.ParseDescription(rel.Info.Description)
+			parseDescription = true
+		}
 	}
 	for _, cur := range list.Items {
-		if latestShouldBe := cur.Status.InstalledRevision == rel.Version; cur.Status.Latest == nil || *cur.Status.Latest != latestShouldBe {
+		var latestShouldBe bool
+		if relVersion == cur.Status.InstalledRevision {
+			latestShouldBe = true
+		}
+		if parseDescription {
+			if relNs != cur.GetNamespace() || relName != cur.GetName() || relUID != string(cur.GetUID()) {
+				latestShouldBe = false
+			}
+		}
+		if cur.Status.Latest == nil || *cur.Status.Latest != latestShouldBe {
 			newCur := cur.DeepCopy()
 			newCur.Status.Latest = pointer.Bool(latestShouldBe)
 			if err := r.Status().Patch(ctx, newCur, client.MergeFrom(&cur)); err != nil {

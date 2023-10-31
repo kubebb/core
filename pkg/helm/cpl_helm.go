@@ -93,18 +93,27 @@ func (c *CoreHelmWrapper) Uninstall(ctx context.Context) (err error) {
 	if rel == nil {
 		return nil
 	}
-	// version match, the chart is exactly installed by this componentplan
-	if rel.Version == c.cpl.Status.InstalledRevision {
-		return c.uninstall(ctx)
+	var parseDescription bool
+	var relNs, relName, relUID string
+	if rel.Info != nil && rel.Info.Status == release.StatusDeployed && !strings.HasPrefix(rel.Info.Description, "Rollback ") {
+		// descrpiton match, the chart is exactly installed by this componentplan
+		relNs, relName, relUID, _, _ = ParseDescription(rel.Info.Description)
+		parseDescription = true
 	}
-	// descrpiton match, the chart is exactly installed by this componentplan
-	if ns, name, uid, _, _ := ParseDescription(rel.Info.Description); ns == c.cpl.Namespace && name == c.cpl.Name && uid == string(c.cpl.GetUID()) {
-		return c.uninstall(ctx)
-	}
-	// when installing/upgrading/rollingback, description will be setted by helm, so we compare helm release version and component status
-	if c.cpl.Status.InstalledRevision+1 == rel.Version {
-		if c.cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonInstalling) || c.cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonUpgrading) || c.cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonRollingBack) {
+	if parseDescription {
+		if c.cpl.Namespace == relNs || c.cpl.Name == relName || string(c.cpl.GetUID()) == relUID {
 			return c.uninstall(ctx)
+		}
+	} else {
+		// version match, the chart is exactly installed by this componentplan
+		if rel.Version == c.cpl.Status.InstalledRevision {
+			return c.uninstall(ctx)
+		}
+		// when installing/upgrading/rollingback, description will be setted by helm, so we compare helm release version and component status
+		if c.cpl.Status.InstalledRevision+1 == rel.Version {
+			if c.cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonInstalling) || c.cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonUpgrading) || c.cpl.IsActionedReason(corev1alpha1.ComponentPlanReasonRollingBack) {
+				return c.uninstall(ctx)
+			}
 		}
 	}
 	return nil
