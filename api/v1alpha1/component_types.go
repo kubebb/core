@@ -35,7 +35,7 @@ type ComponentStatus struct {
 	// DisplayName of the component that comes from the helm chart's latest annotation
 	DisplayName string `json:"displayName,omitempty"`
 	// versions contains all version of one component.
-	Versions []ComponentVersion `json:"versions"`
+	Versions []ComponentVersion `json:"versions,omitempty"`
 	// FIXME: some fields(like description) may change when version update, how to deal with it?
 	// A one-sentence description of the chart
 	Description string `json:"description,omitempty"`

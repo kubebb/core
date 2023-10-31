@@ -318,6 +318,7 @@ func (c *HTTPWatcher) diff(indexFile *hrepo.IndexFile) ([3][]v1alpha1.Component,
 		if !ok {
 			c.logger.Info("should mark component as deleted", "Component.Name", key)
 			component.Status.Deprecated = true
+			component.Status.Versions = nil
 			delComponent = append(delComponent, component)
 			continue
 		}

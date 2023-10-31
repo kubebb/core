@@ -210,16 +210,16 @@ func (c *chartWorker) do(cd ChartDef) error {
 		c.logger.Error(err, "failed to template")
 	}
 
+	if err := controllerutil.SetOwnerReference(cd.Component, &cm, cd.Scheme); err != nil {
+		c.logger.Error(err, "")
+		return err
+	}
+
 	if needCreate {
 		err = c.options.client.Create(c.options.ctx, &cm)
 		if err != nil {
 			c.logger.Error(err, "")
 		}
-		return err
-	}
-
-	if err := controllerutil.SetOwnerReference(cd.Component, &cm, cd.Scheme); err != nil {
-		c.logger.Error(err, "")
 		return err
 	}
 
