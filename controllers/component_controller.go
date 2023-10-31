@@ -21,15 +21,18 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,6 +83,10 @@ func (r *ComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	if !instance.DeletionTimestamp.IsZero() {
 		// The object is being deleted.
 		logger.Info("Component is being deleted")
+		return reconcile.Result{}, nil
+	}
+
+	if instance.Status.Deprecated {
 		return reconcile.Result{}, nil
 	}
 
@@ -153,21 +160,25 @@ func (r *ComponentReconciler) OnComponentUpdate(event event.UpdateEvent) bool {
 	newObj := event.ObjectNew.(*corev1alpha1.Component)
 	added, deleted, deprecated := corev1alpha1.ComponentVersionDiff(*oldObj, *newObj)
 	if len(added) > 0 || len(deleted) > 0 || len(deprecated) > 0 {
-		r.Recorder.Event(newObj, v1.EventTypeNormal, "Update",
+		r.Recorder.Event(newObj, corev1.EventTypeNormal, "Update",
 			fmt.Sprintf(corev1alpha1.UpdateEventMsgTemplate, newObj.GetName(), len(added), len(deleted), len(deprecated)))
+	}
+	if len(deleted) > 0 {
+		logger, _ := logr.FromContext(context.Background())
+		go r.DeleteComponentConfigMaps(context.TODO(), newObj.Name, newObj.Namespace, deleted, logger)
 	}
 	return oldObj.ResourceVersion != newObj.ResourceVersion || !reflect.DeepEqual(oldObj.Status, newObj.Status)
 }
 
 func (r *ComponentReconciler) OnComponentCreate(event event.CreateEvent) bool {
 	o := event.Object.(*corev1alpha1.Component)
-	r.Recorder.Event(o, v1.EventTypeNormal, "Create", fmt.Sprintf(corev1alpha1.AddEventMsgTemplate, o.GetName()))
+	r.Recorder.Event(o, corev1.EventTypeNormal, "Create", fmt.Sprintf(corev1alpha1.AddEventMsgTemplate, o.GetName()))
 	return true
 }
 
 func (r *ComponentReconciler) OnComponentDel(event event.DeleteEvent) bool {
 	o := event.Object.(*corev1alpha1.Component)
-	r.Recorder.Event(o, v1.EventTypeNormal, "Delete", fmt.Sprintf(corev1alpha1.DelEventMsgTemplate, o.GetName()))
+	r.Recorder.Event(o, corev1.EventTypeNormal, "Delete", fmt.Sprintf(corev1alpha1.DelEventMsgTemplate, o.GetName()))
 	return true
 }
 
@@ -229,4 +240,44 @@ func (r *ComponentReconciler) UpdateValuesConfigmap(ctx context.Context, logger 
 		}(version.Version, version.URLs)
 	}
 	return nil
+}
+
+func (r *ComponentReconciler) DeleteComponentConfigMaps(ctx context.Context, name, namespace string, versions []string, logger logr.Logger) bool {
+	logger.Info(fmt.Sprintf("delete component %s/%s deleted versions..", namespace, name))
+
+	limit := make(chan struct{}, 5)
+	needReconcile := false
+	lock := make(chan struct{}, 1)
+	var wg sync.WaitGroup
+	for _, version := range versions {
+		wg.Add(1)
+		go func(versionStr string) {
+			defer wg.Done()
+			limit <- struct{}{}
+			defer func() { <-limit }()
+			cmName := corev1alpha1.GetComponentChartValuesConfigmapName(name, versionStr)
+			logger.Info(fmt.Sprintf("start to delete cm %s for component %s...", cmName, name))
+
+			cm := &corev1.ConfigMap{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      cmName,
+					Namespace: namespace,
+				},
+			}
+			if err := retry.OnError(retry.DefaultBackoff, func(err error) bool {
+				return !errors.IsNotFound(err)
+			}, func() error {
+				return r.Client.Delete(ctx, cm)
+			}); err != nil {
+				logger.Error(err, fmt.Sprintf("delete cm %s for component %s failed.", cmName, name))
+				lock <- struct{}{}
+				needReconcile = true
+				<-lock
+			}
+		}(version)
+	}
+	wg.Wait()
+	logger.Info(fmt.Sprintf("delete component %s/%s deleted versions done!!", namespace, name))
+
+	return needReconcile
 }

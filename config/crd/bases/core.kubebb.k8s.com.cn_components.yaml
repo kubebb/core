@@ -180,7 +180,6 @@ spec:
             required:
             - name
             - repository
-            - versions
             type: object
         type: object
     served: true
