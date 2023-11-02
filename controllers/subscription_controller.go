@@ -88,7 +88,17 @@ func (r *SubscriptionReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return reconcile.Result{}, utils.IgnoreNotFound(err)
 	}
 	logger.V(1).Info("Get Subscription instance")
-
+	if sub.Labels[corev1alpha1.ComponentPlanReleaseNameLabel] != sub.Spec.Name {
+		if sub.GetLabels() == nil {
+			sub.Labels = make(map[string]string)
+		}
+		sub.Labels[corev1alpha1.ComponentPlanReleaseNameLabel] = sub.Spec.Name
+		err = r.Update(ctx, sub)
+		if err != nil {
+			logger.Error(err, "Failed to update Subscription release label")
+		}
+		return ctrl.Result{Requeue: true}, err
+	}
 	// Get watched component
 	component := &corev1alpha1.Component{}
 	err = r.Get(ctx, types.NamespacedName{Namespace: sub.Spec.ComponentRef.Namespace, Name: sub.Spec.ComponentRef.Name}, component)
