@@ -57,8 +57,6 @@ func (c *Component) Default(ctx context.Context, obj runtime.Object) error {
 		log.Error(err, "get ReqUser error")
 		return err
 	}
-	if !isSuperUser(user) {
-		p.Spec.Creator = user.Username
-	}
+	p.Spec.Creator = user.Username
 	return nil
 }
