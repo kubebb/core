@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	arcadiav1 "github.com/kubeagi/arcadia/api/v1alpha1"
+	arcadiav1 "github.com/kubeagi/arcadia/api/base/v1alpha1"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -173,7 +173,7 @@ func (r RatingReconciler) updateLabels(ctx context.Context, instance *corev1alph
 }
 
 func (r *RatingReconciler) CreatePipelineRun(logger logr.Logger, ctx context.Context, instance *corev1alpha1.Rating) error {
-	if err := r.DeletePipeline(ctx, instance); err != nil {
+	if err := r.DeletePipelineRun(ctx, instance); err != nil {
 		return err
 	}
 	component := instance.Labels[corev1alpha1.RatingComponentLabel]
@@ -270,7 +270,7 @@ func (r *RatingReconciler) CreatePipelineRun(logger logr.Logger, ctx context.Con
 }
 
 // Before creating pipelinerun, we shoulde delete all the existing pipelineruns.
-func (r *RatingReconciler) DeletePipeline(ctx context.Context, instance *corev1alpha1.Rating) error {
+func (r *RatingReconciler) DeletePipelineRun(ctx context.Context, instance *corev1alpha1.Rating) error {
 	for _, pipelineDef := range instance.Spec.PipelineParams {
 		name := pipelineDef.PipelineName
 		pipelineRun := v1beta1.PipelineRun{

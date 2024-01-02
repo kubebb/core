@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	arcadiav1 "github.com/kubeagi/arcadia/api/v1alpha1"
+	arcadiav1 "github.com/kubeagi/arcadia/api/base/v1alpha1"
 	"github.com/kubeagi/arcadia/pkg/llms"
 	"github.com/kubeagi/arcadia/pkg/llms/zhipuai"
 	v1 "k8s.io/api/core/v1"
@@ -169,7 +169,7 @@ func (evaluator *Evaluator) EvaluateWithData(ctx context.Context, data *Data, op
 	switch evaluator.llm.Spec.Type {
 	case llms.ZhiPuAI:
 		params := zhipuai.DefaultModelParams()
-		params.Model = zhipuai.ZhiPuAILite
+		params.Model = llms.ZhiPuAILite
 		params.Prompt = []zhipuai.Prompt{
 			{Role: zhipuai.User, Content: output.String()},
 		}

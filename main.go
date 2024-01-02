@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"time"
 
-	arcadiav1 "github.com/kubeagi/arcadia/api/v1alpha1"
+	arcadiav1 "github.com/kubeagi/arcadia/api/base/v1alpha1"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
