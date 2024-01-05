@@ -238,12 +238,26 @@ function checkCm() {
 info "1. create kind cluster"
 make kind
 
+nodename="kubebb-core-control-plane"
+nodeip=$(kubectl get node ${nodename} -owide | grep -v "INTERNAL-IP" | awk '{print $6}')
+echo "ingress node ${nodename}, nodeip ${nodeip}"
+
 info "2 install pre-requisites"
 info "2.1 install tekton operator"
 helm repo add kubebb https://kubebb.github.io/components
 helm repo update kubebb
 kubectl create ns tekton
 helm -ntekton install tekton kubebb/tekton-operator --version 0.64.0 --wait
+
+info "2.2 install cluster-component"
+helm pull --untar kubebb/cluster-component
+
+sed -e "s/<replaced-ingress-node-name>/${nodename}/g" cluster-component/values.yaml >tmp.yaml
+kubectl create ns u4a-system
+helm -nu4a-system install cluster-component cluster-component -f tmp.yaml \
+	--set ingress-nginx.nodeSelector.kubernetes\.io/hostname="${nodename}" --set cert-manager.enabled=false --wait
+
+info "2.3 install cert-manager"
 # install certmanager
 helm repo add --force-update jetstack https://charts.jetstack.io
 helm repo update jetstack
@@ -252,10 +266,23 @@ helm install cert-manager jetstack/cert-manager --namespace cert-manager --creat
 	--set prometheus.enabled=false \
 	--set installCRDs=true
 
-info "2.2 install kubeagi arcadia operator"
+info "2.4 install kubeagi arcadia operator"
 helm repo add kubeagi https://kubeagi.github.io/arcadia
 helm repo update kubeagi
-helm install arcadia kubeagi/arcadia --namespace arcadia --create-namespace --wait --set installCRDs=true
+helm pull --untar kubeagi/arcadia
+
+sed -e "s/<replaced-ingress-nginx-ip>/${nodeip}/g" arcadia/values.yaml >tmp.yaml
+helm install arcadia arcadia --namespace arcadia --create-namespace \
+	--set portal.kubebbEnabled=false \
+	--set portal.enabled=false \
+	--set minio.ingress.enabled=false \
+	--set minio.persistence.enabled=false \
+	--set apiserver.oidc.enabled=false \
+	--set apiserver.ingress.enabled=false \
+	--set dataprocess.enabled=false \
+	--set chromadb.chromadb.dataVolumeStorageClass=standard \
+	--set postgresql.global.storageClass=standard \
+	--wait -f tmp.yaml
 
 info "3. deploy kubebb/core"
 docker tag kubebb/core:latest kubebb/core:example-e2e
