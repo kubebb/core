@@ -160,7 +160,11 @@ func (evaluator *Evaluator) EvaluateWithData(ctx context.Context, data *Data, op
 			},
 		},
 		Spec: arcadiav1.PromptSpec{
-			LLM: evaluator.llm.Name,
+			LLM: &arcadiav1.TypedObjectReference{
+				Kind:      "LLM",
+				Name:      evaluator.llm.Name,
+				Namespace: &evaluator.llm.Namespace,
+			},
 		},
 	}
 	_ = controllerutil.SetOwnerReference(data.Owner, prompt, evaluator.scheme)

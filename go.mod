@@ -1,6 +1,8 @@
 module github.com/kubebb/core
 
-go 1.20
+go 1.21
+
+toolchain go1.21.5
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.0
@@ -32,7 +34,7 @@ require (
 require (
 	github.com/goharbor/go-client v0.26.2
 	github.com/google/go-github/v54 v54.0.1-0.20230830144129-e3cda7864bce
-	github.com/kubeagi/arcadia v0.1.0
+	github.com/kubeagi/arcadia v0.1.1-0.20240109075426-459dcdee8128
 	github.com/spf13/cobra v1.6.1
 	github.com/tektoncd/pipeline v0.40.2
 	golang.org/x/oauth2 v0.13.0
@@ -62,7 +64,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.3 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
 	github.com/Shopify/logrus-bugsnag v0.0.0-20171204204709-577dee27f20d // indirect
-	github.com/amikos-tech/chroma-go v0.0.0-20230901221218-d0087270239e // indirect
+	github.com/amikos-tech/chroma-go v0.0.0-20231228181736-e8f5e927093e // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
@@ -193,7 +195,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tmc/langchaingo v0.0.0-20231209214832-00f364f27fe2 // indirect
+	github.com/tmc/langchaingo v0.1.3 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect

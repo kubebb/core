@@ -9,6 +9,7 @@ on:
 
 env:
   LOG_DIR: "/tmp/kubebb-core-example-test/logs"
+  GO_VER: "1.21.6"
 
 concurrency:
   group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
@@ -34,6 +35,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           make docker-build
+
       - name: Save operator image to /tmp
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -77,6 +79,10 @@ jobs:
         run: |
           mkdir -p ${GITHUB_WORKSPACE}/bin 
           cp /usr/local/bin/kustomize ${GITHUB_WORKSPACE}/bin/kustomize
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
       - name: Rating test
         run: config/samples/rating_test.sh
         env:
@@ -113,6 +119,9 @@ jobs:
         run: |
           mkdir -p ${GITHUB_WORKSPACE}/bin 
           cp /usr/local/bin/kustomize ${GITHUB_WORKSPACE}/bin/kustomize
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
       - name: Example test
         run: config/samples/example-test.sh
       - name: Upload logs if test fail

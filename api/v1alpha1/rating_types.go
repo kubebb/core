@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	arcadiav1 "github.com/kubeagi/arcadia/api/base/v1alpha1"
-	arcadiallms "github.com/kubeagi/arcadia/pkg/llms"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -87,7 +86,7 @@ type RatingSpec struct {
 
 type Evaluator struct {
 	// LLM defines the LLM to be used when evaluating the component
-	LLM arcadiallms.LLMType `json:"llm,omitempty"`
+	LLM *arcadiav1.TypedObjectReference `json:"llm,omitempty"`
 }
 
 type RatingStatus struct {

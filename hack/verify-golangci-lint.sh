@@ -15,6 +15,7 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 cd "${ROOT_PATH}"
 
 echo "running golangci-lint"
+golangci-lint --version
 
 if golangci-lint run ./...; then
 	echo "golangci-lint verified."
