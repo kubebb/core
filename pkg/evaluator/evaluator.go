@@ -169,7 +169,7 @@ func (evaluator *Evaluator) EvaluateWithData(ctx context.Context, data *Data, op
 	switch evaluator.llm.Spec.Type {
 	case llms.ZhiPuAI:
 		params := zhipuai.DefaultModelParams()
-		params.Model = llms.ZhiPuAILite
+		params.Model = llms.ZhiPuAIPro
 		params.Prompt = []zhipuai.Prompt{
 			{Role: zhipuai.User, Content: output.String()},
 		}
