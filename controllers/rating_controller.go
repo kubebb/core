@@ -339,8 +339,10 @@ func (r *RatingReconciler) PipelineRunUpdate(logger logr.Logger) func(event.Upda
 		}
 
 		// When pipelinerun succeeded and llm is set,evaluate this Rating status
-		if curCond.Reason == string(corev1alpha1.RatingSucceeded) && rating.Spec.LLM != "" {
-			arcEval, err := evaluator.NewEvaluator(logger, context.TODO(), r.Client, r.Scheme, types.NamespacedName{Namespace: rating.Namespace, Name: string(rating.Spec.Evaluator.LLM)})
+		if curCond.Reason == string(corev1alpha1.RatingSucceeded) && rating.Spec.LLM != nil {
+			llmNamespace := rating.Spec.LLM.GetNamespace(rating.Namespace)
+			arcEval, err := evaluator.NewEvaluator(logger, context.TODO(), r.Client, r.Scheme,
+				types.NamespacedName{Namespace: llmNamespace, Name: rating.Spec.LLM.Name})
 			if err != nil {
 				logger.Error(err, "failed to create arcadia evaluator")
 			} else {

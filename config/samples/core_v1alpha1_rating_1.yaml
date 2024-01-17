@@ -5,7 +5,10 @@ metadata:
   namespace: kubebb-system
 spec:
   evaluator:
-    llm: zhipuai
+    llm:
+      kind: LLM
+      name: zhipuai
+      namespace: kubebb-system
   componentName: repository-kubebb.kubebb-core
   pipelineParams:
     - pipelineName: component-reliability
