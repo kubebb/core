@@ -15,6 +15,13 @@ Kubebb Core provides core implementations on Component Lifecycle Management.Our 
 - automatically upgrade component with subscription
 - flexible and powerful manifest override mechanism
 
+
+## Qucik Start
+
+```shell
+./hack/quick-install.sh
+```
+
 ## Documentation
 
 To learn more about KubeBB Core,[go to complete documentation](https://kubebb.github.io/website/).
