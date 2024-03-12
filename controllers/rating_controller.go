@@ -100,7 +100,7 @@ func (r *RatingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return reconcile.Result{}, err
 	}
 	if requeue {
-		return reconcile.Result{Requeue: true}, nil
+		return reconcile.Result{Requeue: requeue}, nil
 	}
 
 	// update status to false when rating is disabled
@@ -148,28 +148,55 @@ func (r RatingReconciler) updateLabels(ctx context.Context, instance *corev1alph
 		instance.Labels[corev1alpha1.RatingRepositoryLabel] = component.Labels[corev1alpha1.ComponentRepositoryLabel]
 		updateLabel = true
 	}
-
-	if !updateLabel {
-		return false, nil
+	for _, p := range instance.Spec.PipelineParams {
+		shouldBreak := false
+		for _, pr := range p.Params {
+			if pr.Name == "VERSION" {
+				shouldBreak = true
+				if v, ok := instance.Labels[corev1alpha1.RatingComponentVersion]; !ok || v != pr.Value.StringVal {
+					instance.Labels[corev1alpha1.RatingComponentVersion] = pr.Value.StringVal
+					updateLabel = true
+				}
+				break
+			}
+		}
+		if shouldBreak {
+			break
+		}
 	}
 
-	if err := r.Client.Update(ctx, instance); err != nil {
-		return false, err
+	setOwner := true
+	for _, owner := range instance.OwnerReferences {
+		if owner.UID == component.UID {
+			setOwner = false
+			break
+		}
 	}
-	// when update labels, we should patch a initial status
-	instanceDeepCopy := instance.DeepCopy()
-	instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
-		Conditions: []corev1alpha1.Condition{
-			{
-				Status:             v1.ConditionFalse,
-				LastTransitionTime: metav1.Now(),
-				Reason:             corev1alpha1.ReasonCreated,
-				Message:            "Rating is created.",
-				Type:               corev1alpha1.TypeReady,
+	if setOwner {
+		_ = controllerutil.SetOwnerReference(component, instance, r.Scheme)
+	}
+
+	if updateLabel || setOwner {
+		return true, r.Client.Update(ctx, instance)
+	}
+
+	if len(instance.Status.Conditions) == 0 {
+		// when update labels, we should patch a initial status
+		instanceDeepCopy := instance.DeepCopy()
+		instanceDeepCopy.Status.ConditionedStatus = corev1alpha1.ConditionedStatus{
+			Conditions: []corev1alpha1.Condition{
+				{
+					Status:             v1.ConditionFalse,
+					LastTransitionTime: metav1.Now(),
+					Reason:             corev1alpha1.ReasonCreated,
+					Message:            "Rating is created.",
+					Type:               corev1alpha1.TypeReady,
+				},
 			},
-		},
+		}
+		return true, r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance))
 	}
-	return true, r.Client.Status().Patch(ctx, instanceDeepCopy, client.MergeFrom(instance))
+	return false, nil
 }
 
 func (r *RatingReconciler) CreatePipelineRun(logger logr.Logger, ctx context.Context, instance *corev1alpha1.Rating) error {

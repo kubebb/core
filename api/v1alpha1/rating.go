@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	RatingComponentLabel  = "rating.component"
-	RatingRepositoryLabel = "rating.repository"
+	RatingComponentLabel   = "rating.component"
+	RatingRepositoryLabel  = "rating.repository"
+	RatingComponentVersion = "rating.version"
 
 	PipelineRun2RatingLabel     = "rating.pipelinerun"
 	PipelineRun2ComponentLabel  = "rating.pipelinerun.component"
